@@ -196,6 +196,11 @@ type agentDTO struct { //nolint:govet // field order matches JSON/API contract
 	Children     []string          `json:"children,omitempty"`
 	TotalCostUSD float64           `json:"total_cost_usd"`
 	TotalTokens  int64             `json:"total_tokens"`
+	// CPUs / MemoryMB are the agent's per-agent Docker resource caps (0 =
+	// inherit the fleet default). Surfaced so the Insights resource panel
+	// can total configured caps without a per-agent config fetch.
+	CPUs     float64 `json:"cpus,omitempty"`
+	MemoryMB int64   `json:"memory_mb,omitempty"`
 }
 
 // agentStatsDTO holds resource metrics included when ?include=stats is set.
@@ -232,6 +237,8 @@ func toDTO(a *agent.Agent) agentDTO {
 		ArchivedAt: a.ArchivedAt,
 		Repo:       a.Repo,
 		Env:        a.Env,
+		CPUs:       a.CPUs,
+		MemoryMB:   a.MemoryMB,
 	}
 }
 

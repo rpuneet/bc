@@ -25,18 +25,26 @@ const formatTime = (t?: string): string => formatAbsolute(t);
 const formatRelative = (t?: string): string => sharedFormatRelative(t, { emptyLabel: "" });
 
 /* ═══════════════════════════════════════════════════════════════════
-   Tab types — v3: Live / Attach / Config / Metrics
+   Tab types — v3: Live / Attach / Settings / Metrics
    ═══════════════════════════════════════════════════════════════════ */
 
-type Tab = "attach" | "live" | "config" | "metrics" | "code";
+type Tab = "attach" | "live" | "settings" | "metrics" | "code";
 
 const TABS: { key: Tab; label: string; shortcut: string }[] = [
   { key: "attach", label: "Attach", shortcut: "1" },
   { key: "live", label: "Live", shortcut: "2" },
-  { key: "config", label: "Config", shortcut: "3" },
+  { key: "settings", label: "Settings", shortcut: "3" },
   { key: "metrics", label: "Metrics", shortcut: "4" },
   { key: "code", label: "Code", shortcut: "5" },
 ];
+
+/** Map a URL sub-path segment to a tab. The legacy `config` segment
+ *  resolves to the renamed Settings tab so old deep links keep working. */
+function tabForSegment(seg: string | undefined): Tab | null {
+  if (seg === "config") return "settings";
+  const known: Tab[] = ["attach", "live", "settings", "metrics", "code"];
+  return known.includes(seg as Tab) ? (seg as Tab) : null;
+}
 
 /* ═══════════════════════════════════════════════════════════════════
    Section chrome
@@ -421,12 +429,271 @@ function AttachOverlay({
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   Tab 3 — Config
-   System prompt, MCP servers, metadata, danger zone
-   ═══════════════════════════════════════════════════════════════════ */
+/* ── shared save-pill for the Settings sub-panels ──────────────────── */
 
-function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
+type SaveState = "idle" | "saving" | "saved" | "error";
+
+function SavePill({ state, error }: { state: SaveState; error?: string | null }) {
+  if (state === "saving") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[11px] text-mycel-muted" role="status">
+        <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden>
+          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" opacity="0.25" />
+          <path d="M21 12a9 9 0 00-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+        </svg>
+        Saving…
+      </span>
+    );
+  }
+  if (state === "saved") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[11px] text-mycel-success" role="status">
+        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M20 6L9 17l-5-5" />
+        </svg>
+        Saved
+      </span>
+    );
+  }
+  if (state === "error") {
+    return (
+      <span className="text-[11px] text-mycel-error" role="alert">
+        {error ?? "Save failed"}
+      </span>
+    );
+  }
+  return null;
+}
+
+const SETTINGS_SELECT_CLS =
+  "w-full rounded-md border border-mycel-border-strong bg-mycel-bg px-2.5 py-1.5 text-[13px] text-mycel-text outline-none focus:border-mycel-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+const SETTINGS_INPUT_CLS =
+  "w-32 rounded-md border border-mycel-border-strong bg-mycel-bg px-2.5 py-1.5 text-[13px] tabular-nums text-mycel-text placeholder:text-mycel-muted outline-none focus:border-mycel-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+
+/* ── Provider & Model override ──────────────────────────────────────
+ * The provider (tool) is fixed for an agent's lifetime — switching it
+ * would need a fresh container image, so it's shown read-only with an
+ * honest note. The model, however, is genuinely re-read on restart, so
+ * it is a live picker bound to PATCH /config { model }.
+ */
+function ProviderModelSection({
+  agentName,
+  tool,
+  model,
+  onSaved,
+}: {
+  agentName: string;
+  tool: string;
+  model: string;
+  onSaved: () => void;
+}) {
+  const [models, setModels] = useState<Array<{ id: string; available: boolean }>>([]);
+  const [selected, setSelected] = useState(model);
+  const [save, setSave] = useState<SaveState>("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => { setSelected(model); }, [model]);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .listProviders()
+      .then((providers) => {
+        if (!alive) return;
+        const p = providers.find((x) => x.name === tool);
+        setModels((p?.models ?? []).map((m) => ({ id: m.id, available: m.available })));
+      })
+      .catch(() => { /* degrade to no model list */ });
+    return () => { alive = false; };
+  }, [tool]);
+
+  const persist = useCallback(
+    async (next: string) => {
+      setSelected(next);
+      setSave("saving");
+      setSaveError(null);
+      try {
+        await api.patchAgentConfig(agentName, { model: next });
+        setSave("saved");
+        onSaved();
+        setTimeout(() => setSave("idle"), 1800);
+      } catch (err) {
+        setSelected(model);
+        setSaveError(err instanceof Error ? err.message : "Save failed");
+        setSave("error");
+      }
+    },
+    [agentName, model, onSaved],
+  );
+
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-1">
+        <SectionRule>Provider &amp; Model</SectionRule>
+        <div className="min-h-[16px]"><SavePill state={save} error={saveError} /></div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label className="block">
+          <span className="block text-[11px] text-mycel-text-2 mb-1">Provider</span>
+          <input
+            type="text"
+            value={tool || "—"}
+            disabled
+            aria-label="Provider (fixed for this agent)"
+            className={SETTINGS_SELECT_CLS}
+            style={{ fontFamily: MONO }}
+          />
+        </label>
+        <label className="block">
+          <span className="block text-[11px] text-mycel-text-2 mb-1">Model override</span>
+          <select
+            className={SETTINGS_SELECT_CLS}
+            value={selected}
+            disabled={save === "saving" || models.length === 0}
+            onChange={(e) => { void persist(e.target.value); }}
+            aria-label="Model override"
+            style={{ fontFamily: MONO }}
+          >
+            <option value="">Provider default</option>
+            {models.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.id}{m.available ? "" : " · unverified"}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <p className="mt-2 text-xs text-mycel-muted leading-relaxed">
+        {models.length === 0
+          ? "This provider exposes no model list — its own default is used. "
+          : "Model applies on the agent’s next restart. "}
+        Switching provider isn’t supported in place — clone the agent onto a different
+        provider instead.
+        {/* follow-up: a real per-agent provider switch needs a container re-image. */}
+      </p>
+    </section>
+  );
+}
+
+/* ── Resource limits (CPU / Memory) ─────────────────────────────────
+ * Per-agent Docker caps, bound to PATCH /config { cpus, memory_mb }.
+ * Blank inputs clear the override (send 0) so the fleet default applies.
+ * For tmux agents the limits are stored but not enforced — labelled so.
+ */
+function ResourceLimitsSection({
+  agentName,
+  isDocker,
+  cpus,
+  memoryMB,
+  onSaved,
+}: {
+  agentName: string;
+  isDocker: boolean;
+  cpus: number;
+  memoryMB: number;
+  onSaved: () => void;
+}) {
+  const [cpuInput, setCpuInput] = useState(cpus > 0 ? String(cpus) : "");
+  const [memInput, setMemInput] = useState(memoryMB > 0 ? String(memoryMB) : "");
+  const [defaults, setDefaults] = useState<{ cpus: number; memory_mb: number } | null>(null);
+  const [save, setSave] = useState<SaveState>("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => { setCpuInput(cpus > 0 ? String(cpus) : ""); }, [cpus]);
+  useEffect(() => { setMemInput(memoryMB > 0 ? String(memoryMB) : ""); }, [memoryMB]);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .getSettings()
+      .then((cfg) => { if (alive) setDefaults({ cpus: cfg.runtime?.docker?.cpus ?? 0, memory_mb: cfg.runtime?.docker?.memory_mb ?? 0 }); })
+      .catch(() => { /* placeholder stays generic */ });
+    return () => { alive = false; };
+  }, []);
+
+  const dirty =
+    (cpuInput.trim() === "" ? 0 : Number(cpuInput)) !== cpus ||
+    (memInput.trim() === "" ? 0 : Number(memInput)) !== memoryMB;
+  const cpuNum = cpuInput.trim() === "" ? 0 : Number(cpuInput);
+  const memNum = memInput.trim() === "" ? 0 : Number(memInput);
+  const invalid =
+    (cpuInput.trim() !== "" && (!Number.isFinite(cpuNum) || cpuNum < 0)) ||
+    (memInput.trim() !== "" && (!Number.isFinite(memNum) || memNum < 0 || !Number.isInteger(memNum)));
+
+  const handleSave = useCallback(async () => {
+    if (invalid) return;
+    setSave("saving");
+    setSaveError(null);
+    try {
+      await api.patchAgentConfig(agentName, { cpus: cpuNum, memory_mb: memNum });
+      setSave("saved");
+      onSaved();
+      setTimeout(() => setSave("idle"), 1800);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Save failed");
+      setSave("error");
+    }
+  }, [agentName, cpuNum, memNum, invalid, onSaved]);
+
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-1">
+        <SectionRule>Resource Limits</SectionRule>
+        <div className="min-h-[16px]"><SavePill state={save} error={saveError} /></div>
+      </div>
+      <div className="flex flex-wrap items-end gap-4">
+        <label className="block">
+          <span className="block text-[11px] text-mycel-text-2 mb-1">CPU (cores)</span>
+          <input
+            type="number"
+            min={0}
+            step={0.5}
+            value={cpuInput}
+            onChange={(e) => setCpuInput(e.target.value)}
+            placeholder={defaults ? `default ${defaults.cpus}` : "default"}
+            aria-label="CPU cores cap"
+            className={SETTINGS_INPUT_CLS}
+            style={{ fontFamily: MONO }}
+          />
+        </label>
+        <label className="block">
+          <span className="block text-[11px] text-mycel-text-2 mb-1">Memory (MB)</span>
+          <input
+            type="number"
+            min={0}
+            step={256}
+            value={memInput}
+            onChange={(e) => setMemInput(e.target.value)}
+            placeholder={defaults ? `default ${defaults.memory_mb}` : "default"}
+            aria-label="Memory MB cap"
+            className={SETTINGS_INPUT_CLS}
+            style={{ fontFamily: MONO }}
+          />
+        </label>
+        <button
+          type="button"
+          disabled={!dirty || invalid || save === "saving"}
+          onClick={() => { void handleSave(); }}
+          className="inline-flex items-center h-9 px-3 rounded-md text-xs font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover active:scale-[0.98] shadow-mycel-sm transition-all disabled:opacity-40 disabled:pointer-events-none"
+        >
+          {save === "saving" ? "Saving…" : "Save limits"}
+        </button>
+      </div>
+      {invalid && (
+        <p className="mt-2 text-xs text-mycel-error">
+          CPU must be a non-negative number; memory must be a whole number of MB.
+        </p>
+      )}
+      <p className="mt-2 text-xs text-mycel-muted leading-relaxed">
+        {isDocker
+          ? "Applied to the container on the agent’s next restart. Leave blank to inherit the fleet default. Caps prevent one agent from starving the host."
+          : "This agent runs under tmux on the host, where per-agent CPU/memory caps are not enforced. Limits are saved and will apply if the agent moves to the Docker runtime."}
+      </p>
+    </section>
+  );
+}
+
+function SettingsTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
   const navigate = useNavigate();
   const [config, setConfig] = useState<AgentConfig | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
@@ -474,6 +741,15 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
       .finally(() => {
         setMcpLoading(false);
       });
+  }, [agent.name]);
+
+  // Re-fetch the agent config (system prompt, model, resource caps) after a
+  // sub-panel persists a change so the surface reflects what's on disk.
+  const reloadConfig = useCallback(() => {
+    api
+      .getAgentConfig(agent.name)
+      .then((data) => setConfig(data))
+      .catch(() => { /* best-effort */ });
   }, [agent.name]);
 
   useEffect(() => {
@@ -654,6 +930,23 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
           value={config?.system_prompt ?? ""}
           loading={configLoading}
           onSave={handleSystemPromptSave}
+        />
+
+        {/* ── PROVIDER & MODEL ── */}
+        <ProviderModelSection
+          agentName={agent.name}
+          tool={agent.tool ?? config?.tool ?? ""}
+          model={config?.model ?? agent.model ?? ""}
+          onSaved={reloadConfig}
+        />
+
+        {/* ── RESOURCE LIMITS ── */}
+        <ResourceLimitsSection
+          agentName={agent.name}
+          isDocker={isDocker}
+          cpus={config?.cpus ?? agent.cpus ?? 0}
+          memoryMB={config?.memory_mb ?? agent.memory_mb ?? 0}
+          onSaved={reloadConfig}
         />
 
         {/* ── TEMPLATE ── */}
@@ -1123,8 +1416,7 @@ export function AgentDetail() {
   const tabFromPath = useMemo<Tab>(() => {
     const segments = location.pathname.split("/");
     const last = segments[segments.length - 1];
-    const candidates: Tab[] = ["attach", "live", "config", "metrics", "code"];
-    return (candidates.includes(last as Tab) ? (last as Tab) : "attach");
+    return tabForSegment(last) ?? "attach";
   }, [location.pathname]);
   const [activeTab, setActiveTab] = useState<Tab>(tabFromPath);
 
@@ -1181,7 +1473,7 @@ export function AgentDetail() {
           selectTab("live");
           break;
         case "3":
-          selectTab("config");
+          selectTab("settings");
           break;
         case "4":
           selectTab("metrics");
@@ -1383,7 +1675,7 @@ export function AgentDetail() {
           />
         )}
         {activeTab === "attach" && <AttachTab agent={agent} />}
-        {activeTab === "config" && <ConfigTab agent={agent} agentsUrl={agentsUrl} />}
+        {activeTab === "settings" && <SettingsTab agent={agent} agentsUrl={agentsUrl} />}
         {activeTab === "metrics" && <MetricsTab agent={agent} />}
         {activeTab === "code" && <CodeTab agent={agent} />}
       </div>

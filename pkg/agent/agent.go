@@ -62,6 +62,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -394,8 +395,17 @@ type Agent struct {
 	Role           Role       `json:"role"`
 	State          State      `json:"state"`
 	Children       []string   `json:"children,omitempty"`
-	CrashCount     int        `json:"crash_count,omitempty"`
-	IsRoot         bool       `json:"is_root,omitempty"`
+	// CPUs is a per-agent Docker CPU cap (cores, e.g. 1.5). Zero means
+	// inherit the fleet default (prefs runtime.docker.cpus). Enforced only
+	// for the Docker runtime — tmux agents run unconstrained on the host.
+	// Applied at the next session (re)start via the --cpus docker flag.
+	CPUs float64 `json:"cpus,omitempty"`
+	// MemoryMB is a per-agent Docker memory cap (MB). Zero means inherit
+	// the fleet default (prefs runtime.docker.memory_mb). Docker-only,
+	// like CPUs; applied at the next session (re)start via --memory.
+	MemoryMB   int64 `json:"memory_mb,omitempty"`
+	CrashCount int   `json:"crash_count,omitempty"`
+	IsRoot     bool  `json:"is_root,omitempty"`
 }
 
 // HasCapability checks if this agent has a specific capability.
@@ -1232,6 +1242,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	if apiKey := os.Getenv("MYCEL_API_KEY"); apiKey != "" {
 		env["MYCEL_API_KEY"] = apiKey
 	}
+	injectResourceLimits(env, existing.CPUs, existing.MemoryMB)
 	injectEnv(env, repoPath, name, existing.EnvFile, existing.Env)
 	injectAppEnv(env, m.appsConfig)
 	secretEnvKeys := injectVaultSecrets(env, repoPath, resolveRoleSecrets(repoPath, string(existing.Role)), m.appsConfig)
@@ -1476,6 +1487,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	if apiKey := os.Getenv("MYCEL_API_KEY"); apiKey != "" {
 		env["MYCEL_API_KEY"] = apiKey
 	}
+	injectResourceLimits(env, agent.CPUs, agent.MemoryMB)
 	injectEnv(env, repoPath, name, opts.EnvFile, opts.Env)
 	injectAppEnv(env, m.appsConfig)
 	secretEnvKeys := injectVaultSecrets(env, repoPath, resolveRoleSecrets(repoPath, string(role)), m.appsConfig)
@@ -2452,6 +2464,78 @@ func (m *Manager) SetAgentEnv(ctx context.Context, name string, env map[string]s
 	return nil
 }
 
+// SetAgentResources sets a per-agent Docker CPU/memory cap. Values of 0
+// clear the override and fall back to the fleet default. The new caps
+// take effect on the next session (re)start — a running container is not
+// resized in place. Docker-only; stored regardless of runtime so a later
+// switch to Docker honors them.
+func (m *Manager) SetAgentResources(ctx context.Context, name string, cpus float64, memoryMB int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	a, exists := m.agents[name]
+	if !exists {
+		return fmt.Errorf("agent %s: %w", name, ErrNotFound)
+	}
+	a.CPUs = cpus
+	a.MemoryMB = memoryMB
+	a.UpdatedAt = time.Now()
+
+	if err := m.saveState(ctx); err != nil {
+		return fmt.Errorf("save agent state: %w", err)
+	}
+	return nil
+}
+
+// SetAgentResourcesPartial atomically merges the supplied CPU/memory
+// overrides into the agent's current stored values under a single lock.
+// Nil pointers leave the corresponding field untouched, so two concurrent
+// partial updates (one setting only cpus, the other only memory_mb) cannot
+// lose each other's change — the read and write happen inside the same lock,
+// never against a snapshot taken before it. Returns the merged values.
+func (m *Manager) SetAgentResourcesPartial(ctx context.Context, name string, cpus *float64, memoryMB *int64) (resolvedCPUs float64, resolvedMemoryMB int64, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	a, exists := m.agents[name]
+	if !exists {
+		return 0, 0, fmt.Errorf("agent %s: %w", name, ErrNotFound)
+	}
+	if cpus != nil {
+		a.CPUs = *cpus
+	}
+	if memoryMB != nil {
+		a.MemoryMB = *memoryMB
+	}
+	a.UpdatedAt = time.Now()
+
+	if saveErr := m.saveState(ctx); saveErr != nil {
+		return 0, 0, fmt.Errorf("save agent state: %w", saveErr)
+	}
+	return a.CPUs, a.MemoryMB, nil
+}
+
+// SetAgentModel sets the provider model identifier the agent runs with.
+// An empty string clears the override, restoring the provider default. The
+// new model is reused on the next session (re)start — the running session
+// is not re-launched in place.
+func (m *Manager) SetAgentModel(ctx context.Context, name, model string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	a, exists := m.agents[name]
+	if !exists {
+		return fmt.Errorf("agent %s: %w", name, ErrNotFound)
+	}
+	a.Model = model
+	a.UpdatedAt = time.Now()
+
+	if err := m.saveState(ctx); err != nil {
+		return fmt.Errorf("save agent state: %w", err)
+	}
+	return nil
+}
+
 // UpdateAgentState updates an agent's state and task.
 // Returns an error if the transition is invalid per the state machine.
 func (m *Manager) UpdateAgentState(ctx context.Context, name string, state State, task string) error {
@@ -3013,6 +3097,20 @@ func daemonAddrForRuntime(rt string) string {
 		return "http://host.docker.internal:9374"
 	}
 	return "http://127.0.0.1:9374"
+}
+
+// injectResourceLimits exposes an agent's per-agent Docker CPU/memory caps
+// to the runtime backend via MYCEL_CPUS / MYCEL_MEMORY_MB. The Docker
+// backend reads these to override the fleet-default --cpus/--memory flags
+// for this one container. Zero values are omitted so the backend keeps the
+// fleet default. tmux ignores them (limits are not enforced there).
+func injectResourceLimits(env map[string]string, cpus float64, memoryMB int64) {
+	if cpus > 0 {
+		env["MYCEL_CPUS"] = strconv.FormatFloat(cpus, 'f', -1, 64)
+	}
+	if memoryMB > 0 {
+		env["MYCEL_MEMORY_MB"] = strconv.FormatInt(memoryMB, 10)
+	}
 }
 
 // injectEnv merges environment variables from the agent env file and the
