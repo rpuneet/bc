@@ -476,16 +476,23 @@ func (s *AgentService) Get(ctx context.Context, name string) (*Agent, error) {
 }
 
 func (s *AgentService) publishEvent(eventType string, data map[string]any) {
+	s.publishEventPersisted(eventType, data, false)
+}
+
+// publishEventPersisted broadcasts an event and, unless it was already
+// persisted, appends it to the hook store as a birth-to-death activity
+// timeline (#37). alreadyPersisted=true is passed by IngestHookEvent when it
+// has already written the event directly, so the store append here would be a
+// double-write — but it stays false when that direct write failed, letting
+// this path persist the event as a backup rather than silently losing it.
+func (s *AgentService) publishEventPersisted(eventType string, data map[string]any, alreadyPersisted bool) {
 	if s.events != nil {
 		s.events.Publish(eventType, data)
 	}
 	// Persist agent lifecycle events so every agent has an activity
 	// timeline from birth — hook-less providers (cursor, agy, pi) would
-	// otherwise show an empty Live section forever (#37). Hook events
-	// persist separately in IngestHookEvent, which also broadcasts them
-	// here via publishEvent("agent.hook", ...) for the web UI hub — skip
-	// them so they aren't double-appended to the event store.
-	if s.hookStore == nil || eventType == "agent.hook" {
+	// otherwise show an empty Live section forever (#37).
+	if s.hookStore == nil || alreadyPersisted {
 		return
 	}
 	agentName, _ := data["name"].(string)

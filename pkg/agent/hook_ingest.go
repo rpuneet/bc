@@ -97,7 +97,10 @@ func (s *AgentService) IngestHookEvent(ctx context.Context, name string, payload
 	fields := hookPayloadFields(payload)
 
 	// Persist raw JSON body to event log — raw body in Message for full
-	// observability; structured fields in Data for typed queries.
+	// observability; structured fields in Data for typed queries. Track
+	// whether this succeeded so the publishEvent fallback below can persist
+	// as a backup on failure without double-writing on success.
+	persisted := false
 	if s.hookStore != nil {
 		eventData := map[string]any{"event": string(payload.Event)}
 		for k, v := range fields {
@@ -106,13 +109,17 @@ func (s *AgentService) IngestHookEvent(ctx context.Context, name string, payload
 		if payload.Message != "" {
 			eventData["message"] = payload.Message
 		}
-		_ = s.hookStore.Append(events.Event{ //nolint:errcheck // best-effort logging
+		if err := s.hookStore.Append(events.Event{
 			Timestamp: now,
 			Type:      events.EventType("hook." + string(payload.Event)),
 			Agent:     name,
 			Message:   string(raw),
 			Data:      eventData,
-		})
+		}); err != nil {
+			log.Debug("hook event append failed", "agent", name, "event", payload.Event, "error", err)
+		} else {
+			persisted = true
+		}
 	}
 
 	// Notify the registered per-agent event callback (SSE subscribers).
@@ -133,7 +140,10 @@ func (s *AgentService) IngestHookEvent(ctx context.Context, name string, payload
 	var rawMap map[string]any
 	if err := json.Unmarshal(raw, &rawMap); err == nil {
 		rawMap["agent"] = name
-		s.publishEvent("agent.hook", rawMap)
+		// alreadyPersisted skips the store append in the success case (we
+		// persisted directly above); on a direct-append failure it lets the
+		// fallback persist so the event is never silently lost.
+		s.publishEventPersisted("agent.hook", rawMap, persisted)
 	}
 
 	return nil

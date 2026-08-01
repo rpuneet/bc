@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -19,6 +20,24 @@ type fakeHookAppender struct {
 }
 
 func (f *fakeHookAppender) Append(event events.Event) error {
+	f.events = append(f.events, event)
+	return nil
+}
+
+// flakyHookAppender fails its first failNext appends (recording nothing for
+// them, as a real failing store would) and records every append after that.
+// It lets a test drive the direct-append failure path in IngestHookEvent and
+// observe that the publishEvent fallback still persists the event.
+type flakyHookAppender struct {
+	events   []events.Event
+	failNext int
+}
+
+func (f *flakyHookAppender) Append(event events.Event) error {
+	if f.failNext > 0 {
+		f.failNext--
+		return errors.New("append failed")
+	}
 	f.events = append(f.events, event)
 	return nil
 }
@@ -97,6 +116,39 @@ func TestIngestHookEvent_NoToolResponse(t *testing.T) {
 	}
 	if _, ok := appender.events[0].Data["tool_response"]; ok {
 		t.Error("Data should not contain tool_response when payload has none")
+	}
+}
+
+// TestIngestHookEvent_DirectAppendFailsFallbackPersists verifies that when the
+// direct hookStore.Append in IngestHookEvent fails, the publishEvent fallback
+// still persists the event exactly once — the event is never silently lost,
+// and there is no double-write.
+func TestIngestHookEvent_DirectAppendFailsFallbackPersists(t *testing.T) {
+	mgr := newTestManager(t)
+	svc := NewAgentService(mgr, nil, nil)
+
+	// failNext=1: the direct append inside IngestHookEvent fails (records
+	// nothing); the publishEvent("agent.hook") fallback then appends
+	// successfully.
+	appender := &flakyHookAppender{failNext: 1}
+	svc.SetHookEventStore(appender)
+
+	payload := HookPayload{
+		Event:        HookPostToolUse,
+		ToolName:     "Bash",
+		ToolInput:    map[string]any{"command": "echo hi"},
+		ToolResponse: map[string]any{"stdout": "hi\n"},
+	}
+
+	if err := svc.IngestHookEvent(context.Background(), "does-not-exist", payload, nil); err != nil {
+		t.Fatalf("IngestHookEvent: %v", err)
+	}
+
+	if len(appender.events) != 1 {
+		t.Fatalf("expected event persisted once via fallback, got %d persisted", len(appender.events))
+	}
+	if appender.failNext != 0 {
+		t.Fatalf("expected the direct append to have failed once, failNext=%d", appender.failNext)
 	}
 }
 
