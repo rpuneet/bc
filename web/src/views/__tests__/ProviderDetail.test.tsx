@@ -64,6 +64,7 @@ function renderDetail(provider: ReturnType<typeof baseProvider>) {
     const u = String(url);
     if (u.endsWith("/commands")) return jsonResponse([]);
     if (u.endsWith("/mcps")) return jsonResponse([]);
+    if (u.endsWith("/models")) return jsonResponse(provider.models ?? []);
     if (u === "/api/deps/install" && init?.method === "POST") {
       return streamResponse([
         '{"type":"start","command":"npm install -g @openai/codex"}\n',
@@ -76,6 +77,15 @@ function renderDetail(provider: ReturnType<typeof baseProvider>) {
         '{"type":"start","command":"npm install -g @openai/codex"}\n',
         '{"type":"done","code":0}\n',
       ]);
+    }
+    if (u.endsWith("/uninstall") && init?.method === "POST") {
+      return streamResponse([
+        '{"type":"start","command":"npm uninstall -g @openai/codex"}\n',
+        '{"type":"done","code":0}\n',
+      ]);
+    }
+    if (u === "/api/secrets" && init?.method === "POST") {
+      return jsonResponse({ name: "OPENAI_API_KEY", description: "", backend: "vault", created_at: "" });
     }
     if (u === `/api/providers/${provider.name}`) return jsonResponse(provider);
     return jsonResponse(provider);
@@ -151,6 +161,7 @@ describe("ProviderDetail update", () => {
       const u = String(url);
       if (u.endsWith("/commands")) return jsonResponse([]);
       if (u.endsWith("/mcps")) return jsonResponse([]);
+      if (u.endsWith("/models")) return jsonResponse([]);
       if (u.endsWith("/check-update") && init?.method === "POST") {
         return jsonResponse({ current_version: "1.0.0", latest_version: "", update_command: "npm install -g @openai/codex", update_available: false, checked: false });
       }
@@ -170,6 +181,93 @@ describe("ProviderDetail update", () => {
     fireEvent.click(checkBtn);
 
     await waitFor(() => expect(screen.getByText(/couldn't verify the latest release automatically/)).toBeTruthy());
+  });
+});
+
+describe("ProviderDetail uninstall", () => {
+  it("streams a real uninstall via POST /api/providers/:name/uninstall after a two-click confirm, and is hidden for the default provider", async () => {
+    renderDetail(baseProvider({ installed: true, version: "1.0.0", status: "healthy", config: { default: "false" } }));
+
+    const removeBtn = await screen.findByRole("button", { name: "Remove" });
+    fireEvent.click(removeBtn);
+    const confirmBtn = await screen.findByRole("button", { name: "Confirm remove" });
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      const calls = fetchMock.mock.calls.filter(([u]) => u === "/api/providers/codex/uninstall");
+      expect(calls.length).toBe(1);
+    });
+    const [, init] = fetchMock.mock.calls.find(([u]) => u === "/api/providers/codex/uninstall") as [string, RequestInit];
+    expect(init.method).toBe("POST");
+  });
+
+  it("does not offer Remove for the default provider", async () => {
+    renderDetail(baseProvider({ installed: true, version: "1.0.0", status: "healthy", config: { default: "true" } }));
+
+    await screen.findByRole("heading", { name: "codex" });
+    expect(screen.queryByRole("button", { name: "Remove" })).toBeNull();
+  });
+
+  it("does not offer Remove when the provider isn't installed", async () => {
+    renderDetail(baseProvider({ installed: false, config: { default: "false" } }));
+
+    await screen.findByRole("heading", { name: "codex" });
+    expect(screen.queryByRole("button", { name: "Remove" })).toBeNull();
+  });
+});
+
+describe("ProviderDetail models", () => {
+  it("renders verified and unverified rows from GET /api/providers/:name/models", async () => {
+    renderDetail(
+      baseProvider({
+        installed: true,
+        version: "1.0.0",
+        status: "healthy",
+        models: [
+          { id: "gpt-5-codex", available: true },
+          { id: "gpt-5-mini", available: false },
+        ],
+      }),
+    );
+
+    await screen.findByText("gpt-5-codex");
+    expect(screen.getByText("Verified")).toBeTruthy();
+    expect(screen.getByText("gpt-5-mini")).toBeTruthy();
+    expect(screen.getByText("Unverified — static fallback")).toBeTruthy();
+  });
+
+  it("shows an empty state when the provider has no curated model list", async () => {
+    renderDetail(baseProvider({ models: [] }));
+
+    await waitFor(() => expect(screen.getByText("No models")).toBeTruthy());
+  });
+});
+
+describe("ProviderDetail sign-in", () => {
+  it("stores an API key in the vault via createSecret for an API-key provider", async () => {
+    renderDetail(baseProvider({ name: "codex", installed: true, version: "1.0.0", status: "healthy" }));
+
+    const signInBtn = await screen.findByRole("button", { name: /sign in/i });
+    fireEvent.click(signInBtn);
+
+    const input = await screen.findByPlaceholderText("OPENAI_API_KEY");
+    fireEvent.change(input, { target: { value: "sk-test-123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      const calls = fetchMock.mock.calls.filter(([u]) => u === "/api/secrets");
+      expect(calls.length).toBe(1);
+    });
+    const [, init] = fetchMock.mock.calls.find(([u]) => u === "/api/secrets") as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toMatchObject({ name: "OPENAI_API_KEY", value: "sk-test-123" });
+  });
+
+  it("shows an honest copyable login command (not a fake button) for an interactive-only provider", async () => {
+    renderDetail(baseProvider({ name: "cursor", binary: "cursor-agent", install_hint: "https://cursor.sh", installed: true, version: "1.0.0", status: "healthy" }));
+
+    await waitFor(() => expect(screen.getByText("cursor-agent login")).toBeTruthy());
+    expect(screen.getByText("Interactive")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /sign in/i })).toBeNull();
   });
 });
 

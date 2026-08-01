@@ -1282,6 +1282,23 @@ export const api = {
     });
     return consumeProviderStream(res, onEvent);
   },
+  /**
+   * streamProviderUninstall removes a provider for real: POST
+   * /api/providers/:name/uninstall derives a remove command from the
+   * provider's vetted install hint (npm-global or Homebrew) and streams live
+   * NDJSON output back, the same execution model as streamProviderUpdate.
+   * The server refuses the currently-configured default provider (400)
+   * before any stream starts — that surfaces here as a thrown Error.
+   */
+  streamProviderUninstall: async (
+    name: string,
+    onEvent: (ev: ProviderInstallEvent) => void,
+  ): Promise<number> => {
+    const res = await fetch(`${BASE}/providers/${encodeURIComponent(name)}/uninstall`, {
+      method: "POST",
+    });
+    return consumeProviderStream(res, onEvent);
+  },
   updateProviderConfig: (name: string, config: Record<string, string>) =>
     request<{ status: string; provider: string; command: string }>(`/providers/${encodeURIComponent(name)}/config`, {
       method: "PATCH",
