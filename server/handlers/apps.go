@@ -101,6 +101,15 @@ func descriptorJSON(p app.Plugin) appDescriptorJSON {
 		docs = []string{}
 	}
 	_, oauthAvailable := p.(app.OAuthFlow)
+	// A flow that can report its own readiness (server-side client creds
+	// present) gates oauth_available on that — so the UI never shows a
+	// browser-sign-in button that would immediately fail, and falls back to
+	// honest token paste instead.
+	if oauthAvailable {
+		if cfg, ok := p.(app.OAuthConfigured); ok {
+			oauthAvailable = cfg.OAuthConfigured()
+		}
+	}
 	return appDescriptorJSON{
 		ID:             d.ID,
 		Label:          d.Label,

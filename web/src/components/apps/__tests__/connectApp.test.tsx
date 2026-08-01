@@ -61,6 +61,19 @@ const catalog = {
       ],
       docs: [],
     },
+    {
+      id: "gmail",
+      label: "Gmail",
+      auth: "token",
+      multi: false,
+      oauth_available: true,
+      fields: [
+        { key: "client_id", label: "OAuth Client ID", placeholder: "xxxx.apps.googleusercontent.com", secret: true, required: true },
+        { key: "client_secret", label: "OAuth Client Secret", placeholder: "GOCSPX-...", secret: true, required: true },
+        { key: "refresh_token", label: "OAuth Refresh Token", placeholder: "1//0g...", secret: true, required: true },
+      ],
+      docs: [],
+    },
   ],
   instances: [
     { name: "slack", app: "slack", enabled: true, connected: true, config: { has_bot_token: true, has_app_token: false, mode: "socket" }, channels: [] },
@@ -273,8 +286,9 @@ describe("ConnectWizard OAuth", () => {
     await waitFor(() => {
       expect(screen.getByText("Connect GitHub")).toBeInTheDocument();
     });
-    // Manual fields remain available alongside the sign-in.
-    expect(screen.getByText("or configure manually")).toBeInTheDocument();
+    // Manual fields remain available, collapsed under an Advanced disclosure.
+    expect(screen.getByTestId("manual-config")).toBeInTheDocument();
+    expect(screen.getByText("Advanced — configure manually or paste a token")).toBeInTheDocument();
 
     // Typed plain fields ride along with the begin request.
     fireEvent.change(screen.getByPlaceholderText("Ov23li..."), { target: { value: "Ov23liTEST" } });
@@ -284,7 +298,7 @@ describe("ConnectWizard OAuth", () => {
     await waitFor(() => {
       expect(screen.getByTestId("oauth-user-code")).toHaveTextContent("ABCD-1234");
     });
-    const link = screen.getByRole("link", { name: /github.com\/login\/device/ });
+    const link = screen.getByRole("link", { name: /\bgithub\.com\/login\/device/ });
     expect(link).toHaveAttribute("href", "https://github.com/login/device");
     expect(screen.getByText("Waiting for authorization...")).toBeInTheDocument();
 
@@ -341,6 +355,45 @@ describe("ConnectWizard OAuth", () => {
       expect(screen.getByText("access_denied")).toBeInTheDocument();
     }, { timeout: 4000 });
     expect(screen.getByRole("button", { name: "Retry sign in with GitHub" })).toBeInTheDocument();
+  }, 10000);
+
+  it("runs the loopback callback flow: sign in → open consent link → poll → agents", async () => {
+    const onConnected = vi.fn();
+    fetchMock.mockImplementation((url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u === "/api/apps" && (!init?.method || init.method === "GET")) return jsonResponse(catalog);
+      if (u === "/api/apps/gmail/auth" && init?.method === "POST") {
+        return jsonResponse({
+          id: "sess-cb",
+          kind: "callback",
+          state: "pending",
+          auth_url: "https://accounts.google.com/o/oauth2/auth?client_id=x&redirect_uri=http%3A%2F%2F127.0.0.1%3A54321%2Foauth%2Fcallback",
+          interval_seconds: 2,
+        });
+      }
+      if (u.startsWith("/api/apps/gmail/auth/status?session=")) return jsonResponse({ state: "complete" });
+      return jsonResponse([]);
+    });
+    render(<ConnectWizard appId="gmail" onClose={() => undefined} onConnected={onConnected} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Connect Gmail")).toBeInTheDocument();
+    });
+    // Callback flow has no user code — manual fields stay collapsed.
+    expect(screen.getByTestId("manual-config")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in with Gmail" }));
+
+    // Callback-flow UX: a link to open the Google consent page (no code).
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: /\baccounts\.google\.com\// })).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("oauth-user-code")).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByText("Add agents to Gmail")).toBeInTheDocument();
+    }, { timeout: 4000 });
+    expect(onConnected).toHaveBeenCalled();
   }, 10000);
 
   it("keeps token apps without oauth_available on the manual path only", async () => {

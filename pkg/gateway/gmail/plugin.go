@@ -1,23 +1,35 @@
 package gmailgw
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 
 	"github.com/rpuneet/mycel/pkg/app"
 	"github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/oauth"
 )
 
-// plugin implements app.Plugin for Gmail.
-type plugin struct{}
-
-var _ app.Plugin = plugin{}
-
-func init() {
-	app.Register(plugin{})
+// plugin implements app.Plugin for Gmail, plus app.OAuthFlow: one-click
+// "Connect with Google" runs a local loopback OAuth flow that mints the
+// refresh token. When the server-side Google client isn't configured the
+// flow reports unavailable (OAuthConfigured) and the UI falls back to the
+// manual client-id/secret/refresh-token paste below.
+type plugin struct {
+	oauth *oauth.LoopbackFlow
 }
 
-func (plugin) Describe() app.Descriptor {
+var (
+	_ app.Plugin          = (*plugin)(nil)
+	_ app.OAuthFlow       = (*plugin)(nil)
+	_ app.OAuthConfigured = (*plugin)(nil)
+)
+
+func init() {
+	app.Register(&plugin{oauth: newGoogleFlow()})
+}
+
+func (*plugin) Describe() app.Descriptor {
 	return app.Descriptor{
 		ID:    "gmail",
 		Label: "Gmail",
@@ -31,7 +43,8 @@ func (plugin) Describe() app.Descriptor {
 			{Key: "interval", Label: "Poll Interval (seconds)", Placeholder: "60"},
 		},
 		Docs: []string{
-			"Create OAuth credentials in Google Cloud Console → APIs & Services → Credentials.",
+			"Fastest path: if this server has a Google OAuth client configured, click \"Sign in with Gmail\" above — mycel opens Google in your browser and stores the token locally, no pasting.",
+			"Manual path (no server client): create OAuth credentials in Google Cloud Console → APIs & Services → Credentials.",
 			"Enable the Gmail API for the project, then create an OAuth 2.0 Client ID (type: Desktop app).",
 			"Grant the scopes https://www.googleapis.com/auth/gmail.readonly and https://www.googleapis.com/auth/gmail.send on the consent screen.",
 			"Run the OAuth consent flow once (e.g. via the OAuth Playground with your own client) to obtain a refresh token for offline access.",
@@ -41,7 +54,24 @@ func (plugin) Describe() app.Descriptor {
 	}
 }
 
-func (plugin) Build(inst app.Instance, _ app.Env) (gateway.NotificationAdapter, error) {
+// BeginAuth starts the loopback Google sign-in for this instance.
+func (p *plugin) BeginAuth(ctx context.Context, inst app.Instance) (app.AuthSession, error) {
+	return p.oauth.BeginAuth(ctx, inst)
+}
+
+// PollAuth reports sign-in progress; on success it returns the client
+// credentials + refresh token for the server to persist to the vault.
+func (p *plugin) PollAuth(ctx context.Context, session app.AuthSession) (app.AuthResult, error) {
+	return p.oauth.PollAuth(ctx, session)
+}
+
+// OAuthConfigured reports whether one-click Google sign-in is available on
+// this server (the GOOGLE_OAUTH_CLIENT_ID/SECRET client is set).
+func (*plugin) OAuthConfigured() bool {
+	return googleConfigured()
+}
+
+func (*plugin) Build(inst app.Instance, _ app.Env) (gateway.NotificationAdapter, error) {
 	clientID, err := inst.RequiredSecret("client_id")
 	if err != nil {
 		return nil, err
