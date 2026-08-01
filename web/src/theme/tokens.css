@@ -265,3 +265,29 @@ textarea:focus-visible,
     animation: none;
   }
 }
+
+/* ── List / feed item reveal ──────────────────────────────────────────
+   Feed rows and channel lists fade + rise on first mount. React keeps the
+   DOM nodes across polling refreshes (stable keys), so the animation runs
+   once per row insertion — new messages ease in, existing rows stay put.
+   Per-item stagger comes from an inline animation-delay; `both` fill keeps
+   the row at opacity 0 until its delay elapses (no flash-of-content).
+   Fully disabled under reduced-motion, where rows render immediately. */
+@keyframes mycel-item-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.mycel-item-reveal {
+  animation: mycel-item-reveal 260ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mycel-item-reveal {
+    animation: none;
+  }
+}
