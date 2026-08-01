@@ -602,11 +602,79 @@ export interface ProviderMCPServer {
   error?: string;
 }
 
+/** One NDJSON record from the provider update stream (POST
+ *  /providers/:name/update) — the same event shape /api/deps/install emits
+ *  (see web/src/wizard/installStream.ts), duplicated here rather than
+ *  imported since the two streams hit different endpoints for a
+ *  provider-scoped vs. generic-dependency action. */
+export type ProviderInstallEvent =
+  | { type: "start"; command: string }
+  | { type: "log"; line: string }
+  | { type: "done"; code: number }
+  | { type: "error"; error: string };
+
+/** Reads an NDJSON stream from a provider action (update), dispatching each
+ *  event and resolving with the process exit code. Throws on transport
+ *  errors or an explicit error event. */
+async function consumeProviderStream(
+  res: Response,
+  onEvent: (ev: ProviderInstallEvent) => void,
+): Promise<number> {
+  if (!res.ok || !res.body) {
+    let msg = `Update failed: ${res.status}`;
+    try {
+      const body = await res.json();
+      if (body && typeof body.error === "string") msg = body.error;
+    } catch {
+      // non-JSON error body
+    }
+    throw new Error(msg);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let code = -1;
+
+  const handleLine = (raw: string) => {
+    const line = raw.trim();
+    if (!line) return;
+    let ev: ProviderInstallEvent;
+    try {
+      ev = JSON.parse(line) as ProviderInstallEvent;
+    } catch {
+      return;
+    }
+    onEvent(ev);
+    if (ev.type === "done") code = ev.code;
+    if (ev.type === "error") throw new Error(ev.error);
+  };
+
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let nl = buf.indexOf("\n");
+    while (nl >= 0) {
+      handleLine(buf.slice(0, nl));
+      buf = buf.slice(nl + 1);
+      nl = buf.indexOf("\n");
+    }
+  }
+  if (buf.trim()) handleLine(buf);
+  return code;
+}
+
 export interface ProviderUpdateCheck {
   current_version: string;
   latest_version: string;
   update_available: boolean;
   update_command: string;
+  /** true when latest_version/update_available came from a real, freshly
+   *  fetched registry lookup (npm today). false means the provider's install
+   *  mechanism has no queryable registry (bare URL, curl script) — the UI
+   *  must show "can't verify" rather than a false "up to date". */
+  checked: boolean;
 }
 
 export interface EventLogEntry {
@@ -1193,18 +1261,27 @@ export const api = {
       method: "POST",
       body: JSON.stringify(mcp),
     }),
-  installProvider: (name: string) =>
-    request<{ status: string; provider: string; install_cmd: string }>(`/providers/${encodeURIComponent(name)}/install`, {
-      method: "POST",
-    }),
-  updateProvider: (name: string) =>
-    request<{ status: string; provider: string; update_cmd: string }>(`/providers/${encodeURIComponent(name)}/update`, {
-      method: "POST",
-    }),
   checkProviderUpdate: (name: string) =>
     request<ProviderUpdateCheck>(`/providers/${encodeURIComponent(name)}/check-update`, {
       method: "POST",
     }),
+  /**
+   * streamProviderUpdate runs a REAL update for a provider: POST
+   * /api/providers/:name/update re-executes the provider's install command
+   * on the host (e.g. "npm install -g <pkg>", which always resolves to the
+   * latest published version) and streams live NDJSON output back, exactly
+   * like the /api/deps/install mechanism Tools.tsx uses. Resolves with the
+   * process exit code (0 = success); throws on transport or stream errors.
+   */
+  streamProviderUpdate: async (
+    name: string,
+    onEvent: (ev: ProviderInstallEvent) => void,
+  ): Promise<number> => {
+    const res = await fetch(`${BASE}/providers/${encodeURIComponent(name)}/update`, {
+      method: "POST",
+    });
+    return consumeProviderStream(res, onEvent);
+  },
   updateProviderConfig: (name: string, config: Record<string, string>) =>
     request<{ status: string; provider: string; command: string }>(`/providers/${encodeURIComponent(name)}/config`, {
       method: "PATCH",

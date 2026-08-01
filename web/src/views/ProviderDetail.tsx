@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { api } from "../api/client";
@@ -6,7 +6,9 @@ import type {
   ProviderDetailResponse,
   ProviderCommand,
   ProviderMCPServer,
+  ProviderInstallEvent,
 } from "../api/client";
+import { installDep } from "../wizard/installStream";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
@@ -30,24 +32,221 @@ function providerStatus(provider: ProviderDetailResponse): string {
   return "stopped";
 }
 
+/* ── Real install / update actions ────────────────────────────────────
+ *
+ * canAutoInstall mirrors the server's providerInstallCmd predicate
+ * (deps_install.go): a hint is executable when it isn't empty and isn't a
+ * bare download URL (e.g. cursor's "https://cursor.sh" — a GUI installer
+ * with no runnable command). Install and update both stream through
+ * installDep-compatible NDJSON endpoints, so the two share one console UI. */
+function canAutoInstall(hint: string | undefined | null): boolean {
+  if (!hint) return false;
+  const h = hint.trim();
+  return h !== "" && !h.startsWith("http://") && !h.startsWith("https://");
+}
+
+type RunState = "idle" | "running" | "ok" | "error";
+
+/* Live NDJSON console shared by the real install and update actions —
+ * an aria-live region so screen readers hear progress as it streams in,
+ * not just the final state. */
+function StreamConsole({ state, lines, err }: { state: RunState; lines: string[]; err: string | null }) {
+  const consoleRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = consoleRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [lines]);
+
+  if (state === "idle") return null;
+  return (
+    <div
+      ref={consoleRef}
+      role="status"
+      aria-live="polite"
+      className="max-h-32 overflow-auto rounded border border-mycel-border bg-mycel-bg px-2 py-1.5 font-mono text-[10.5px] leading-relaxed text-mycel-text-2 whitespace-pre-wrap max-w-sm"
+    >
+      {err ? (
+        <span className="text-mycel-error">{err}</span>
+      ) : (
+        <>
+          {lines.map((l, i) => (
+            <div key={i} className={l.startsWith("$ ") ? "text-mycel-accent" : ""}>{l}</div>
+          ))}
+          {state === "running" && <div className="text-mycel-muted">▍</div>}
+          {state === "ok" && <div className="text-mycel-success">Done.</div>}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* Installs a provider for real via the same streamed POST /api/deps/install
+ * path Tools.tsx uses for CLI dependencies (the server resolves the
+ * provider's vetted install command by name — see providerInstallCmd in
+ * deps_install.go), with live NDJSON output. When the install hint is a bare
+ * URL there is no command to execute — that one case honestly falls back to
+ * a copyable hint instead of a fake "Install" button. */
+function InstallAction({
+  providerName,
+  installHint,
+  onInstalled,
+}: {
+  providerName: string;
+  installHint: string;
+  onInstalled: () => void;
+}) {
+  const [state, setState] = useState<RunState>("idle");
+  const [lines, setLines] = useState<string[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const runningRef = useRef(false);
+  useEffect(() => () => { runningRef.current = false; }, []);
+
+  if (!canAutoInstall(installHint)) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <span
+          className="px-3 py-1.5 text-sm rounded bg-mycel-warning-subtle text-mycel-warning font-mono truncate max-w-xs"
+          title={installHint || undefined}
+        >
+          {installHint || "No install command available"}
+        </span>
+        {installHint && <CopyButton text={installHint} />}
+      </div>
+    );
+  }
+
+  const run = async () => {
+    setState("running");
+    setLines([]);
+    setErr(null);
+    runningRef.current = true;
+    try {
+      const code = await installDep(
+        providerName,
+        (ev) => {
+          if (!runningRef.current) return;
+          if (ev.type === "start") setLines((l) => [...l, `$ ${ev.command}`]);
+          else if (ev.type === "log") setLines((l) => [...l, ev.line]);
+        },
+        { mode: "install" },
+      );
+      if (!runningRef.current) return;
+      if (code === 0) {
+        setState("ok");
+        onInstalled();
+      } else {
+        setState("error");
+        setErr(`Install exited with code ${code}.`);
+      }
+    } catch (e) {
+      if (!runningRef.current) return;
+      setState("error");
+      setErr(e instanceof Error ? e.message : "Install failed.");
+    } finally {
+      runningRef.current = false;
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <button
+        type="button"
+        onClick={() => void run()}
+        disabled={state === "running"}
+        className="px-3 py-1.5 text-sm rounded bg-mycel-warning-subtle text-mycel-warning transition-colors disabled:opacity-50"
+      >
+        {state === "running" ? "Installing…" : state === "ok" ? "Install again" : state === "error" ? "Retry install" : "Install"}
+      </button>
+      <StreamConsole state={state} lines={lines} err={err} />
+    </div>
+  );
+}
+
+/* Updates an already-installed provider for real via POST
+ * /api/providers/:name/update, which re-runs the provider's install command
+ * on the host (e.g. "npm install -g <pkg>" always resolves to the latest
+ * published version) and streams live NDJSON output — the same console UX
+ * as InstallAction. Only offered when the hint is runnable; see
+ * canAutoInstall. */
+function UpdateAction({
+  providerName,
+  installHint,
+  onUpdated,
+}: {
+  providerName: string;
+  installHint: string;
+  onUpdated: () => void;
+}) {
+  const [state, setState] = useState<RunState>("idle");
+  const [lines, setLines] = useState<string[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const runningRef = useRef(false);
+  useEffect(() => () => { runningRef.current = false; }, []);
+
+  if (!canAutoInstall(installHint)) return null;
+
+  const run = async () => {
+    setState("running");
+    setLines([]);
+    setErr(null);
+    runningRef.current = true;
+    try {
+      const code = await api.streamProviderUpdate(providerName, (ev: ProviderInstallEvent) => {
+        if (!runningRef.current) return;
+        if (ev.type === "start") setLines((l) => [...l, `$ ${ev.command}`]);
+        else if (ev.type === "log") setLines((l) => [...l, ev.line]);
+      });
+      if (!runningRef.current) return;
+      if (code === 0) {
+        setState("ok");
+        onUpdated();
+      } else {
+        setState("error");
+        setErr(`Update exited with code ${code}.`);
+      }
+    } catch (e) {
+      if (!runningRef.current) return;
+      setState("error");
+      setErr(e instanceof Error ? e.message : "Update failed.");
+    } finally {
+      runningRef.current = false;
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <button
+        type="button"
+        onClick={() => void run()}
+        disabled={state === "running"}
+        className="px-3 py-1.5 text-sm rounded bg-mycel-accent-subtle text-mycel-accent transition-colors disabled:opacity-50"
+      >
+        {state === "running" ? "Updating…" : state === "ok" ? "Update again" : state === "error" ? "Retry update" : "Update now"}
+      </button>
+      <StreamConsole state={state} lines={lines} err={err} />
+    </div>
+  );
+}
 
 /* ── Section: Header ── */
 
 function ProviderHeader({
   provider,
-  onInstall,
-  onUpdate,
-  installing,
-  updating,
+  onInstalled,
+  onCheckUpdate,
+  onUpdated,
+  checking,
+  updateResult,
 }: {
   provider: ProviderDetailResponse;
-  onInstall: () => void;
-  onUpdate: () => void;
-  installing: boolean;
-  updating: boolean;
+  onInstalled: () => void;
+  onCheckUpdate: () => void;
+  onUpdated: () => void;
+  checking: boolean;
+  updateResult: { checked: boolean; current: string; latest: string; available: boolean } | null;
 }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
       <div className="flex items-center gap-3">
         <Link
           to="/tools"
@@ -73,39 +272,46 @@ function ProviderHeader({
           )}
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        {!provider.installed && provider.install_hint && (
-          <button
-            type="button"
-            onClick={onInstall}
-            disabled={installing}
-            className="px-3 py-1.5 text-sm rounded bg-mycel-warning-subtle text-mycel-warning transition-colors disabled:opacity-50"
-          >
-            {installing ? "Installing..." : "Install"}
-          </button>
-        )}
-        {provider.installed && provider.install_hint && (
-          <button
-            type="button"
-            onClick={onUpdate}
-            disabled={updating}
-            className="px-3 py-1.5 text-sm rounded bg-mycel-info-subtle text-mycel-info transition-colors disabled:opacity-50"
-          >
-            {updating ? "Checking..." : "Check for Update"}
-          </button>
-        )}
-        <span
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium ${
-            provider.enabled
-              ? "bg-mycel-success-subtle text-mycel-success"
-              : "bg-mycel-surface-hover text-mycel-text-2"
-          }`}
-        >
+      <div className="flex flex-col items-end gap-2">
+        <div className="flex items-center gap-2">
+          {!provider.installed && (
+            <InstallAction providerName={provider.name} installHint={provider.install_hint} onInstalled={onInstalled} />
+          )}
+          {provider.installed && (
+            <>
+              <button
+                type="button"
+                onClick={onCheckUpdate}
+                disabled={checking}
+                className="px-3 py-1.5 text-sm rounded bg-mycel-info-subtle text-mycel-info transition-colors disabled:opacity-50"
+              >
+                {checking ? "Checking..." : "Check for Update"}
+              </button>
+              <UpdateAction providerName={provider.name} installHint={provider.install_hint} onUpdated={onUpdated} />
+            </>
+          )}
           <span
-            className={`w-2 h-2 rounded-full ${provider.enabled ? "bg-mycel-success" : "bg-mycel-muted"}`}
-          />
-          {provider.enabled ? "Enabled" : "Disabled"}
-        </span>
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium ${
+              provider.enabled
+                ? "bg-mycel-success-subtle text-mycel-success"
+                : "bg-mycel-surface-hover text-mycel-text-2"
+            }`}
+          >
+            <span
+              className={`w-2 h-2 rounded-full ${provider.enabled ? "bg-mycel-success" : "bg-mycel-muted"}`}
+            />
+            {provider.enabled ? "Enabled" : "Disabled"}
+          </span>
+        </div>
+        {updateResult && (
+          <p className="text-xs text-mycel-muted text-right">
+            {!updateResult.checked
+              ? `Current v${updateResult.current} — couldn't verify the latest release automatically.`
+              : updateResult.available
+                ? `Update available: v${updateResult.latest} (current v${updateResult.current})`
+                : `Up to date (v${updateResult.current}).`}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -701,7 +907,7 @@ function CommandRow({ providerName, command }: { providerName: string; command: 
         <tr className="border-b border-mycel-border bg-mycel-bg">
           <td colSpan={4} className="px-4 py-2">
             {errMsg ? (
-              <p className="text-xs text-mycel-error">{errMsg}</p>
+              <p className="text-xs text-mycel-error" role="alert">{errMsg}</p>
             ) : (
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-[10.5px] text-mycel-muted flex-wrap">
@@ -715,7 +921,13 @@ function CommandRow({ providerName, command }: { providerName: string; command: 
                   )}
                   {truncated && <span className="text-mycel-warning">output truncated</span>}
                 </div>
-                <pre className="max-h-56 overflow-auto rounded border border-mycel-border bg-mycel-surface px-2.5 py-1.5 font-mono text-[11px] leading-relaxed text-mycel-text-2 whitespace-pre-wrap">
+                {/* aria-live so screen readers hear the "Running…" → output
+                    transition, not just a silent DOM swap. */}
+                <pre
+                  role="status"
+                  aria-live="polite"
+                  className="max-h-56 overflow-auto rounded border border-mycel-border bg-mycel-surface px-2.5 py-1.5 font-mono text-[11px] leading-relaxed text-mycel-text-2 whitespace-pre-wrap"
+                >
                   {state === "running" ? "Running…" : output || (timedOut ? "(no output — command timed out)" : "(no output)")}
                 </pre>
               </div>
@@ -773,8 +985,8 @@ function CommandsSection({ providerName, commands }: { providerName: string; com
 export function ProviderDetail() {
   const { provider: providerName } = useParams<{ provider: string }>();
   const { toasts, addToast, dismiss } = useToast();
-  const [installing, setInstalling] = useState(false);
-  const [updating, setUpdating] = useState(false);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateResult, setUpdateResult] = useState<{ checked: boolean; current: string; latest: string; available: boolean } | null>(null);
 
   const detailFetcher = useCallback(async () => {
     if (!providerName) throw new Error("No provider name");
@@ -799,26 +1011,26 @@ export function ProviderDetail() {
   }, [providerName]);
   const { data: mcpServers, refresh: refreshMCPs } = usePolling<ProviderMCPServer[]>(mcpFetcher, 15000);
 
-  const handleInstall = async () => {
-    if (!providerName) return;
-    setInstalling(true);
-    try {
-      const result = await api.installProvider(providerName);
-      addToast("info", `Install: ${result.install_cmd}`);
-      refresh();
-    } catch (err) {
-      addToast("error", err instanceof Error ? err.message : "Install failed");
-    } finally {
-      setInstalling(false);
-    }
-  };
+  // The install/update actions themselves (InstallAction / UpdateAction) run
+  // for real via the streamed NDJSON endpoints; this just refreshes the
+  // provider detail once they land so version/status pick up immediately.
+  const handleInstalled = () => refresh();
+  const handleUpdated = () => { setUpdateResult(null); refresh(); };
 
-  const handleUpdate = async () => {
+  const handleCheckUpdate = async () => {
     if (!providerName) return;
-    setUpdating(true);
+    setCheckingUpdate(true);
     try {
       const result = await api.checkProviderUpdate(providerName);
-      if (result.update_available) {
+      setUpdateResult({
+        checked: result.checked,
+        current: result.current_version,
+        latest: result.latest_version,
+        available: result.update_available,
+      });
+      if (!result.checked) {
+        addToast("info", `Current version: ${result.current_version}. Couldn't verify the latest release automatically.`);
+      } else if (result.update_available) {
         addToast("info", `Update available: ${result.latest_version} (current: ${result.current_version})`);
       } else {
         addToast("success", `Already on latest version: ${result.current_version}`);
@@ -826,7 +1038,7 @@ export function ProviderDetail() {
     } catch (err) {
       addToast("error", err instanceof Error ? err.message : "Update check failed");
     } finally {
-      setUpdating(false);
+      setCheckingUpdate(false);
     }
   };
 
@@ -871,10 +1083,11 @@ export function ProviderDetail() {
     <div className="p-6 space-y-8">
       <ProviderHeader
         provider={provider}
-        onInstall={() => void handleInstall()}
-        onUpdate={() => void handleUpdate()}
-        installing={installing}
-        updating={updating}
+        onInstalled={handleInstalled}
+        onCheckUpdate={() => void handleCheckUpdate()}
+        onUpdated={handleUpdated}
+        checking={checkingUpdate}
+        updateResult={updateResult}
       />
 
       {/* 2-column layout on desktop */}

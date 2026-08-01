@@ -132,3 +132,62 @@ describe("tools seams API", () => {
     expect(res.exit_code).toBe(0);
   });
 });
+
+/** Build a streaming Response whose body yields the given chunks in order —
+ *  mirrors src/wizard/__tests__/installStream.test.ts since streamProviderUpdate
+ *  parses the same NDJSON event shape over a different endpoint. */
+function streamResponse(chunks: string[], ok = true, status = 200): Response {
+  const enc = new TextEncoder();
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const c of chunks) controller.enqueue(enc.encode(c));
+      controller.close();
+    },
+  });
+  return { ok, status, body } as unknown as Response;
+}
+
+describe("api.streamProviderUpdate", () => {
+  it("POSTs to the provider's update endpoint and parses the NDJSON stream", async () => {
+    fetchMock.mockReturnValue(
+      streamResponse([
+        '{"type":"start","command":"npm install -g @openai/codex"}\n',
+        '{"type":"log","line":"+ codex@1.2.4"}\n',
+        '{"type":"done","code":0}\n',
+      ]),
+    );
+
+    const events: unknown[] = [];
+    const code = await api.streamProviderUpdate("codex", (ev) => events.push(ev));
+
+    expect(code).toBe(0);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/providers/codex/update",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(events).toEqual([
+      { type: "start", command: "npm install -g @openai/codex" },
+      { type: "log", line: "+ codex@1.2.4" },
+      { type: "done", code: 0 },
+    ]);
+  });
+
+  it("throws on an error event", async () => {
+    fetchMock.mockReturnValue(streamResponse(['{"type":"error","error":"no automatic updater for cursor"}\n']));
+    await expect(api.streamProviderUpdate("cursor", () => {})).rejects.toThrow(
+      "no automatic updater for cursor",
+    );
+  });
+
+  it("surfaces a non-OK response as an error", async () => {
+    fetchMock.mockReturnValue({
+      ok: false,
+      status: 400,
+      body: null,
+      json: () => Promise.resolve({ error: "no automatic updater for cursor" }),
+    } as unknown as Response);
+    await expect(api.streamProviderUpdate("cursor", () => {})).rejects.toThrow(
+      "no automatic updater for cursor",
+    );
+  });
+});
