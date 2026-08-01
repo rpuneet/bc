@@ -44,6 +44,7 @@ import {
   parseTaskListResponse,
   parseTaskUpdate,
   summarizeArgs,
+  summarizeInternalEvent,
   updateSubagentChild,
   updateTopLevelNode,
 } from "../components/live/liveHelpers";
@@ -54,21 +55,41 @@ import {
    events for that agent are processed.
 ─────────────────────────────────────────────────────────────────── */
 
-export function useAgentActivity(agentName?: string): {
+/** A buffered state_changed event, replayed in order on resume. */
+interface PendingStateChange {
+  name: string;
+  state: string;
+  task?: string;
+  role?: string;
+}
+
+export interface UseAgentActivityOptions {
+  /** When true, incoming events are buffered instead of applied — the
+   *  stream keeps counting (via `pausedCount`) but the UI stays frozen
+   *  until `paused` flips back to false, at which point everything
+   *  buffered is flushed through in order. */
+  paused?: boolean;
+}
+
+export function useAgentActivity(agentName?: string, options?: UseAgentActivityOptions): {
   activities: Map<string, AgentActivity>;
   tasks: Map<string, TaskItem>;
   rawEventsRef: React.MutableRefObject<Map<string, RawEvent[]>>;
   connected: boolean;
   reconnecting: boolean;
   eventCount: number;
+  pausedCount: number;
 } {
+  const paused = options?.paused ?? false;
   const [activities, setActivities] = useState<Map<string, AgentActivity>>(new Map());
   const [tasks, setTasks] = useState<Map<string, TaskItem>>(new Map());
   const [eventCount, setEventCount] = useState(0);
+  const [pausedCount, setPausedCount] = useState(0);
   const rawEventsRef = useRef<Map<string, RawEvent[]>>(new Map());
   const eventBuffer = useRef<HookEvent[]>([]);
   const pausedRef = useRef(false);
   const pausedBuffer = useRef<HookEvent[]>([]);
+  const pausedStateBuffer = useRef<PendingStateChange[]>([]);
   const { connected, reconnecting, subscribe } = useWebSocket();
 
   // Seed from agents API + initial logs
@@ -153,6 +174,7 @@ export function useAgentActivity(agentName?: string): {
 
     if (pausedRef.current) {
       pausedBuffer.current.push(...events);
+      setPausedCount((c) => c + events.length);
       return;
     }
 
@@ -365,11 +387,64 @@ export function useAgentActivity(agentName?: string): {
             });
             break;
 
+          // The server resolves a pending PermissionRequest/Elicitation with
+          // ElicitationResult (pkg/agent/hooks.go) — without handling it here
+          // the "waiting for permission" row never clears and stays pinned
+          // as "running" until the turn ends (#2674).
+          case "ElicitationResult": {
+            const matchWaiting = (n: AgentActivity["nodes"][number]): boolean =>
+              (n.toolName === "PermissionRequest" || n.toolName === "Elicitation") && n.status === "running";
+            const markResolved = (n: AgentActivity["nodes"][number]): AgentActivity["nodes"][number] => ({
+              ...n, status: "completed" as const, endTime: Date.now(),
+              fullOutput: evt.message ?? evt.tool_response ?? null,
+            });
+
+            const found = updateSubagentChild(activity, matchWaiting, markResolved);
+            if (!found) {
+              updateTopLevelNode(activity, matchWaiting, markResolved);
+            }
+            break;
+          }
+
           case "SessionStart": case "SessionEnd": case "Stop": case "TaskCompleted":
             // Turn/session boundary: whatever was still "running" is over.
             activity.state = "idle";
             activity.nodes = finalizeRunningNodes(activity.nodes, Date.now());
             activity.activeSubagentIdx = undefined;
+            break;
+
+          // mycel-internal / informational events that previously fell
+          // through the switch unrendered — only visible in the Raw tab
+          // (#2674). Surface each as a compact completed row so the
+          // timeline shows every known server event.
+          case "ChannelMessage":
+          case "ChannelSent":
+          case "AgentMessage":
+          case "CostUpdate":
+          case "Notification":
+          case "ConfigChange":
+          case "WorktreeCreate":
+          case "WorktreeRemove":
+          case "PreCompact":
+          case "PostCompact":
+            activity.nodes.push({
+              id: nextId(), toolName: evt.event, args: summarizeInternalEvent(evt),
+              fullInput: evt.tool_input ?? null, fullOutput: null, status: "completed",
+              startTime: Date.now(), endTime: Date.now(), children: [],
+            });
+            break;
+
+          // Any other known-but-unhandled event (TeammateIdle,
+          // InstructionsLoaded, Pre/PostInvocation, …): render a generic
+          // compact row rather than dropping it silently.
+          default:
+            if (evt.event) {
+              activity.nodes.push({
+                id: nextId(), toolName: evt.event, args: summarizeInternalEvent(evt),
+                fullInput: evt.tool_input ?? null, fullOutput: null, status: "completed",
+                startTime: Date.now(), endTime: Date.now(), children: [],
+              });
+            }
             break;
         }
 
@@ -414,6 +489,30 @@ export function useAgentActivity(agentName?: string): {
     return unsub;
   }, [subscribe, agentName]);
 
+  // Applies one state_changed event to `activities`. Shared by the live
+  // subscription below and by the resume-flush replay so buffered state
+  // changes land exactly as they would have live.
+  const applyStateChange = useCallback((change: PendingStateChange) => {
+    setEventCount((c) => c + 1);
+    setActivities((prev) => {
+      const next = new Map(prev);
+      const existing = next.get(change.name);
+      if (existing) {
+        const updates: Partial<AgentActivity> = { state: change.state, lastEventTime: Date.now() };
+        if (change.task) updates.task = change.task;
+        if (change.role) updates.role = change.role;
+        // Agent went idle/stopped: age out stale "running" rows so the
+        // stream shows the real last events, not a frozen snapshot.
+        if (TERMINAL_STATES.has(change.state)) {
+          updates.nodes = finalizeRunningNodes(existing.nodes, Date.now());
+          updates.activeSubagentIdx = undefined;
+        }
+        next.set(change.name, { ...existing, ...updates });
+      }
+      return next;
+    });
+  }, []);
+
   // Subscribe to agent.state_changed events
   useEffect(() => {
     const unsub = subscribe("agent.state_changed", (wsEvent) => {
@@ -425,32 +524,43 @@ export function useAgentActivity(agentName?: string): {
       // Filter by agentName if provided
       if (agentName && name !== agentName) return;
 
+      const change: PendingStateChange = {
+        name, state,
+        task: d.task as string | undefined,
+        role: d.role as string | undefined,
+      };
+
       if (pausedRef.current) {
-        pausedBuffer.current.push({ agent: name, event: "state_changed", task: d.task as string | undefined });
+        pausedStateBuffer.current.push(change);
+        setPausedCount((c) => c + 1);
         return;
       }
 
-      setEventCount((c) => c + 1);
-      setActivities((prev) => {
-        const next = new Map(prev);
-        const existing = next.get(name);
-        if (existing) {
-          const updates: Partial<AgentActivity> = { state, lastEventTime: Date.now() };
-          if (d.task) updates.task = d.task as string;
-          if (d.role) updates.role = d.role as string;
-          // Agent went idle/stopped: age out stale "running" rows so the
-          // stream shows the real last events, not a frozen snapshot.
-          if (TERMINAL_STATES.has(state)) {
-            updates.nodes = finalizeRunningNodes(existing.nodes, Date.now());
-            updates.activeSubagentIdx = undefined;
-          }
-          next.set(name, { ...existing, ...updates });
-        }
-        return next;
-      });
+      applyStateChange(change);
     });
     return unsub;
-  }, [subscribe, agentName]);
+  }, [subscribe, agentName, applyStateChange]);
+
+  // Resume: flush everything buffered while paused, in order, then reset
+  // the paused counter. Hook events are handed back to the normal buffer
+  // so the next flush tick processes them through the same switch as a
+  // live event would; state changes are replayed directly.
+  const prevPausedRef = useRef(paused);
+  useEffect(() => {
+    pausedRef.current = paused;
+    if (prevPausedRef.current && !paused) {
+      const bufferedHooks = pausedBuffer.current.splice(0);
+      if (bufferedHooks.length > 0) {
+        eventBuffer.current.push(...bufferedHooks);
+      }
+      const bufferedStates = pausedStateBuffer.current.splice(0);
+      for (const change of bufferedStates) {
+        applyStateChange(change);
+      }
+      setPausedCount(0);
+    }
+    prevPausedRef.current = paused;
+  }, [paused, applyStateChange]);
 
   return {
     activities,
@@ -459,5 +569,6 @@ export function useAgentActivity(agentName?: string): {
     connected,
     reconnecting,
     eventCount,
+    pausedCount,
   };
 }

@@ -148,7 +148,8 @@ function PresenceLine({
 }
 
 export function Home() {
-  const { activities, tasks, rawEventsRef, connected, reconnecting, eventCount } = useAgentActivity();
+  const [paused, setPaused] = useState(false);
+  const { activities, tasks, rawEventsRef, connected, reconnecting, eventCount, pausedCount } = useAgentActivity(undefined, { paused });
   const [typeFilter, setTypeFilter] = useState<FilterType>("all");
   const [searchFilter, setSearchFilter] = useState("");
   const [showStopped, setShowStoppedState] = useState<boolean>(() => readShowStopped());
@@ -160,8 +161,6 @@ export function Home() {
       return next;
     });
   }, []);
-  const [paused, setPaused] = useState(false);
-  const [pausedCount, setPausedCount] = useState(0);
   const [collapsedOverrides, setCollapsedOverrides] = useState<Map<string, boolean>>(new Map());
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const [newEventsSinceScroll, setNewEventsSinceScroll] = useState(0);
@@ -179,9 +178,10 @@ export function Home() {
     setRawEventsVersion((v) => v + 1);
   }, [eventCount]);
 
+  // Resuming just flips the flag threaded into useAgentActivity — the hook
+  // owns the paused buffer and flushes it (and resets pausedCount) itself.
   const handleResume = useCallback(() => {
     setPaused(false);
-    setPausedCount(0);
   }, []);
 
   const summary = useMemo(() => {

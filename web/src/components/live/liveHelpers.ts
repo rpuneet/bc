@@ -129,6 +129,45 @@ export function extractToolMetadata(toolName: string, input: unknown): string {
   return redactSecrets(trunc(s));
 }
 
+/** Compact one-line label for mycel-internal / informational events that
+ *  don't carry a tool_name — channel chatter, cost updates, notifications,
+ *  config/worktree changes, compaction boundaries, etc. Used so every known
+ *  server event surfaces a row in the timeline instead of only being visible
+ *  in the Raw tab (#2674). */
+export function summarizeInternalEvent(evt: HookEvent): string {
+  const trunc = (s: string, max = 100): string => (s.length > max ? s.slice(0, max - 3) + "..." : s);
+
+  switch (evt.event) {
+    case "ChannelMessage":
+    case "ChannelSent": {
+      const who = evt.sender ? `@${evt.sender}` : "";
+      const chan = evt.channel ? `#${evt.channel}` : "";
+      const body = evt.message ? trunc(evt.message) : "";
+      return [chan, who, body].filter(Boolean).join(" ");
+    }
+    case "AgentMessage": {
+      const who = evt.sender ? `from @${evt.sender}` : "";
+      const body = evt.message ? trunc(evt.message) : "";
+      return [who, body].filter(Boolean).join(" ");
+    }
+    case "CostUpdate":
+      return typeof evt.cost_usd === "number" ? `+$${evt.cost_usd.toFixed(4)}` : "";
+    case "Notification":
+      return evt.message ? trunc(evt.message) : "";
+    case "ConfigChange":
+      return evt.file ?? evt.message ?? "";
+    case "WorktreeCreate":
+    case "WorktreeRemove":
+      return evt.file ?? evt.message ?? "";
+    case "PreCompact":
+      return "compacting context…";
+    case "PostCompact":
+      return "context compacted";
+    default:
+      return evt.message ?? evt.task ?? evt.command ?? "";
+  }
+}
+
 export function summarizeArgs(evt: HookEvent): string {
   if (evt.tool_name && evt.tool_input) {
     return extractToolMetadata(evt.tool_name, evt.tool_input);
