@@ -34,7 +34,6 @@ import type {
 import { usePolling } from "../../hooks/usePolling";
 import { useHeaderSlot } from "../../context/HeaderSlotContext";
 import { EmptyState } from "../EmptyState";
-import { LoadingSkeleton } from "../LoadingSkeleton";
 import { DefaultAppIcon, PLATFORM_ICON_MAP } from "./PlatformIcons";
 import { ConnectWizard, AppChooser } from "./ConnectApp";
 import { CustomKeysSection } from "./CustomKeys";
@@ -275,14 +274,15 @@ function SubscriberAvatars({ subscribers, count }: { subscribers: string[]; coun
   );
 }
 
-function ChannelRowButton({ ch, onOpen }: { ch: ChannelItem; onOpen: (name: string) => void }) {
+function ChannelRowButton({ ch, onOpen, index = 0 }: { ch: ChannelItem; onOpen: (name: string) => void; index?: number }) {
   const rawId = channelLeaf(ch.name);
   const hasDisplayName = ch.displayName !== rawId;
   return (
     <button
       type="button"
       onClick={() => { onOpen(ch.name); }}
-      className="w-full flex items-center gap-3 px-3 py-2 bg-mycel-surface hover:bg-mycel-surface-hover text-left transition-colors"
+      style={{ animationDelay: `${String(Math.min(index, 10) * 20)}ms` }}
+      className="mycel-item-reveal w-full flex items-center gap-3 px-3 py-2 bg-mycel-surface hover:bg-mycel-surface-hover text-left transition-colors"
       title={ch.name}
     >
       <IdentityAvatar name={ch.displayName} kind={ch.kind} size={28} />
@@ -571,9 +571,41 @@ export function AppsHome() {
 
   if (loading && !data) {
     return (
-      <div className="p-6 space-y-4">
-        <div className="h-20 animate-pulse rounded-lg bg-mycel-surface-hover" />
-        <LoadingSkeleton variant="text" rows={6} />
+      <div className="p-6 pb-10 space-y-6" aria-busy="true" aria-label="Loading apps">
+        {/* Pill strip */}
+        <div className="flex flex-wrap gap-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-8 w-28 animate-pulse rounded-full bg-mycel-surface-hover" style={{ animationDelay: `${String(i * 80)}ms` }} />
+          ))}
+        </div>
+        {/* Feed (primary) + channels (secondary) */}
+        <div className="grid gap-6 items-start lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="rounded-lg border border-mycel-border bg-mycel-surface overflow-hidden">
+            <div className="h-10 border-b border-mycel-border bg-mycel-surface-hover/40" />
+            <div className="divide-y divide-mycel-border">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-start gap-2.5 px-4 py-2.5">
+                  <div className="h-[26px] w-[26px] shrink-0 animate-pulse rounded-full bg-mycel-surface-hover" />
+                  <div className="min-w-0 flex-1 space-y-1.5 py-0.5">
+                    <div className="h-2.5 w-24 animate-pulse rounded bg-mycel-surface-hover" />
+                    <div className="h-3 animate-pulse rounded bg-mycel-surface-hover" style={{ width: `${String(78 - (i % 3) * 14)}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="h-3 w-20 animate-pulse rounded bg-mycel-surface-hover" />
+            <div className="rounded-lg border border-mycel-border overflow-hidden divide-y divide-mycel-border">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 px-3 py-2">
+                  <div className="h-7 w-7 shrink-0 animate-pulse rounded-full bg-mycel-surface-hover" />
+                  <div className="h-3 animate-pulse rounded bg-mycel-surface-hover" style={{ width: `${String(60 - (i % 2) * 18)}%` }} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -597,17 +629,24 @@ export function AppsHome() {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="max-w-lg text-center px-6">
-          <div className="text-4xl mb-4 opacity-40">#</div>
+          <span className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-mycel-border bg-mycel-surface text-mycel-accent shadow-mycel-sm" aria-hidden>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          </span>
           <h2 className="font-display text-xl font-semibold text-mycel-text mb-2">Connect your first app</h2>
-          <p className="text-sm text-mycel-muted mb-6">
+          <p className="text-sm text-mycel-text-2 mb-6 leading-relaxed">
             Link Slack, Telegram, WhatsApp, Discord and more to start routing messages to your agents.
           </p>
           <button
             type="button"
             onClick={() => { setChooserOpen(true); }}
-            className="inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-md text-sm font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-[background-color,transform] active:scale-[0.97]"
           >
-            + Connect an app
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" aria-hidden>
+              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Connect an app
           </button>
         </div>
         {chooserOpen && (
@@ -663,7 +702,7 @@ export function AppsHome() {
                 aria-label={aria}
                 aria-pressed={selected}
                 title={aria}
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-[background-color,border-color,transform] active:scale-[0.97] ${
                   selected
                     ? "border-mycel-accent bg-mycel-surface-hover text-mycel-text"
                     : "border-mycel-border bg-mycel-surface hover:bg-mycel-surface-hover text-mycel-text"
@@ -684,7 +723,7 @@ export function AppsHome() {
             type="button"
             onClick={() => { setChooserOpen(true); }}
             aria-label="Connect an app"
-            className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-mycel-border bg-mycel-surface px-3 py-1.5 text-sm text-mycel-muted hover:text-mycel-text hover:border-mycel-accent hover:bg-mycel-surface-hover transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-mycel-border bg-mycel-surface px-3 py-1.5 text-sm text-mycel-muted hover:text-mycel-text hover:border-mycel-accent hover:bg-mycel-surface-hover transition-[background-color,border-color,color,transform] active:scale-[0.97]"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
               <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -699,24 +738,41 @@ export function AppsHome() {
           <aside className="rounded-lg border border-mycel-border bg-mycel-surface overflow-hidden" aria-label="Notifications">
             <Link
               to="/apps/activity"
-              className="flex items-center gap-2 px-4 py-2.5 border-b border-mycel-border hover:bg-mycel-surface-hover transition-colors"
-              aria-label="View all"
+              className="group flex items-center gap-2 px-4 py-2.5 border-b border-mycel-border hover:bg-mycel-surface-hover transition-colors"
+              aria-label="View all notifications"
             >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="text-mycel-text-2" aria-hidden>
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
               <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-mycel-text">Notifications</h3>
-              <span className="ml-auto text-[11px] font-medium text-mycel-accent">View all →</span>
+              <span className="ml-auto inline-flex items-center gap-0.5 text-[11px] font-medium text-mycel-accent">
+                View all
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-transform group-hover:translate-x-0.5" aria-hidden>
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </span>
             </Link>
             <div className="divide-y divide-mycel-border">
               {recent.length === 0 && (
-                <div className="px-4 py-10 text-center text-xs text-mycel-muted">No messages yet</div>
+                <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
+                  <span className="mb-2.5 text-mycel-muted" aria-hidden>
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                    </svg>
+                  </span>
+                  <p className="text-[13px] font-medium text-mycel-text-2">No notifications yet</p>
+                  <p className="mt-1 text-xs text-mycel-muted max-w-[15rem]">Messages from your connected apps land here as they arrive.</p>
+                </div>
               )}
-              {recent.map((m) => {
+              {recent.map((m, i) => {
                 const sender = cleanSender(m.sender);
                 return (
                   <button
                     key={`${m.channel}:${String(m.id)}`}
                     type="button"
                     onClick={() => { openChannel(m.channel); }}
-                    className="w-full text-left px-4 py-2.5 flex items-start gap-2.5 hover:bg-mycel-surface-hover transition-colors"
+                    style={{ animationDelay: `${String(Math.min(i, 12) * 22)}ms` }}
+                    className="mycel-item-reveal w-full text-left px-4 py-2.5 flex items-start gap-2.5 hover:bg-mycel-surface-hover transition-colors"
                   >
                     {/* Real chat participant — initials avatar, never an agent mushroom */}
                     <IdentityAvatar name={sender} size={26} className="mt-0.5" />
@@ -742,7 +798,12 @@ export function AppsHome() {
           {/* Channels — slim secondary column, grouped by app */}
           <div className="space-y-5 min-w-0">
             {sectionApps.length === 0 && (
-              <div className="rounded-lg border border-dashed border-mycel-border bg-mycel-surface px-6 py-10 text-center">
+              <div className="flex flex-col items-center rounded-lg border border-dashed border-mycel-border bg-mycel-surface px-6 py-10 text-center">
+                <span className="mb-2.5 text-mycel-muted" aria-hidden>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                  </svg>
+                </span>
                 <p className="text-sm font-medium text-mycel-text-2">
                   {hasFilters ? "No chats match your filters" : "No chats yet"}
                 </p>
@@ -760,14 +821,20 @@ export function AppsHome() {
               return (
                 <section key={app.key} aria-label={`${app.label} channels`}>
                   <div className="flex items-center gap-2 mb-1.5">
-                    {/* Icon conveys the platform — the redundant platform word
-                        is dropped; the section aria-label keeps it for a11y. */}
+                    {/* The icon carries the platform; the heading names the app
+                        (or its bot) so no channel group is ever headerless. */}
                     <AppIcon base={app.base} size={13} />
-                    <h3 className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
-                      <span className="sr-only">{app.label}</span>
-                      {app.botName ? <span>{app.botName}</span> : null}
+                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-mycel-text-2">
+                      {app.botName ? (
+                        <>
+                          <span className="sr-only">{app.label} · </span>
+                          <span>{app.botName}</span>
+                        </>
+                      ) : (
+                        app.label
+                      )}
                     </h3>
-                    <span className="text-[11px] text-mycel-muted tabular-nums">{chs.length}</span>
+                    <span className="inline-flex items-center justify-center min-w-[18px] h-[16px] px-1 rounded-full bg-mycel-surface-hover text-[10px] font-medium text-mycel-muted tabular-nums">{chs.length}</span>
                   </div>
                   <div className="rounded-lg border border-mycel-border overflow-hidden divide-y divide-mycel-border">
                     {split ? (
@@ -775,24 +842,24 @@ export function AppsHome() {
                         {groups.length > 0 && (
                           <>
                             <SubsectionLabel label="Group chats" count={groups.length} />
-                            {groups.map((ch) => <ChannelRowButton key={ch.name} ch={ch} onOpen={openChannel} />)}
+                            {groups.map((ch, i) => <ChannelRowButton key={ch.name} ch={ch} onOpen={openChannel} index={i} />)}
                           </>
                         )}
                         {people.length > 0 && (
                           <>
                             <SubsectionLabel label="People" count={people.length} />
-                            {people.map((ch) => <ChannelRowButton key={ch.name} ch={ch} onOpen={openChannel} />)}
+                            {people.map((ch, i) => <ChannelRowButton key={ch.name} ch={ch} onOpen={openChannel} index={i} />)}
                           </>
                         )}
                         {other.length > 0 && (
                           <>
                             <SubsectionLabel label="Other" count={other.length} />
-                            {other.map((ch) => <ChannelRowButton key={ch.name} ch={ch} onOpen={openChannel} />)}
+                            {other.map((ch, i) => <ChannelRowButton key={ch.name} ch={ch} onOpen={openChannel} index={i} />)}
                           </>
                         )}
                       </>
                     ) : (
-                      chs.map((ch) => <ChannelRowButton key={ch.name} ch={ch} onOpen={openChannel} />)
+                      chs.map((ch, i) => <ChannelRowButton key={ch.name} ch={ch} onOpen={openChannel} index={i} />)
                     )}
                   </div>
                 </section>
