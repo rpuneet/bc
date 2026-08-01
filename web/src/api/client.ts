@@ -1069,8 +1069,11 @@ export const api = {
       ...(opts.since ? { since: opts.since } : {}),
       ...(opts.limit ? { limit: String(opts.limit) } : {}),
     })}`),
-  getCostByModel: (opts: { since?: string } = {}) =>
-    request<ModelCostSummary[]>(`/costs/models${qs(opts.since ? { since: opts.since } : {})}`),
+  getCostByModel: (opts: { since?: string; agent?: string } = {}) =>
+    request<ModelCostSummary[]>(`/costs/models${qs({
+      ...(opts.since ? { since: opts.since } : {}),
+      ...(opts.agent ? { agent: opts.agent } : {}),
+    })}`),
   getCostDaily: (days = 14) =>
     request<DailyCost[]>(`/costs/daily?days=${days}`),
   // Per-entity drill-down: lifetime summary + last-30d daily ledger for

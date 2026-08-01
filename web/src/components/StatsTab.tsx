@@ -4,7 +4,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { api } from "../api/client";
-import type { Agent, AgentStatsSummary, AgentMetricTS, ComputedStats, AgentCostDetail, AgentCostSummary } from "../api/client";
+import type { Agent, AgentStatsSummary, AgentMetricTS, ComputedStats, AgentCostDetail, AgentCostSummary, ModelCostSummary } from "../api/client";
 import { stripAgentPrefix } from "../views/insights/chrome";
 import { usePolling } from "../hooks/usePolling";
 import { Panel, fmtTime, fmtBytes, fmtTokens } from "./shared/stats-primitives";
@@ -86,6 +86,7 @@ interface TabData {
   net: AgentMetricTS[];
   cost: AgentCostDetail | null;
   costSummary: AgentCostSummary | null;
+  models: ModelCostSummary[];
 }
 
 // ── Component ────────────────────────────────────────────────────────────────────
@@ -109,13 +110,14 @@ export function StatsTab({ agent }: { agent: Agent }) {
     );
     const costId = costRow?.agent_id ?? agent.name;
 
-    const [r0, r1, r2, r3, r4, r5] = await Promise.allSettled([
+    const [r0, r1, r2, r3, r4, r5, r6] = await Promise.allSettled([
       api.getAgentStatsSummary(agent.name, { from }),
       api.getAgentStats("cpu", p),
       api.getAgentStats("mem", p),
       api.getAgentStats("net", p),
       api.getAgentComputedStats(agent.name),
       api.getCostAgentDetail(costId),
+      api.getCostByModel({ agent: costId }),
     ]);
     return {
       summary: r0.status === "fulfilled" ? r0.value : null,
@@ -125,6 +127,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
       computed: r4.status === "fulfilled" ? r4.value : null,
       cost: r5.status === "fulfilled" ? r5.value : null,
       costSummary: costRow ?? null,
+      models: r6.status === "fulfilled" ? (r6.value ?? []) : [],
     };
   }, [agent.name, from]);
 
@@ -191,10 +194,13 @@ export function StatsTab({ agent }: { agent: Agent }) {
     [data?.cost],
   );
 
-  // Per-agent model breakdown, most expensive first.
+  // Per-agent model breakdown from the cost engine (the stats summary
+  // never carries models), most expensive first.
   const models = useMemo(() =>
-    [...(s?.models ?? [])].sort((a, b) => b.cost_usd - a.cost_usd),
-    [s?.models],
+    [...(data?.models ?? [])]
+      .map((m) => ({ model: m.model, cost_usd: m.total_cost_usd }))
+      .sort((a, b) => b.cost_usd - a.cost_usd),
+    [data?.models],
   );
 
   // Has any live data? Used to show a helpful banner when the stats store

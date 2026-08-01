@@ -213,8 +213,40 @@ func (s *Service) SummaryByModel(ctx context.Context) ([]*Summary, error) {
 
 // GetModelSummarySince returns per-model summaries since the given time.
 func (s *Service) GetModelSummarySince(ctx context.Context, since time.Time) ([]*Summary, error) {
-	return s.groupedSummaries(ctx, since, func(e provider.CostEntry) string { return e.Model },
-		func(sum *Summary, key string) { sum.Model = key })
+	return s.GetAgentModelSummarySince(ctx, "", since)
+}
+
+// GetAgentModelSummarySince returns per-model summaries since the given
+// time, restricted to one cost agent id when agentID is non-empty. The id
+// is the recorded session id (plain agent name on fresh installs, a
+// legacy-prefixed id otherwise) — callers resolve it from the per-agent
+// listing, mirroring the web's alias handling.
+func (s *Service) GetAgentModelSummarySince(ctx context.Context, agentID string, since time.Time) ([]*Summary, error) {
+	entries, err := s.Entries(ctx)
+	if err != nil {
+		return nil, err
+	}
+	byKey := map[string]*Summary{}
+	for _, e := range entries {
+		if agentID != "" && e.Agent != agentID {
+			continue
+		}
+		if !since.IsZero() && e.Timestamp.Before(since) {
+			continue
+		}
+		sum, ok := byKey[e.Model]
+		if !ok {
+			sum = &Summary{Model: e.Model}
+			byKey[e.Model] = sum
+		}
+		addEntry(sum, e)
+	}
+	out := make([]*Summary, 0, len(byKey))
+	for _, sum := range byKey {
+		out = append(out, sum)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].TotalCostUSD > out[j].TotalCostUSD })
+	return out, nil
 }
 
 // SummaryByTeam returns aggregated costs per team. Provider session

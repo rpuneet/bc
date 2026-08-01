@@ -85,7 +85,9 @@ func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
 		})
 
 	case "models":
-		h.summaries(w, r, h.svc.GetModelSummarySince)
+		h.summaries(w, r, func(ctx context.Context, since time.Time) ([]*cost.Summary, error) {
+			return h.svc.GetAgentModelSummarySince(ctx, r.URL.Query().Get("agent"), since)
+		})
 
 	case "daily":
 		h.daily(w, r)
