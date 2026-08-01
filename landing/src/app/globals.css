@@ -578,10 +578,14 @@ input:focus-visible,
 }
 
 /* Theme-aware screenshot swap — the boot script stamps .dark before paint */
-.product-frame img.shot-dark { display: block; }
-.product-frame img.shot-light { display: none; }
-html:not(.dark) .product-frame img.shot-dark { display: none; }
-html:not(.dark) .product-frame img.shot-light { display: block; }
+.product-frame img.shot-dark,
+.product-frame video.shot-dark { display: block; }
+.product-frame img.shot-light,
+.product-frame video.shot-light { display: none; }
+html:not(.dark) .product-frame img.shot-dark,
+html:not(.dark) .product-frame video.shot-dark { display: none; }
+html:not(.dark) .product-frame img.shot-light,
+html:not(.dark) .product-frame video.shot-light { display: block; }
 
 /* Hero screenshot: subtle stage tilt + warm glow, flattens on hover */
 .hero-stage {

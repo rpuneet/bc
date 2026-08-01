@@ -282,7 +282,8 @@ export default function Home() {
                   <div className="relative">
                     <ProductFrame
                       srcDark="/screenshots/apps-dark.png"
-                      alt="The apps view: connected platforms including Slack, Telegram, IRC, and WhatsApp, with channels and live message activity"
+                      motion="apps"
+                      alt="The apps view, live: connected platforms including Slack, Telegram, IRC, and WhatsApp, with real channel activity and notifications scrolling by"
                       title="Apps"
                       width={1100}
                       height={900}
