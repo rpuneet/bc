@@ -94,4 +94,49 @@ describe("AgentTimeline", () => {
     const secondUrl = fetchMock.mock.calls[1]?.[0] as string;
     expect(secondUrl).toContain("before=51");
   });
+
+  it("discards a load-older page that resolves after the agent switched", async () => {
+    const agentAFirst = Array.from({ length: 50 }, (_, i) =>
+      activityItem(200 - i, "Bash", `a-cmd ${200 - i}`),
+    );
+    const agentAOlder = [activityItem(140, "Bash", "stale agent-A row")];
+    const agentBFirst = [activityItem(300, "Read", "agent-B row")];
+
+    // Hold agent A's older page open so it resolves *after* we switch to B.
+    let releaseAOlder!: (v: Response) => void;
+    const aOlderPromise = new Promise<Response>((res) => {
+      releaseAOlder = res;
+    });
+
+    fetchMock
+      .mockImplementationOnce(() => jsonResponse(agentAFirst)) // A initial
+      .mockImplementationOnce(() => aOlderPromise) // A "load older" (deferred)
+      .mockImplementationOnce(() => jsonResponse(agentBFirst)); // B initial
+
+    const { rerender } = render(<AgentTimeline agentName="agent-a" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Load older")).toBeInTheDocument();
+    });
+
+    // Kick off the older fetch (deferred), then switch agents before it lands.
+    fireEvent.click(screen.getByText("Load older"));
+    rerender(<AgentTimeline agentName="agent-b" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("agent-B row")).toBeInTheDocument();
+    });
+
+    // Now let agent A's stale older page resolve — it must be discarded.
+    releaseAOlder(
+      await jsonResponse(agentAOlder).then((r) => r),
+    );
+
+    await Promise.resolve();
+    await waitFor(() => {
+      expect(screen.queryByText("stale agent-A row")).not.toBeInTheDocument();
+    });
+    // Agent B's rows remain intact.
+    expect(screen.getByText("agent-B row")).toBeInTheDocument();
+  });
 });

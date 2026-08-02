@@ -74,9 +74,15 @@ export function AgentTimeline({ agentName }: { agentName: string }) {
 
   const loadOlder = useCallback(() => {
     if (loadingMore || !hasMore || cursorRef.current === undefined) return;
+    // Capture the current requestId so a page that resolves after the agent
+    // switched (loadInitial bumped requestIdRef) is discarded rather than
+    // appended to the new agent's rows / overwriting its cursor.
+    const requestId = requestIdRef.current;
     setLoadingMore(true);
+    setError(null);
     api.getAgentActivity(agentName, PAGE_SIZE, cursorRef.current)
       .then((items) => {
+        if (requestIdRef.current !== requestId) return;
         const next = items.map(toRow);
         setRows((prev) => [...prev, ...next]);
         const oldest = items[items.length - 1];
@@ -84,9 +90,11 @@ export function AgentTimeline({ agentName }: { agentName: string }) {
         setHasMore(items.length === PAGE_SIZE && oldest?.id !== undefined);
       })
       .catch(() => {
+        if (requestIdRef.current !== requestId) return;
         setError("Couldn't load older activity");
       })
       .finally(() => {
+        if (requestIdRef.current !== requestId) return;
         setLoadingMore(false);
       });
   }, [agentName, hasMore, loadingMore]);
