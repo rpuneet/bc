@@ -150,7 +150,7 @@ func TestRunToolHealthLoop_SurvivesPanickingCheck(t *testing.T) {
 		close(done)
 	}()
 
-	// Wait for the boot-time pass to have actually panicked. Cancelling without
+	// Wait for the boot-time pass to have actually panicked. Canceling without
 	// this could win the race and end the loop before it ever ran a check, so
 	// the test would report success having exercised nothing.
 	select {
