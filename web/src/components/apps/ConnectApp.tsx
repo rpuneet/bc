@@ -25,6 +25,7 @@ import type { Agent, AppAuthSession, AppDescriptor, AppInstance } from "../../ap
 import { AppIcon, presentationFor } from "./PlatformIcons";
 import { StatusDot } from "./appStatus";
 import { openExternal } from "../../utils/openExternal";
+import { ExternalLink } from "../ExternalLink";
 
 /* ── Presentation-only metadata (backend owns the rest) ──────────────
    App icon/color/category/description metadata lives in PlatformIcons.tsx
@@ -570,9 +571,9 @@ function linkifyDoc(text: string): React.ReactNode {
   if (parts.length === 1) return text;
   return parts.map((part, i) =>
     /^https?:\/\//.test(part) ? (
-      <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: "var(--mycel-accent)", textDecoration: "underline" }}>
+      <ExternalLink key={i} href={part} style={{ color: "var(--mycel-accent)", textDecoration: "underline" }}>
         {part.replace(/^https?:\/\//, "")}
-      </a>
+      </ExternalLink>
     ) : (
       <span key={i}>{part}</span>
     ),

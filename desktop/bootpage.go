@@ -64,13 +64,16 @@ const bootPage = `<!doctype html>
 
   function handoff() {
     msg.textContent = "opening…";
-    // Preferred: navigate the webview straight to the localhost URL.
-    window.location.replace(TARGET + "/");
+    // Preferred: navigate the webview straight to the localhost URL. The
+    // ?desktop=1 marker tells the SPA it is running inside the Wails webview
+    // (served from the daemon's http:// origin, where window.runtime is never
+    // injected) so it routes external links through /api/system/open-url.
+    window.location.replace(TARGET + "/?desktop=1");
     // Fallback: if the webview refused the cross-scheme navigation,
     // we are still here after 2s — embed the UI in a full-window iframe.
     setTimeout(function () {
       var f = document.createElement("iframe");
-      f.src = TARGET + "/";
+      f.src = TARGET + "/?desktop=1";
       document.body.appendChild(f);
       document.getElementById("boot").remove();
     }, 2000);
