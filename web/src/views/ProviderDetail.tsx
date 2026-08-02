@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { api } from "../api/client";
@@ -527,6 +527,7 @@ function ConfigPanel({
   const [command, setCommand] = useState(provider.config?.command ?? provider.command ?? "");
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const commandFieldId = useId();
 
   useEffect(() => {
     setCommand(provider.config?.command ?? provider.command ?? "");
@@ -556,14 +557,16 @@ function ConfigPanel({
       <div className="rounded border border-mycel-border bg-mycel-surface p-4 space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="text-xs text-mycel-muted block mb-1">Binary</label>
+            {/* Static value, not a form control \u2014 a <span> avoids an orphan <label>. */}
+            <span className="text-xs text-mycel-muted block mb-1">Binary</span>
             <div className="text-sm font-mono text-mycel-text-2 px-2.5 py-1.5 rounded bg-mycel-bg border border-mycel-border">
               {provider.binary || "\u2014"}
             </div>
           </div>
           <div>
-            <label className="text-xs text-mycel-muted block mb-1">Command</label>
+            <label htmlFor={commandFieldId} className="text-xs text-mycel-muted block mb-1">Command</label>
             <input
+              id={commandFieldId}
               type="text"
               value={command}
               onChange={(e) => {
@@ -574,13 +577,13 @@ function ConfigPanel({
             />
           </div>
           <div>
-            <label className="text-xs text-mycel-muted block mb-1">Description</label>
+            <span className="text-xs text-mycel-muted block mb-1">Description</span>
             <div className="text-sm text-mycel-text-2 px-2.5 py-1.5 rounded bg-mycel-bg border border-mycel-border">
               {provider.description || "\u2014"}
             </div>
           </div>
           <div>
-            <label className="text-xs text-mycel-muted block mb-1">Install Hint</label>
+            <span className="text-xs text-mycel-muted block mb-1">Install Hint</span>
             <div className="flex items-center gap-1">
               <div className="flex-1 text-sm font-mono text-mycel-text-2 px-2.5 py-1.5 rounded bg-mycel-bg border border-mycel-border truncate">
                 {provider.install_hint || "\u2014"}
@@ -755,6 +758,9 @@ function MCPSection({
   const [mcpName, setMcpName] = useState("");
   const [mcpTransport, setMcpTransport] = useState<"stdio" | "sse">("stdio");
   const [mcpValue, setMcpValue] = useState("");
+  const mcpNameFieldId = useId();
+  const mcpTransportFieldId = useId();
+  const mcpValueFieldId = useId();
   const [adding, setAdding] = useState(false);
   const [checking, setChecking] = useState(false);
   const [healthMap, setHealthMap] = useState<Record<string, { status: string; error?: string }>>({});
@@ -836,8 +842,9 @@ function MCPSection({
         <div className="rounded border border-mycel-accent bg-mycel-surface p-4 space-y-3 mb-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="text-xs text-mycel-muted block mb-1">Name</label>
+              <label htmlFor={mcpNameFieldId} className="text-xs text-mycel-muted block mb-1">Name</label>
               <input
+                id={mcpNameFieldId}
                 type="text"
                 value={mcpName}
                 onChange={(e) => setMcpName(e.target.value)}
@@ -846,8 +853,9 @@ function MCPSection({
               />
             </div>
             <div>
-              <label className="text-xs text-mycel-muted block mb-1">Transport</label>
+              <label htmlFor={mcpTransportFieldId} className="text-xs text-mycel-muted block mb-1">Transport</label>
               <select
+                id={mcpTransportFieldId}
                 value={mcpTransport}
                 onChange={(e) => setMcpTransport(e.target.value as "stdio" | "sse")}
                 className={inputCls}
@@ -857,10 +865,11 @@ function MCPSection({
               </select>
             </div>
             <div>
-              <label className="text-xs text-mycel-muted block mb-1">
+              <label htmlFor={mcpValueFieldId} className="text-xs text-mycel-muted block mb-1">
                 {mcpTransport === "sse" ? "URL" : "Command"}
               </label>
               <input
+                id={mcpValueFieldId}
                 type="text"
                 value={mcpValue}
                 onChange={(e) => setMcpValue(e.target.value)}

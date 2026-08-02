@@ -167,6 +167,32 @@ describe("Settings redesign", () => {
     });
   });
 
+  it("associates the Name field's label with its input via htmlFor/id", async () => {
+    mockApi();
+    renderSettings();
+    // getByLabelText only resolves through a real htmlFor → id link (or
+    // wrapping) — this fails if Field() ever regresses to an orphan label.
+    const nameInput = (await screen.findByLabelText("Name")) as HTMLInputElement;
+    expect(nameInput.value).toBe("dana");
+  });
+
+  it("keeps the password-reveal toggle keyboard-reachable", async () => {
+    mockApi();
+    renderSettings();
+
+    // Reveal the Advanced > Storage fields and switch to TimescaleDB, whose
+    // password field renders the show/hide toggle under test.
+    fireEvent.click(await screen.findByText("advanced"));
+    fireEvent.click(await screen.findByRole("button", { name: "▸ Storage" }));
+    const backendSelect = (await screen.findByLabelText("Backend")) as HTMLSelectElement;
+    fireEvent.change(backendSelect, { target: { value: "timescale" } });
+
+    const toggle = await screen.findByRole("button", { name: /show password/i });
+    expect(toggle).not.toHaveAttribute("tabindex", "-1");
+    toggle.focus();
+    expect(toggle).toHaveFocus();
+  });
+
   it("raises the save bar and PATCHes on edit + save", async () => {
     mockApi();
     renderSettings();

@@ -851,7 +851,7 @@ export function GatewayFeed({
         <button
           type="button"
           onClick={() => { setSearchOpen((v) => !v); if (searchOpen) setSearchQuery(""); }}
-          className="flex items-center justify-center"
+          className="relative flex items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent before:absolute before:-inset-2 before:content-['']"
           style={{
             width: 26,
             height: 26,
@@ -862,6 +862,7 @@ export function GatewayFeed({
             border: "none",
           }}
           title="Search messages"
+          aria-label="Search messages"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -873,7 +874,7 @@ export function GatewayFeed({
           <button
             type="button"
             onClick={() => setFilterOpen((v) => !v)}
-            className="flex items-center justify-center"
+            className="relative flex items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent before:absolute before:-inset-2 before:content-['']"
             style={{
               width: 26,
               height: 26,
@@ -884,6 +885,7 @@ export function GatewayFeed({
               border: "none",
             }}
             title="Filter messages"
+            aria-label="Filter messages"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
@@ -1124,7 +1126,9 @@ export function GatewayFeed({
           <button
             type="button"
             onClick={() => { setSearchOpen(false); setSearchQuery(""); }}
-            style={{ background: "none", border: "none", color: "var(--mycel-muted)", cursor: "pointer", padding: 2 }}
+            className="relative outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent before:absolute before:-inset-2 before:content-['']"
+            style={{ background: "none", border: "none", color: "var(--mycel-muted)", cursor: "pointer", padding: 2, borderRadius: 4 }}
+            aria-label="Close search"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -1151,8 +1155,10 @@ export function GatewayFeed({
           <button
             type="button"
             onClick={() => setFilterAgent(null)}
-            style={{ background: "none", border: "none", color: "var(--mycel-muted)", cursor: "pointer", padding: 2, marginLeft: "auto" }}
+            className="relative outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent before:absolute before:-inset-2 before:content-['']"
+            style={{ background: "none", border: "none", color: "var(--mycel-muted)", cursor: "pointer", padding: 2, marginLeft: "auto", borderRadius: 4 }}
             title="Clear filter"
+            aria-label="Clear filter"
           >
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -1209,6 +1215,7 @@ export function GatewayFeed({
           <button
             type="button"
             onClick={() => setTopicDismissed(true)}
+            className="relative outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent before:absolute before:-inset-2 before:content-['']"
             style={{
               background: "none",
               border: "none",
@@ -1217,8 +1224,10 @@ export function GatewayFeed({
               padding: 2,
               flexShrink: 0,
               marginTop: 1,
+              borderRadius: 4,
             }}
             title="Dismiss"
+            aria-label="Dismiss"
           >
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
