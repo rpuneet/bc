@@ -204,14 +204,15 @@ describe("ProviderDetail uninstall", () => {
   it("does not offer Remove for the default provider", async () => {
     renderDetail(baseProvider({ installed: true, version: "1.0.0", status: "healthy", config: { default: "true" } }));
 
-    await screen.findByRole("heading", { name: "codex" });
+    // The header now renders the friendly PROVIDER_LABELS name ("Codex").
+    await screen.findByRole("heading", { name: "Codex" });
     expect(screen.queryByRole("button", { name: "Remove" })).toBeNull();
   });
 
   it("does not offer Remove when the provider isn't installed", async () => {
     renderDetail(baseProvider({ installed: false, config: { default: "false" } }));
 
-    await screen.findByRole("heading", { name: "codex" });
+    await screen.findByRole("heading", { name: "Codex" });
     expect(screen.queryByRole("button", { name: "Remove" })).toBeNull();
   });
 });
