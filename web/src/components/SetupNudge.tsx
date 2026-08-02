@@ -51,7 +51,7 @@ export function SetupNudge() {
         <span className="font-medium">{data.headline}.</span> {data.subline}
       </span>
       <Link
-        to="/welcome"
+        to="/settings"
         className="ml-auto shrink-0 underline decoration-dotted underline-offset-2 font-medium hover:opacity-80"
       >
         Resume setup

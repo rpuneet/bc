@@ -19,12 +19,11 @@ import { ConfirmButton } from "../components/shared";
 import { ToastContainer, useToast } from "../components/Toast";
 import { formatCost, formatTokens } from "../utils/format";
 
-// Vault key each provider reads for headless (API-key) auth. Mirrors
-// SECRET_KEY in wizard/steps/StepProviders.tsx — the same two providers
-// support a documented env-var API key today; every other provider's only
-// auth path is its own interactive CLI login, so SignInAction shows an
-// honest copyable "<binary> login" command instead of a fake key field for
-// those.
+// Vault key each provider reads for headless (API-key) auth. Only these two
+// providers support a documented env-var API key today; every other
+// provider's only auth path is its own interactive CLI login, so
+// SignInAction shows an honest copyable "<binary> login" command instead of
+// a fake key field for those.
 const SECRET_KEY: Record<string, string> = {
   claude: "ANTHROPIC_API_KEY",
   codex: "OPENAI_API_KEY",
@@ -309,8 +308,8 @@ function UninstallAction({
  * Two honest shapes, gated on SECRET_KEY membership:
  *  - API-key providers (claude, codex): a password field that stores the
  *    key straight into the vault via the same createSecret/updateSecret
- *    calls StepProviders.tsx uses for the wizard, so the two surfaces never
- *    drift on how a key gets in.
+ *    calls used elsewhere in the app, so every surface stores keys the
+ *    same way.
  *  - Everything else: no fake button — mycel has no OAuth flow wired up for
  *    them yet, so the only real path is the CLI's own interactive login. We
  *    show that command, copyable, with an "Interactive" badge rather than a

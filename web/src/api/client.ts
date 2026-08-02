@@ -847,16 +847,21 @@ export interface SettingsConfig {
   onboarding?: { step: string; completed: string[] };
 }
 
-/* ── Onboarding — first-run setup wizard state (/api/onboarding) ─────── */
+/* ── Onboarding — first-run setup state (/api/onboarding) ──────────────
+   Setup is Settings revealing itself section-by-section (see
+   settings/useProgressiveReveal.ts) — there is no separate wizard route.
+   `completed` doubles as the reveal hook's per-section "touched" ack list
+   for sections with no hard-required field (runtime, apps). */
 
 export interface OnboardingState {
-  /** True when the app should route to /welcome instead of Home. */
+  /** True when the app should route to Settings instead of Home. */
   firstRun: boolean;
   hasAgents: boolean;
   prefsValid: boolean;
-  /** Ids of finished steps; ends with "done" once the wizard completes. */
+  /** Ids of acknowledged/finished sections. */
   completed: string[];
-  /** Id of the last-visited step, for resume. */
+  /** Id of the last-visited section, for resume (legacy; reveal derives
+   *  its own position from `completed` + live config). */
   step: string;
 }
 

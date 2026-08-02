@@ -94,8 +94,8 @@ describe("Layout readiness surfacing", () => {
 
   it("no longer exposes a standalone Setup entry in the drawer footer", async () => {
     renderLayout();
-    // Setup folded into Settings (the Setup section) + the /welcome wizard;
-    // the drawer footer no longer carries its own Setup link.
+    // Setup folded into Settings as a progressive reveal across its real
+    // sections; the drawer footer no longer carries its own Setup link.
     await screen.findByRole("link", { name: "Settings" });
     expect(screen.queryByRole("link", { name: "Setup" })).not.toBeInTheDocument();
   });

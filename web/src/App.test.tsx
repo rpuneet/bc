@@ -2,10 +2,11 @@
  * App.test.tsx — HomeGate first-run flash fix (#2674).
  *
  * HomeGate used to render the full Home dashboard immediately and only
- * redirect to /welcome once the onboarding probe resolved — a visible
- * flash of the empty dashboard on a fresh install. It should instead show
- * a blank/skeleton frame while the probe is in flight, then land on either
- * Home or /welcome once it resolves.
+ * redirect once the onboarding probe resolved — a visible flash of the
+ * empty dashboard on a fresh install. It should instead show a
+ * blank/skeleton frame while the probe is in flight, then land on either
+ * Home or Settings (first-run setup is a progressive reveal there now —
+ * there's no separate /welcome wizard) once it resolves.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -29,7 +30,7 @@ function renderGate() {
     <MemoryRouter initialEntries={["/"]}>
       <Routes>
         <Route path="/" element={<HomeGate />} />
-        <Route path="/welcome" element={<div>Welcome Page</div>} />
+        <Route path="/settings" element={<div>Settings Page</div>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -64,7 +65,7 @@ describe("HomeGate", () => {
     });
   });
 
-  it("redirects to /welcome on first run without ever rendering Home", async () => {
+  it("redirects to /settings on first run without ever rendering Home", async () => {
     fetchMock.mockImplementation((url: string) => {
       if (url.includes("/onboarding/state")) return jsonResponse({ firstRun: true });
       return jsonResponse([]);
@@ -73,7 +74,7 @@ describe("HomeGate", () => {
     renderGate();
 
     await waitFor(() => {
-      expect(screen.getByText("Welcome Page")).toBeInTheDocument();
+      expect(screen.getByText("Settings Page")).toBeInTheDocument();
     });
     expect(screen.queryByTestId("live-state-badge")).not.toBeInTheDocument();
   });
@@ -89,6 +90,6 @@ describe("HomeGate", () => {
     await waitFor(() => {
       expect(screen.queryByText(/loading/i)).not.toBeInTheDocument();
     });
-    expect(screen.queryByText("Welcome Page")).not.toBeInTheDocument();
+    expect(screen.queryByText("Settings Page")).not.toBeInTheDocument();
   });
 });
