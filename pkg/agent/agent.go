@@ -3362,6 +3362,8 @@ func openLayeredStore(repoPath, passphrase string) (ls *secret.LayeredStore, clo
 //
 // GITHUB_PERSONAL_ACCESS_TOKEN and GITHUB_TOKEN in the vault are aliased to
 // both GITHUB_TOKEN and GH_TOKEN so git/gh tooling works without manual wiring.
+// The connected GitHub app's api_token (app:<instance>:api_token, populated
+// by "Sign in with GitHub" or pasted manually) is aliased the same way.
 //
 // Secret VALUES are never logged.
 //
@@ -3407,6 +3409,17 @@ func injectVaultSecrets(env map[string]string, repoPath string, roleSecrets []st
 	// 1.5. Connected-app credentials — descriptor Secret fields resolve from
 	//      the vault under app:<instance>:<key> into conventional env names
 	//      (SLACK_BOT_TOKEN, TELEGRAM_BOT_TOKEN_ALERTS, ...).
+	//
+	//      Special case: the GitHub app's "api_token" field (populated by the
+	//      device-flow "Sign in with GitHub" OAuth, or pasted manually) is
+	//      additionally aliased to GH_TOKEN/GITHUB_TOKEN so `gh` and git's
+	//      credential helper authenticate automatically — same convenience as
+	//      the GITHUB_PERSONAL_ACCESS_TOKEN vault alias below (step 3), just
+	//      sourced from a connected app instead of a hand-set vault secret.
+	//      Scoping matches every other connected-app credential here: any
+	//      enabled instance's token is available to all agents (the same
+	//      model as SLACK_BOT_TOKEN etc.) — there is no per-agent app
+	//      subscription in this codebase to scope against.
 	for name, ic := range apps {
 		if !ic.Enabled {
 			continue
@@ -3416,8 +3429,13 @@ func injectVaultSecrets(env map[string]string, repoPath string, roleSecrets []st
 			continue
 		}
 		for _, f := range plugin.Describe().Fields {
-			if f.Secret {
-				injectIfAbsent(app.EnvKey(name, f.Key), app.SecretName(name, f.Key))
+			if !f.Secret {
+				continue
+			}
+			injectIfAbsent(app.EnvKey(name, f.Key), app.SecretName(name, f.Key))
+			if ic.App == "github" && f.Key == "api_token" {
+				injectIfAbsent("GITHUB_TOKEN", app.SecretName(name, f.Key))
+				injectIfAbsent("GH_TOKEN", app.SecretName(name, f.Key))
 			}
 		}
 	}
