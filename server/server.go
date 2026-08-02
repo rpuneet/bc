@@ -300,6 +300,12 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 				svc.Notify.Dispatch(ch, platform, sender, senderID, senderAvatar, content, messageID, mentions, nil, raw, opts...)
 			}
 		})
+
+		// Record what agents send, not just what arrives, so channel history
+		// reads as a conversation instead of a one-sided log.
+		if svc.Notify != nil {
+			svc.Gateway.SetOutboundHandler(svc.Notify.RecordOutbound)
+		}
 	}
 	if svc.Costs != nil {
 		handlers.NewCostHandler(svc.Costs).Register(mux)

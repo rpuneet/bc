@@ -117,6 +117,40 @@ func Automated() DispatchOption {
 	return func(o *dispatchOpts) { o.automated = true }
 }
 
+// RecordOutbound stores a message an agent sent out to a platform channel, so
+// channel history reads as a conversation rather than only the half that came
+// in. Inbound messages are stored by Dispatch; outbound ones have no dispatch
+// to hang off, because nothing needs delivering — they are already on their way
+// to the platform.
+//
+// Called after the gateway reports a successful send. Errors are logged rather
+// than returned: the message has already left, so failing the caller's send
+// would misreport what happened.
+func (s *Service) RecordOutbound(channel, sender, content string) {
+	if channel == "" || content == "" {
+		return
+	}
+	ctx := s.ctx
+
+	if err := s.store.SaveMessage(ctx, channel, sender, "", content); err != nil {
+		log.Warn("notify: save outbound message failed", "channel", channel, "sender", sender, "error", err)
+		return
+	}
+
+	// Same event shape the inbound path publishes, so an open channel view
+	// appends the message live instead of waiting for a refetch.
+	if s.hub != nil {
+		s.hub.Publish("channel.message", map[string]any{
+			"channel": channel,
+			"message": map[string]any{
+				"sender":  sender,
+				"content": content,
+				"type":    "text",
+			},
+		})
+	}
+}
+
 // Dispatch receives a normalized inbound message and delivers it to
 // subscribed agents only. Runs in its own goroutine — never blocks the adapter.
 // extraMentions carries pre-extracted platform mentions (e.g. WhatsApp JID user

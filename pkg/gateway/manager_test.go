@@ -537,3 +537,156 @@ func TestStopAdapterAllowsRestart(t *testing.T) {
 		t.Fatal("replacement adapter did not start")
 	}
 }
+
+// mockSendingAdapter is a mockNotifAdapter that also implements messageSender,
+// recording what it was asked to send and optionally failing.
+type mockSendingAdapter struct {
+	mockNotifAdapter
+	err  error
+	sent []struct{ ChannelID, Sender, Content string }
+}
+
+func (m *mockSendingAdapter) Send(_ context.Context, channelID, sender, content string) error {
+	if m.err != nil {
+		return m.err
+	}
+	m.sent = append(m.sent, struct{ ChannelID, Sender, Content string }{channelID, sender, content})
+	return nil
+}
+
+// TestSendRecordsOutbound pins the fix for one-sided channel history: a
+// successful send has to reach the outbound handler, which is what writes the
+// agent's own message into the transcript. Without it a channel shows only what
+// arrived — a live workspace had 659 inbound messages and no agent replies.
+func TestSendRecordsOutbound(t *testing.T) {
+	m := NewManager()
+	adapter := &mockSendingAdapter{mockNotifAdapter: mockNotifAdapter{name: "slack"}}
+	m.Register(adapter)
+	m.channelMap["slack:general"] = channelRoute{Adapter: adapter, Platform: "slack", ChannelID: "C123"}
+
+	var got []string
+	m.SetOutboundHandler(func(channel, sender, content string) {
+		got = append(got, channel+"|"+sender+"|"+content)
+	})
+
+	sent, err := m.Send(context.Background(), "slack:general", "fast-crane", "shipping the fix")
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if !sent {
+		t.Fatal("Send() reported the channel as unhandled")
+	}
+
+	want := "slack:general|fast-crane|shipping the fix"
+	if len(got) != 1 || got[0] != want {
+		t.Errorf("outbound handler calls = %v, want exactly [%q]", got, want)
+	}
+	// The message must still actually reach the platform, addressed by its
+	// native channel id rather than the mycel name.
+	if len(adapter.sent) != 1 || adapter.sent[0].ChannelID != "C123" {
+		t.Errorf("adapter received %+v, want one send to C123", adapter.sent)
+	}
+}
+
+// TestSendRecordsOutboundOnFallbackRoute covers the "platform:id" path used for
+// destinations that have never produced an inbound message. It sends, so it
+// must be recorded too.
+func TestSendRecordsOutboundOnFallbackRoute(t *testing.T) {
+	m := NewManager()
+	adapter := &mockSendingAdapter{mockNotifAdapter: mockNotifAdapter{name: "whatsapp"}}
+	m.Register(adapter)
+	// Deliberately no channelMap entry.
+
+	var calls int
+	m.SetOutboundHandler(func(_, _, _ string) { calls++ })
+
+	sent, err := m.Send(context.Background(), "whatsapp:919999999999", "bold-falcon", "on my way")
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if !sent {
+		t.Fatal("Send() reported the fallback channel as unhandled")
+	}
+	if calls != 1 {
+		t.Errorf("outbound handler called %d times, want 1", calls)
+	}
+}
+
+// TestSendDoesNotRecordFailedSend is the important negative: recording a
+// message the platform rejected would put a reply in the transcript that the
+// other side never saw.
+func TestSendDoesNotRecordFailedSend(t *testing.T) {
+	m := NewManager()
+	adapter := &mockSendingAdapter{
+		mockNotifAdapter: mockNotifAdapter{name: "slack"},
+		err:              fmt.Errorf("slack: channel_not_found"),
+	}
+	m.Register(adapter)
+	m.channelMap["slack:gone"] = channelRoute{Adapter: adapter, Platform: "slack", ChannelID: "C404"}
+
+	var calls int
+	m.SetOutboundHandler(func(_, _, _ string) { calls++ })
+
+	if _, err := m.Send(context.Background(), "slack:gone", "fast-crane", "hello?"); err == nil {
+		t.Fatal("Send() expected an error from the adapter")
+	}
+	if calls != 0 {
+		t.Errorf("outbound handler called %d times for a failed send, want 0", calls)
+	}
+}
+
+// TestSendDoesNotRecordUnroutableChannel guards the case where the channel is
+// not a gateway channel at all: nothing was sent, so nothing should be logged.
+func TestSendDoesNotRecordUnroutableChannel(t *testing.T) {
+	m := NewManager()
+
+	var calls int
+	m.SetOutboundHandler(func(_, _, _ string) { calls++ })
+
+	sent, err := m.Send(context.Background(), "nosuchplatform:room", "api", "anyone there")
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if sent {
+		t.Error("Send() claimed to handle an unknown platform")
+	}
+	if calls != 0 {
+		t.Errorf("outbound handler called %d times with no route, want 0", calls)
+	}
+}
+
+// TestOutboundHandlerPanicDoesNotFailSend: the message is already delivered by
+// the time the handler runs, so a bug in bookkeeping must not be reported to
+// the caller as a send failure.
+func TestOutboundHandlerPanicDoesNotFailSend(t *testing.T) {
+	m := NewManager()
+	adapter := &mockSendingAdapter{mockNotifAdapter: mockNotifAdapter{name: "slack"}}
+	m.Register(adapter)
+	m.channelMap["slack:general"] = channelRoute{Adapter: adapter, Platform: "slack", ChannelID: "C123"}
+	m.SetOutboundHandler(func(_, _, _ string) { panic("bookkeeping exploded") })
+
+	sent, err := m.Send(context.Background(), "slack:general", "fast-crane", "still delivered")
+	if err != nil {
+		t.Errorf("Send() error = %v, want nil despite the handler panic", err)
+	}
+	if !sent {
+		t.Error("Send() reported failure despite the platform accepting the message")
+	}
+}
+
+// TestSendWithoutOutboundHandler makes sure the hook is optional — a Manager
+// with no handler wired must still send.
+func TestSendWithoutOutboundHandler(t *testing.T) {
+	m := NewManager()
+	adapter := &mockSendingAdapter{mockNotifAdapter: mockNotifAdapter{name: "slack"}}
+	m.Register(adapter)
+	m.channelMap["slack:general"] = channelRoute{Adapter: adapter, Platform: "slack", ChannelID: "C123"}
+
+	sent, err := m.Send(context.Background(), "slack:general", "fast-crane", "no handler wired")
+	if err != nil || !sent {
+		t.Fatalf("Send() = (%v, %v), want (true, nil)", sent, err)
+	}
+	if len(adapter.sent) != 1 {
+		t.Errorf("adapter received %d sends, want 1", len(adapter.sent))
+	}
+}
