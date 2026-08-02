@@ -161,7 +161,7 @@ export function Readiness() {
           type="button"
           onClick={() => void refresh()}
           disabled={loading}
-          className="shrink-0 text-[11px] px-2.5 py-1 rounded border border-mycel-border hover:border-mycel-accent bg-mycel-surface text-mycel-muted hover:text-mycel-text transition-colors disabled:opacity-50"
+          className="relative shrink-0 text-[11px] px-2.5 py-1 rounded border border-mycel-border hover:border-mycel-accent bg-mycel-surface text-mycel-muted hover:text-mycel-text transition-colors disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent before:absolute before:-inset-2 before:content-['']"
         >
           {loading ? "Checking…" : "Re-check"}
         </button>

@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useMemo } from "react";
+import { useCallback, useState, useEffect, useMemo, useId, Children, isValidElement, cloneElement, type ReactElement } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, type AppInstance, type BudgetStatus } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
@@ -58,28 +58,45 @@ function deepEqual(a: unknown, b: unknown): boolean {
 
 // Sans by default — a settings page is read prose, not a config dump. Taller
 // hit target, a border that firms up and an accent ring on focus.
-const INPUT_CLS = "w-full px-2.5 py-1.5 text-[13px] rounded-md border border-mycel-border bg-mycel-bg text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:border-mycel-accent focus:ring-1 focus:ring-mycel-accent transition-colors";
+const INPUT_CLS = "w-full px-2.5 py-1.5 text-[13px] rounded-md border border-mycel-border bg-mycel-bg text-mycel-text placeholder:text-mycel-muted outline-none focus-visible:border-mycel-accent focus-visible:ring-2 focus-visible:ring-mycel-accent transition-colors";
 // Mono variant — reserved for genuinely technical values (paths, images,
 // sockets, shells) where character alignment actually helps.
 const MONO_INPUT_CLS = `${INPUT_CLS} font-mono`;
 
+// Form elements a Field can auto-associate its label with via `htmlFor` —
+// native controls get the id cloned straight on; PasswordField forwards it
+// to its own internal <input> (see below).
+const FIELD_CONTROL_TAGS = new Set(["input", "select", "textarea"]);
+
 function Field({ label, children, suffix }: { label: string; children: React.ReactNode; suffix?: string }) {
+  const autoId = useId();
+  let assigned = false;
+  const kids = Children.map(children, (child) => {
+    if (assigned || !isValidElement(child)) return child;
+    const isNativeControl = typeof child.type === "string" && FIELD_CONTROL_TAGS.has(child.type);
+    const isPasswordField = child.type === PasswordField;
+    if (!isNativeControl && !isPasswordField) return child;
+    assigned = true;
+    const props = child.props as { id?: string };
+    return cloneElement(child as ReactElement<{ id?: string }>, { id: props.id ?? autoId });
+  });
   return (
     <div className="flex items-center gap-3 min-h-[34px]">
-      <label className="text-[12px] text-mycel-text-2 w-28 shrink-0 truncate" title={label}>{label}</label>
+      <label htmlFor={autoId} className="text-[12px] text-mycel-text-2 w-28 shrink-0 truncate" title={label}>{label}</label>
       <div className="flex-1 flex items-center gap-1.5 min-w-0">
-        {children}
+        {kids}
         {suffix && <span className="text-[10px] text-mycel-muted shrink-0">{suffix}</span>}
       </div>
     </div>
   );
 }
 
-function PasswordField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function PasswordField({ value, onChange, id }: { value: string; onChange: (v: string) => void; id?: string }) {
   const [visible, setVisible] = useState(false);
   return (
     <div className="relative w-full">
       <input
+        id={id}
         type={visible ? "text" : "password"}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -88,8 +105,9 @@ function PasswordField({ value, onChange }: { value: string; onChange: (v: strin
       <button
         type="button"
         onClick={() => setVisible(!visible)}
-        className="absolute inset-y-0 right-0 flex items-center px-2 text-mycel-muted hover:text-mycel-text"
-        tabIndex={-1}
+        aria-label={visible ? "Hide password" : "Show password"}
+        aria-pressed={visible}
+        className="absolute inset-y-0 right-0 flex items-center px-2 text-mycel-muted hover:text-mycel-text outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent rounded-md before:absolute before:-inset-2.5 before:content-['']"
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           {visible ? (
@@ -562,8 +580,8 @@ function BudgetsSection() {
           {status === "saving" ? "Saving…" : "Save"}
         </button>
       </Field>
-      {status === "saved" && <p className="text-[11px] text-mycel-success">Saved</p>}
-      {status === "error" && <p className="text-[11px] text-mycel-error">Couldn&apos;t save the cap.</p>}
+      {status === "saved" && <p aria-live="polite" className="text-[11px] text-mycel-success">Saved</p>}
+      {status === "error" && <p role="alert" className="text-[11px] text-mycel-error">Couldn&apos;t save the cap.</p>}
 
       {perAgent.length > 0 && (
         <div className="rounded-lg border border-mycel-border bg-mycel-bg divide-y divide-mycel-border overflow-hidden">
@@ -701,8 +719,8 @@ function InjectedInstructionsSection() {
         onChange={(e) => setText(e.target.value)}
       />
       <div className="flex items-center justify-end gap-2">
-        {status === "saved" && <span className="text-xs text-mycel-success">Saved</span>}
-        {status === "error" && <span className="text-xs text-mycel-error">Save failed</span>}
+        {status === "saved" && <span aria-live="polite" className="text-xs text-mycel-success">Saved</span>}
+        {status === "error" && <span role="alert" className="text-xs text-mycel-error">Save failed</span>}
         <button
           type="button"
           onClick={handleSave}
@@ -724,6 +742,7 @@ export function Settings() {
   const fetcher = useCallback(() => api.getSettings(), []);
   const { data: config, loading, error, refresh, timedOut } = usePolling(fetcher, 30000);
   const { setTheme } = useTheme();
+  const themeLabelId = useId();
   const reveal = useProgressiveReveal(config, refresh);
 
   const [edited, setEdited] = useState<Record<string, unknown> | null>(null);
@@ -842,7 +861,7 @@ export function Settings() {
           onClick={() => { void reveal.replay(); }}
           title="Re-run setup — replays the guided reveal below without blanking anything you've already set"
           aria-label="Re-run setup"
-          className="shrink-0 grid place-items-center w-9 h-9 rounded-full border border-mycel-border bg-mycel-surface text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors active:scale-95"
+          className="relative shrink-0 grid place-items-center w-9 h-9 rounded-full border border-mycel-border bg-mycel-surface text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors active:scale-95 outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent before:absolute before:-inset-1.5 before:content-['']"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
@@ -851,7 +870,7 @@ export function Settings() {
       </header>
 
       {saveStatus === "saved" && dirtySections.length === 0 && (
-        <div className="fixed bottom-4 right-4 z-30 rounded-lg border border-mycel-success bg-mycel-success-subtle px-3 py-2 text-xs text-mycel-success shadow-mycel-lg">
+        <div aria-live="polite" className="fixed bottom-4 right-4 z-30 rounded-lg border border-mycel-success bg-mycel-success-subtle px-3 py-2 text-xs text-mycel-success shadow-mycel-lg">
           Saved
         </div>
       )}
@@ -902,7 +921,7 @@ export function Settings() {
       )}
 
       {restartWarning && (
-        <div className="rounded-md border border-mycel-error bg-mycel-error-subtle px-3 py-1.5 text-xs text-mycel-error">
+        <div role="alert" className="rounded-md border border-mycel-error bg-mycel-error-subtle px-3 py-1.5 text-xs text-mycel-error">
           Changes saved. Restart mycel to apply (<code className="font-mono">mycel down &amp;&amp; mycel up -d</code>)
         </div>
       )}
@@ -927,8 +946,10 @@ export function Settings() {
           />
         </Field>
         <div className="flex items-start gap-2 min-h-[28px] pt-1">
-          <label className="text-xs text-mycel-text-2 w-28 shrink-0">Theme</label>
-          <ThemePicker value={currentThemeChoice} onChange={handleThemeChange} />
+          <span id={themeLabelId} className="text-xs text-mycel-text-2 w-28 shrink-0">Theme</span>
+          <div role="group" aria-labelledby={themeLabelId}>
+            <ThemePicker value={currentThemeChoice} onChange={handleThemeChange} />
+          </div>
         </div>
         <Field label="Default view">
           <select

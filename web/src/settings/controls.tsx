@@ -39,7 +39,7 @@ export function ThemePicker({
             type="button"
             onClick={() => onChange(c.id)}
             aria-pressed={active}
-            className={`relative flex flex-col items-start gap-0.5 px-3.5 py-2 rounded-lg border text-left cursor-pointer transition-all active:scale-[0.98] ${
+            className={`relative flex flex-col items-start gap-0.5 px-3.5 py-2 rounded-lg border text-left cursor-pointer transition-all active:scale-[0.98] outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent ${
               active
                 ? "border-mycel-accent bg-mycel-accent-subtle shadow-mycel-sm"
                 : "border-mycel-border bg-mycel-surface hover:border-mycel-accent hover:bg-mycel-surface-hover"
@@ -86,7 +86,7 @@ export function RuntimePicker({
         type="button"
         onClick={() => onChange(id)}
         aria-pressed={active}
-        className={`flex-1 text-left flex flex-col gap-1 rounded-lg border p-4 cursor-pointer transition-all active:scale-[0.99] ${
+        className={`flex-1 text-left flex flex-col gap-1 rounded-lg border p-4 cursor-pointer transition-all active:scale-[0.99] outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent ${
           active ? "border-mycel-accent bg-mycel-accent-subtle shadow-mycel-sm" : "border-mycel-border bg-mycel-surface hover:border-mycel-accent hover:bg-mycel-surface-hover"
         }`}
       >
@@ -130,7 +130,7 @@ export function AdvancedToggle({
     <button
       type="button"
       onClick={onToggle}
-      className="self-start text-[12px] text-mycel-muted hover:text-mycel-text transition-colors"
+      className="self-start text-[12px] text-mycel-muted hover:text-mycel-text transition-colors outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent rounded-sm"
     >
       {open ? `▾ Hide ${label.toLowerCase()}` : `▸ ${label}`}
     </button>

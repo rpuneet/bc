@@ -418,7 +418,7 @@ export function Home() {
             onClick={() => setMenuOpen((v) => !v)}
             aria-label="More options"
             aria-expanded={menuOpen}
-            className={`inline-flex items-center justify-center h-8 w-8 rounded-md border text-base leading-none transition-colors ${menuOpen ? "border-mycel-accent text-mycel-text bg-mycel-surface-hover" : "border-mycel-border bg-mycel-surface text-mycel-muted hover:text-mycel-text hover:border-mycel-accent"}`}
+            className={`relative inline-flex items-center justify-center h-8 w-8 rounded-md border text-base leading-none transition-colors outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent before:absolute before:-inset-2 before:content-[''] ${menuOpen ? "border-mycel-accent text-mycel-text bg-mycel-surface-hover" : "border-mycel-border bg-mycel-surface text-mycel-muted hover:text-mycel-text hover:border-mycel-accent"}`}
           >
             &#x22EF;
           </button>
@@ -517,7 +517,8 @@ export function Home() {
                 <button
                   type="button"
                   onClick={() => setShowShortcuts(false)}
-                  className="text-mycel-muted hover:text-mycel-text text-sm"
+                  aria-label="Close keyboard shortcuts"
+                  className="relative text-mycel-muted hover:text-mycel-text text-sm outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent rounded-sm before:absolute before:-inset-2.5 before:content-['']"
                 >
                   &times;
                 </button>
