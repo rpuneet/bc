@@ -121,6 +121,12 @@ func mcpConfigPath(h *home.Home) string {
 // checkMCPServer checks one MCP server's health. Returns nil when
 // healthy, or an Item describing the problem otherwise.
 func checkMCPServer(ctx context.Context, s *mcp.ServerConfig) *Item {
+	// Disabled servers are never spawned, so their command/URL health is
+	// irrelevant — don't flag a stale disabled entry as a problem.
+	if !s.Enabled {
+		return nil
+	}
+
 	name := "mcp:" + s.Name
 
 	switch s.Transport {

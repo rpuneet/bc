@@ -94,6 +94,30 @@ func TestCheckMCP_StdioCommandMissing(t *testing.T) {
 	}
 }
 
+func TestCheckMCP_DisabledServerSkipped(t *testing.T) {
+	h, homeDir := newBootstrappedHome(t)
+	// A disabled server with a bogus command must NOT be flagged — it is
+	// never spawned, so its command/URL health is irrelevant.
+	writeMCPServers(t, homeDir, &mcp.ServerConfig{
+		Name: "disabled-ghost", Transport: mcp.TransportStdio, Command: "no-such-binary-abc", Enabled: false,
+	})
+
+	cat := CheckMCP(context.Background(), h)
+
+	_, warn, fail := cat.Counts()
+	if warn != 0 || fail != 0 {
+		t.Fatalf("disabled server should raise no problems, got %+v", cat.Items)
+	}
+	for _, item := range cat.Items {
+		if item.Name == "mcp:disabled-ghost" {
+			t.Errorf("disabled server should not produce a problem item: %+v", item)
+		}
+	}
+	if !strings.Contains(cat.Items[0].Message, "1 of 1 MCP servers OK") {
+		t.Errorf("summary = %q", cat.Items[0].Message)
+	}
+}
+
 func TestCheckMCP_URLUnreachable(t *testing.T) {
 	h, homeDir := newBootstrappedHome(t)
 	// A URL nothing listens on — connection should fail fast.
