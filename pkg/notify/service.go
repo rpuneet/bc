@@ -242,19 +242,26 @@ func (s *Service) deliverToSubscribers(ctx context.Context, d deliverable) {
 		return
 	}
 
-	// Setup wizard historically subscribed agents to "{platform}:general"
-	// even when no such channel exists (Telegram DMs arrive as
-	// telegram:<username|chat_id>). Copy placeholder subscriptions onto
-	// the first real channel so legacy installs self-heal.
+	// The connect-app flow subscribes agents to "{platform}:general" as a
+	// catch-all, because the real channel is not known until a message
+	// arrives (Telegram DMs land on telegram:<username|chat_id>, mail on
+	// gmail:<sender>). When a channel has no subscribers of its own, fall
+	// back to the catch-all's subscribers for this delivery.
+	//
+	// This is deliberately a read, not a write. Copying the catch-all onto
+	// each new channel used to leave a permanent subscription behind, and
+	// platforms that mint a channel per correspondent (Gmail per sender,
+	// WhatsApp per chat) turned one catch-all row into dozens nobody asked
+	// for — see #3463. An explicit subscription on the real channel still
+	// wins, so per-channel settings keep working.
 	if len(subs) == 0 && platform != "" {
-		if n, mErr := s.migratePlaceholderSubs(ctx, platform, channel); mErr != nil {
-			log.Warn("notify: placeholder migration failed", "platform", platform, "channel", channel, "error", mErr)
-		} else if n > 0 {
-			subs, subErr = s.store.Subscribers(ctx, channel)
-			if subErr != nil {
-				log.Warn("notify: failed to get subscribers after migration", "channel", channel, "error", subErr)
-				return
-			}
+		fallback, fErr := s.catchAllSubscribers(ctx, platform, channel)
+		if fErr != nil {
+			log.Warn("notify: catch-all lookup failed", "platform", platform, "channel", channel, "error", fErr)
+		} else if len(fallback) > 0 {
+			subs = fallback
+			log.Info("notify: delivering via catch-all subscription",
+				"channel", channel, "catch_all", platform+catchAllSuffix, "agents", len(fallback))
 		}
 	}
 
@@ -314,41 +321,26 @@ func (s *Service) deliverToSubscribers(ctx context.Context, d deliverable) {
 	}
 }
 
-// migratePlaceholderSubs copies subscriptions from "{platform}:general" onto
-// the real channel when the placeholder still has subscribers and the real
-// channel has none. Returns the number of agents copied. The placeholder row
-// is left in place (copy, not rewrite) so operators can clean it up later.
-func (s *Service) migratePlaceholderSubs(ctx context.Context, platform, realChannel string) (int, error) {
-	placeholder := platform + ":general"
-	if realChannel == "" || realChannel == placeholder {
-		return 0, nil
-	}
-	// Only migrate onto channels for this platform.
-	prefix := platform + ":"
-	if !strings.HasPrefix(realChannel, prefix) {
-		return 0, nil
-	}
+// catchAllSuffix is the channel the connect-app flow subscribes agents to when
+// the real per-conversation channel cannot be known in advance.
+const catchAllSuffix = ":general"
 
-	legacy, err := s.store.Subscribers(ctx, placeholder)
-	if err != nil {
-		return 0, err
+// catchAllSubscribers returns the subscribers of "{platform}:general" so a
+// channel with no subscribers of its own can still be delivered. It only
+// reads: writing a subscription per channel is what produced the runaway
+// subscription lists in #3463.
+//
+// Returns nothing when realChannel is the catch-all itself (already handled by
+// the normal lookup) or belongs to another platform.
+func (s *Service) catchAllSubscribers(ctx context.Context, platform, realChannel string) ([]Subscription, error) {
+	catchAll := platform + catchAllSuffix
+	if realChannel == "" || realChannel == catchAll {
+		return nil, nil
 	}
-	if len(legacy) == 0 {
-		return 0, nil
+	if !strings.HasPrefix(realChannel, platform+":") {
+		return nil, nil
 	}
-
-	copied := 0
-	for _, sub := range legacy {
-		if err := s.store.Subscribe(ctx, realChannel, sub.Agent, sub.MentionOnly); err != nil {
-			return copied, err
-		}
-		copied++
-	}
-	if copied > 0 {
-		log.Info("notify: migrated placeholder subscriptions",
-			"from", placeholder, "to", realChannel, "agents", copied)
-	}
-	return copied, nil
+	return s.store.Subscribers(ctx, catchAll)
 }
 
 // Subscribe adds an agent to a channel.
