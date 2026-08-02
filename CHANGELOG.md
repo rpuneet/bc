@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A blank MCP command no longer takes the daemon down.** The tool health
+  check indexed the first field of a stored command without checking there was
+  one, so a whitespace-only entry panicked — on a background goroutine, where
+  no HTTP recovery middleware can help, and again on every 30-second tick
+  because the offending row was still there. The check now reports the tool as
+  misconfigured, and the health pass recovers rather than propagating (#3471).
 - **Agent-spawned children are no longer exempt from guardrails.** `spawn_agent`
   over MCP had no `template` field, and the guardrail loop skips any agent
   without one, so every child an agent spawned ran with no cost cap and no stuck
@@ -39,6 +45,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   included — made an HTTP request to WhatsApp's servers and printed a WhatsApp log
   line before doing what was asked. The lookup now happens when the adapter
   actually connects, once per process (#3455).
+- **Tool details report real paths and owners.** An expanded CLI tool row
+  showed "Path: git" — the configured command name under a Path label — and a
+  "Version cmd" box that was just the tool name plus `--version`, both styled
+  like inputs waiting to be filled in. The API now separates `path` (resolved,
+  absolute) from `command` (configured) and infers which package manager owns
+  each tool, following the symlink so a Homebrew binary is attributable. With
+  the owner known, the row names the update command that manager would use
+  instead of saying "copy the command above" with no command above it, and it
+  no longer offers to uninstall OS-provided binaries the backend refuses to
+  touch. The Setup card now appears only while setup is unfinished, rather
+  than permanently restating that the re-run icon exists (#3482).
 
 ## [0.4.4] - 2026-08-02
 

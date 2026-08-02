@@ -222,6 +222,85 @@ function StreamedAction({
   );
 }
 
+/* Human name for an inferred package manager id. The API sends the id only —
+ * how to render it is presentation, and belongs here. */
+const MANAGER_LABEL: Record<string, string> = {
+  brew: "Homebrew",
+  npm: "npm (global)",
+  pnpm: "pnpm (global)",
+  yarn: "Yarn (global)",
+  cargo: "cargo",
+  pipx: "pipx",
+  pip: "pip",
+  uv: "uv",
+  gem: "RubyGems",
+  apt: "apt",
+  dnf: "dnf",
+  yum: "yum",
+  pacman: "pacman",
+  zypper: "zypper",
+  winget: "winget",
+  scoop: "Scoop",
+  choco: "Chocolatey",
+  nvm: "nvm (Node)",
+  volta: "Volta",
+  pyenv: "pyenv",
+  rbenv: "rbenv",
+  system: "Your OS",
+};
+
+function managerLabel(id: string | undefined): string {
+  if (!id) return "Unknown";
+  return MANAGER_LABEL[id] ?? id;
+}
+
+/* How each manager updates one of its packages. Used to name a command when the
+ * tool has no updater configured — more use than telling the user to copy a
+ * command that isn't on screen. Shown to copy, never run: the package name is
+ * assumed to equal the tool name, which is right often but not always, and
+ * that's not a good enough guess to execute on someone's behalf. */
+const MANAGER_UPDATE: Record<string, (name: string) => string> = {
+  brew: (n) => `brew upgrade ${n}`,
+  npm: (n) => `npm install -g ${n}@latest`,
+  pnpm: (n) => `pnpm add -g ${n}@latest`,
+  yarn: (n) => `yarn global upgrade ${n}`,
+  cargo: (n) => `cargo install ${n} --force`,
+  pipx: (n) => `pipx upgrade ${n}`,
+  pip: (n) => `pip install --upgrade ${n}`,
+  uv: (n) => `uv tool upgrade ${n}`,
+  gem: (n) => `gem update ${n}`,
+  apt: (n) => `sudo apt-get install --only-upgrade ${n}`,
+  dnf: (n) => `sudo dnf upgrade ${n}`,
+  yum: (n) => `sudo yum update ${n}`,
+  pacman: (n) => `sudo pacman -S ${n}`,
+  zypper: (n) => `sudo zypper update ${n}`,
+  winget: (n) => `winget upgrade ${n}`,
+  scoop: (n) => `scoop update ${n}`,
+  choco: (n) => `choco upgrade ${n}`,
+};
+
+/** The update command to show for a tool: the configured one if there is one,
+ *  else the one its owning manager would use. Empty when neither is known. */
+function updateCommandFor(tool: Tool): string {
+  if (tool.upgrade_cmd) return tool.upgrade_cmd;
+  const recipe = tool.manager ? MANAGER_UPDATE[tool.manager] : undefined;
+  return recipe ? recipe(tool.name) : "";
+}
+
+/** Why the streamed action isn't available, said in terms of this tool. The old
+ *  copy pointed at "the command above" even when no command was displayed. */
+function actionHint(tool: Tool, mode: RunMode): string {
+  if (mode === "install") {
+    return "No install command configured — install it with your package manager, then re-check.";
+  }
+  if (tool.manager === "system") {
+    return "Provided by your OS — update it through the system, not from here.";
+  }
+  return updateCommandFor(tool)
+    ? "No automatic updater — copy the Update command below to run it yourself."
+    : "No automatic updater, and no package manager owns this binary.";
+}
+
 /* Install-or-update for a CLI tool, plus an uninstall path for installed,
  * non-required tools. Mode is chosen from the tool's current status. */
 function CLIInstallAction({ tool, onDone }: { tool: Tool; onDone: () => void }) {
@@ -237,13 +316,15 @@ function CLIInstallAction({ tool, onDone }: { tool: Tool; onDone: () => void }) 
         toolName={tool.name}
         mode={mode}
         canRun={canRun}
-        disabledHint={`No automatic ${mode === "update" ? "updater" : "installer"} — copy the command above to run it yourself.`}
+        disabledHint={actionHint(tool, mode)}
         onDone={onDone}
       />
       {/* Uninstall the binary — distinct from "Remove" (which only forgets the
           registry entry). Offered only for installed, non-required tools; the
-          backend refuses core system deps and returns an honest error. */}
-      {isInstalled && !tool.required && (
+          backend refuses core system deps and returns an honest error.
+          Also withheld for an OS-provided binary: /usr/bin/git is not mycel's
+          to delete, so offering the button could only ever produce that error. */}
+      {isInstalled && !tool.required && tool.manager !== "system" && (
         <StreamedAction
           toolName={tool.name}
           mode="uninstall"
@@ -254,6 +335,49 @@ function CLIInstallAction({ tool, onDone }: { tool: Tool; onDone: () => void }) 
         />
       )}
     </div>
+  );
+}
+
+/* One derived fact about a tool. Deliberately plain text rather than the
+ * bordered box this used to be: these are read-only facts, and the boxed
+ * styling made them read as editable fields the user was meant to fill in. */
+function Fact({ label, value, copy, mono = true }: {
+  label: string;
+  value: string;
+  copy?: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex items-baseline gap-2">
+      <dt className="text-[11px] text-mycel-muted w-[86px] shrink-0">{label}</dt>
+      <dd className={`text-[11px] text-mycel-text-2 min-w-0 truncate ${mono ? "font-mono" : ""}`} title={value}>
+        {value}
+      </dd>
+      {copy && <CopyButton text={copy} />}
+    </div>
+  );
+}
+
+/* What mycel knows about an installed CLI tool, all of it derived — nothing
+ * here is typed in. Notably this shows the real resolved path: the previous
+ * version labelled the bare command name ("git") as the Path, which told the
+ * user nothing they hadn't already typed. */
+function ToolFacts({ tool }: { tool: Tool }) {
+  const updateCmd = updateCommandFor(tool);
+
+  return (
+    <dl className="space-y-1">
+      <Fact
+        label="Path"
+        value={tool.path ?? "Not found on PATH"}
+        copy={tool.path}
+        mono={Boolean(tool.path)}
+      />
+      <Fact label="Managed by" value={managerLabel(tool.manager)} mono={false} />
+      {tool.version && <Fact label="Version" value={tool.version} />}
+      {tool.install_cmd && <Fact label="Install" value={tool.install_cmd} copy={tool.install_cmd} />}
+      {updateCmd && <Fact label="Update" value={updateCmd} copy={updateCmd} />}
+    </dl>
   );
 }
 
@@ -337,33 +461,7 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
                 <div className="px-8 py-3 space-y-3">
                   {/* In-surface install / update — streamed, loopback-guarded. */}
                   <CLIInstallAction tool={tool} onDone={onChanged} />
-                  {tool.install_cmd && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-mycel-muted shrink-0">Install:</span>
-                      <code className="flex-1 text-xs font-mono text-mycel-text bg-mycel-bg rounded-md px-2 py-1 border border-mycel-border">
-                        {tool.install_cmd}
-                      </code>
-                      <CopyButton text={tool.install_cmd} />
-                    </div>
-                  )}
-                  {tool.command && (
-                    <>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-mycel-muted shrink-0">Version cmd:</span>
-                        <code className="flex-1 text-xs font-mono text-mycel-text bg-mycel-bg rounded-md px-2 py-1 border border-mycel-border">
-                          {tool.command} --version
-                        </code>
-                        <CopyButton text={`${tool.command} --version`} />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-mycel-muted shrink-0">Path:</span>
-                        <code className="flex-1 text-xs font-mono text-mycel-text bg-mycel-bg rounded-md px-2 py-1 border border-mycel-border">
-                          {tool.command}
-                        </code>
-                        <CopyButton text={tool.command} />
-                      </div>
-                    </>
-                  )}
+                  <ToolFacts tool={tool} />
                   {tool.error && (
                     <div className="text-xs text-mycel-error bg-mycel-error-subtle rounded-md px-2 py-1 border border-mycel-error">
                       Error: {tool.error}
@@ -479,6 +577,10 @@ export function ProvidersToolsSection() {
             status: c.status,
             version: c.version ?? t.version,
             command: c.command ?? t.command,
+            // A re-check re-resolves both of these — a tool just installed or
+            // removed changes path and owner, so take the fresh answer.
+            path: c.path ?? t.path,
+            manager: c.manager ?? t.manager,
             error: c.error ?? t.error,
           };
         }

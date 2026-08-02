@@ -478,7 +478,14 @@ export interface Tool {
   type: "provider" | "mcp" | "cli";
   status: string;
   transport?: string;
+  /** What was configured — usually a bare binary name ("git"). */
   command?: string;
+  /** Absolute path the binary resolved to on PATH. Absent when not installed. */
+  path?: string;
+  /** Package manager that owns this tool, inferred server-side from the
+   *  resolved path (or the install command when it isn't installed yet):
+   *  "brew", "npm", "system", … Absent when there's no evidence either way. */
+  manager?: string;
   url?: string;
   version?: string;
   error?: string;
