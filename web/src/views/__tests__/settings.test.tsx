@@ -1,9 +1,12 @@
 /**
- * Settings — the wizard-mirrored redesign.
+ * Settings — the progressive-disclosure redesign (setup is Settings
+ * revealing itself; there is no separate /welcome wizard).
  *
- *   - Renders every redesigned section (Setup, Profile, Providers, Runtime,
- *     Tools, Apps, Notifications, Budgets, Advanced).
+ *   - Renders every section (Setup, Profile, Providers & Tools, Runtime,
+ *     Apps, Budgets, Advanced).
  *   - The Setup section reads onboarding state and shows progress.
+ *   - The re-run icon (page header, top-right) replays the guided reveal by
+ *     clearing onboarding.completed — it never blanks real config.
  *   - Editing a field raises the floating save bar; Save PATCHes /api/settings.
  */
 
@@ -33,19 +36,22 @@ const SETTINGS = {
   logs: { path: "", max_bytes: 0 },
   ui: { theme: "dark", mode: "auto", default_view: "dashboard" },
   notifications: { default_channel: "", enabled: true },
+  onboarding: { step: "runtime", completed: ["runtime"] },
 };
 
-// A partway-through, agent-less install: setup genuinely unfinished.
-const ONBOARDING = { firstRun: false, hasAgents: false, prefsValid: true, completed: ["welcome", "system", "runtime"], step: "providers" };
+// A partway-through, agent-less install: setup genuinely unfinished
+// (profile has no name yet in this override set below).
+const ONBOARDING = { firstRun: false, hasAgents: false, prefsValid: true, completed: ["runtime"], step: "runtime" };
 
 /** Route every GET the page fans out to a sane payload. */
 function mockApi(overrides: Record<string, unknown> = {}) {
   const onboarding = (overrides.onboarding as object) ?? ONBOARDING;
+  const settings = (overrides.settings as object) ?? SETTINGS;
   fetchMock.mockImplementation((url: string, init?: RequestInit) => {
-    if (init?.method === "PATCH") return jsonResponse({ ...SETTINGS, ...(overrides.patched as object) });
+    if (init?.method === "PATCH") return jsonResponse({ ...settings, ...(overrides.patched as object) });
     if (url.includes("/onboarding/state")) return jsonResponse(onboarding);
     if (url.includes("/settings/injected-instructions")) return jsonResponse({ injected_instructions: "" });
-    if (url.includes("/settings")) return jsonResponse(SETTINGS);
+    if (url.includes("/settings")) return jsonResponse(settings);
     if (url.includes("/system/info")) return jsonResponse({ hostname: "test-host", os: "darwin", arch: "arm64" });
     if (url.includes("/providers")) {
       return jsonResponse([
@@ -64,6 +70,25 @@ function mockApi(overrides: Record<string, unknown> = {}) {
     if (url.includes("/costs/budgets")) return jsonResponse([]);
     if (url.includes("/apps")) return jsonResponse({ catalog: [], instances: [] });
     if (url.includes("/deps")) return jsonResponse({ deps: [] });
+    // useReadiness (behind useProgressiveReveal) derives "provider
+    // installed" from the doctor report's Tools category, not /providers —
+    // give it a claude entry so "providers & tools" can self-complete.
+    if (url.includes("/doctor")) {
+      return jsonResponse({
+        categories: [
+          {
+            name: "Tools",
+            items: [
+              { name: "tmux", severity: "ok", message: "installed" },
+              { name: "git", severity: "ok", message: "installed" },
+              { name: "claude", severity: "ok", message: "installed" },
+            ],
+          },
+        ],
+      });
+    }
+    if (url.includes("/health")) return jsonResponse({ status: "ok" });
+    if (url.includes("/agents")) return jsonResponse([]);
     return jsonResponse([]);
   });
 }
@@ -81,14 +106,12 @@ beforeEach(() => {
 });
 
 describe("Settings redesign", () => {
-  it("renders the slim section set (4 config sections + link cards)", async () => {
+  it("renders every section, including budgets", async () => {
     mockApi();
     renderSettings();
-    for (const label of ["setup", "profile", "providers & tools", "runtime", "apps", "advanced"]) {
+    for (const label of ["setup", "profile", "providers & tools", "runtime", "apps", "budgets", "advanced"]) {
       expect(await screen.findByText(label)).toBeInTheDocument();
     }
-    // Budgets moved to Insights — it is no longer a Settings section.
-    expect(screen.queryByText("budgets")).not.toBeInTheDocument();
     // Apps still summarizes and drills out to its own full manager.
     const appsLinks = screen.getAllByRole("link").filter((a) => a.getAttribute("href") === "/apps");
     expect(appsLinks.length).toBeGreaterThan(0);
@@ -105,20 +128,43 @@ describe("Settings redesign", () => {
   });
 
   it("reads onboarding state into the Setup section", async () => {
-    mockApi();
+    // Name unset → profile is outstanding. Runtime is acknowledged
+    // (onboarding.completed) and providers self-completes (the mocked
+    // provider is installed); apps has neither a connected app nor an
+    // acknowledgement, so it's still outstanding too — 3 of 5 done.
+    mockApi({ settings: { ...SETTINGS, user: { name: "" } } });
     renderSettings();
-    // 3 of 8 steps completed, no agents yet → "Step 4 of 8".
-    expect(await screen.findByText(/Step 4 of 8/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /resume setup/i })).toBeInTheDocument();
+    expect(await screen.findByText("3 of 5 sections done")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /re-run setup/i })).toBeInTheDocument();
   });
 
   it("treats an install that already runs agents as setup-complete (no nag)", async () => {
-    mockApi({ onboarding: { firstRun: false, hasAgents: true, prefsValid: true, completed: [], step: "welcome" } });
+    mockApi({
+      onboarding: { firstRun: false, hasAgents: true, prefsValid: true, completed: [], step: "" },
+      settings: { ...SETTINGS, user: { name: "" }, onboarding: { step: "", completed: [] } },
+    });
     renderSettings();
-    // Even with completed:[] and step "welcome", a live fleet means done.
-    expect(await screen.findByText(/Complete/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /re-run setup/i })).toBeInTheDocument();
-    expect(screen.queryByText(/Step 1 of 8/)).not.toBeInTheDocument();
+    // Even with an unfinished reveal, a live fleet means done.
+    await waitFor(() => expect(screen.getAllByText(/Complete/).length).toBeGreaterThan(0));
+    expect(screen.getByRole("button", { name: /re-run setup/i })).toBeInTheDocument();
+  });
+
+  it("the re-run icon clears onboarding.completed without touching other config", async () => {
+    mockApi();
+    renderSettings();
+    const rerun = await screen.findByRole("button", { name: /re-run setup/i });
+    fireEvent.click(rerun);
+
+    await waitFor(() => {
+      const patched = fetchMock.mock.calls.find(
+        ([url, init]) => String(url).includes("/settings") && (init as RequestInit | undefined)?.method === "PATCH",
+      );
+      expect(patched).toBeTruthy();
+      const body = JSON.parse(((patched?.[1] as RequestInit).body) as string);
+      expect(body.onboarding).toEqual({ step: "", completed: [] });
+      // Only the onboarding key is written — nothing else gets touched.
+      expect(Object.keys(body)).toEqual(["onboarding"]);
+    });
   });
 
   it("raises the save bar and PATCHes on edit + save", async () => {

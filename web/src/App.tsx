@@ -19,28 +19,28 @@ const Settings = lazy(() => import("./views/Settings").then((m) => ({ default: m
 const Code = lazy(() => import("./views/Code").then((m) => ({ default: m.Code })));
 const About = lazy(() => import("./views/About").then((m) => ({ default: m.About })));
 const Readiness = lazy(() => import("./views/Readiness").then((m) => ({ default: m.Readiness })));
-const Welcome = lazy(() => import("./wizard/Welcome").then((m) => ({ default: m.Welcome })));
 
 function Loading() {
   return <div className="p-6 text-mycel-muted">Loading...</div>;
 }
 
 /**
- * HomeGate — routes a fresh install to the setup wizard. While the
- * onboarding probe is in flight it renders a blank/skeleton frame — not
- * the real Home — so a first run never flashes the empty dashboard before
- * bouncing to /welcome. Any probe failure (or a positive "not first run")
- * falls through to Home, so a daemon hiccup never traps the user in
- * onboarding.
+ * HomeGate — routes a fresh install to Settings, where first-run setup now
+ * lives as a progressive reveal (no separate /welcome wizard — see
+ * settings/useProgressiveReveal.ts). While the onboarding probe is in
+ * flight it renders a blank/skeleton frame — not the real Home — so a
+ * first run never flashes the empty dashboard before bouncing to Settings.
+ * Any probe failure (or a positive "not first run") falls through to Home,
+ * so a daemon hiccup never traps the user in onboarding.
  */
 export function HomeGate() {
-  const [status, setStatus] = useState<"pending" | "home" | "welcome">("pending");
+  const [status, setStatus] = useState<"pending" | "home" | "settings">("pending");
   useEffect(() => {
     let cancelled = false;
     api
       .getOnboardingState()
       .then((s) => {
-        if (!cancelled) setStatus(s.firstRun ? "welcome" : "home");
+        if (!cancelled) setStatus(s.firstRun ? "settings" : "home");
       })
       .catch(() => {
         if (!cancelled) setStatus("home");
@@ -50,7 +50,7 @@ export function HomeGate() {
     };
   }, []);
   if (status === "pending") return <Loading />;
-  if (status === "welcome") return <Navigate to="/welcome" replace />;
+  if (status === "settings") return <Navigate to="/settings" replace />;
   return <Home />;
 }
 
@@ -103,8 +103,10 @@ const wrap = (node: React.ReactNode) => (
 export function AppRoutes() {
   return (
     <Routes>
-      {/* Full-screen first-run wizard — lives outside the app chrome. */}
-      <Route path="welcome" element={wrap(<Welcome />)} />
+      {/* The first-run wizard is gone — setup is Settings revealing itself
+          section-by-section (see settings/useProgressiveReveal.ts).
+          Bookmarked /welcome links redirect to Settings. */}
+      <Route path="welcome" element={<Navigate to="/settings" replace />} />
       <Route element={<Layout />}>
         <Route index element={wrap(<HomeGate />)} />
         <Route path="home" element={wrap(<HomeGate />)} />

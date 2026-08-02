@@ -9,6 +9,8 @@ import { api } from "../api/client";
 import { MONO } from "../utils/typography";
 import { useReadiness } from "../hooks/useReadiness";
 import { CopyButton } from "./CopyButton";
+import { RevealGroup } from "./RevealGroup";
+import type { RevealState } from "../settings/useProgressiveReveal";
 
 // ── Name generation ───────────────────────────────────────────────────────────
 
@@ -384,6 +386,39 @@ export function CreateAgentModal({
     }
   }
 
+  // ── Progressive reveal ──────────────────────────────────────────────
+  // Same locked/active/complete vocabulary as Settings (see
+  // settings/useProgressiveReveal.ts): repo → identity → tool → task
+  // (optional) → extras (optional). Groups stay mounted and editable in
+  // every state — this only changes their chrome, so a fast typer filling
+  // fields out of order never hits a wall. "Create" itself is gated on
+  // repo + identity + tool, matching the design's completion rule.
+  const GROUP_ORDER = ["repo", "identity", "tool", "task", "extras"] as const;
+  type GroupId = (typeof GROUP_ORDER)[number];
+  const groupComplete: Record<GroupId, boolean> = {
+    repo: repo.trim() !== "",
+    identity: name.trim() !== "",
+    // Provider/model/runtime always carry a valid default — this group
+    // completes the moment it's reached, same as an always-valid field.
+    tool: true,
+    task: true, // optional
+    extras: true, // optional
+  };
+  const groupReveal: Record<GroupId, RevealState> = (() => {
+    const result = {} as Record<GroupId, RevealState>;
+    let seenIncomplete = false;
+    for (const id of GROUP_ORDER) {
+      if (seenIncomplete) result[id] = "locked";
+      else if (groupComplete[id]) result[id] = "complete";
+      else {
+        result[id] = "active";
+        seenIncomplete = true;
+      }
+    }
+    return result;
+  })();
+  const canCreate = groupComplete.repo && groupComplete.identity && groupComplete.tool;
+
   if (!open) return null;
 
   return (
@@ -418,407 +453,428 @@ export function CreateAgentModal({
           </button>
         </div>
 
-        {/* Body */}
+        {/* Body — grouped through the same reveal vocabulary Settings uses
+            (repo → identity → tool → task → extras). Groups stay mounted
+            and editable in every state; the chrome (RevealGroup) is the
+            only thing that changes as earlier groups complete. */}
         <div className="px-5 py-4 flex flex-col gap-4">
-          {/* Identity — the character is derived from the name. It
-              regenerates with a soft morph as you type; the regenerate
-              button doubles as "meet a different agent". */}
-          <div
-            className="flex flex-col items-center gap-1"
-            data-testid="agent-identity-preview"
-          >
-            <AnimatePresence mode="popLayout" initial={false}>
-              <motion.div
-                key={name.trim() || "unnamed"}
-                initial={
-                  prefersReducedMotion()
-                    ? { opacity: 0 }
-                    : { opacity: 0, scale: 0.75, rotate: -6 }
-                }
-                animate={
-                  prefersReducedMotion()
-                    ? { opacity: 1 }
-                    : { opacity: 1, scale: 1, rotate: 0 }
-                }
-                exit={
-                  prefersReducedMotion()
-                    ? { opacity: 0 }
-                    : { opacity: 0, scale: 0.85, rotate: 4 }
-                }
-                transition={{ duration: 0.22, ease: [0.34, 1.3, 0.64, 1] }}
-              >
-                <AgentCharacter
-                  name={name.trim() || "unnamed"}
-                  state="idle"
-                  size={96}
-                  tool={provider}
-                />
-              </motion.div>
-            </AnimatePresence>
-            <span className="text-[10px] text-mycel-muted">
-              Every name grows its own character
-            </span>
-          </div>
-
-          {/* Name + regen */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
-              Name
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                ref={firstInputRef}
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className={INPUT_CLS}
-                style={{ fontFamily: MONO }}
-                placeholder="agent-name"
-                spellCheck={false}
-                autoComplete="off"
-              />
-              <button
-                type="button"
-                onClick={handleRegenerate}
-                title="Meet a different agent"
-                aria-label="Meet a different agent"
-                className="shrink-0 flex items-center justify-center w-8 h-8 rounded-md border border-mycel-border bg-mycel-bg text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors"
-              >
-                <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M11.5 2A6 6 0 1 0 12 6.5" />
-                  <path d="M8 2h3.5V5.5" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
           {/* Repo — required. The repo is a property on the agent:
               every new agent binds to a git repo path. Defaults to the
               repo the daemon was booted against. */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
-              Repo <span className="text-mycel-error">*</span>
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={repo}
-                onChange={(e) => setRepo(e.target.value)}
-                className={INPUT_CLS}
-                style={{ fontFamily: MONO }}
-                placeholder="/absolute/path/to/repo"
-                spellCheck={false}
-                autoComplete="off"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  setBrowseOpen((prev) => !prev);
-                  // Seed the scan root with the parent of the current
-                  // path so one Scan click usually finds siblings.
-                  if (!browseOpen && browseRoot === "" && repo) {
-                    setBrowseRoot(repo.replace(/\/[^/]*$/, "") || "/");
-                  }
-                }}
-                aria-pressed={browseOpen}
-                className={`shrink-0 inline-flex items-center px-3 h-8 rounded-md border text-xs font-medium transition-colors ${
-                  browseOpen
-                    ? "border-mycel-accent text-mycel-accent bg-mycel-bg"
-                    : "border-mycel-border bg-mycel-bg text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent"
-                }`}
-              >
-                Browse
-              </button>
+          <RevealGroup index={1} label="Repo" reveal={groupReveal.repo}>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
+                Repo <span className="text-mycel-error">*</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={repo}
+                  onChange={(e) => setRepo(e.target.value)}
+                  className={INPUT_CLS}
+                  style={{ fontFamily: MONO }}
+                  placeholder="/absolute/path/to/repo"
+                  spellCheck={false}
+                  autoComplete="off"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBrowseOpen((prev) => !prev);
+                    // Seed the scan root with the parent of the current
+                    // path so one Scan click usually finds siblings.
+                    if (!browseOpen && browseRoot === "" && repo) {
+                      setBrowseRoot(repo.replace(/\/[^/]*$/, "") || "/");
+                    }
+                  }}
+                  aria-pressed={browseOpen}
+                  className={`shrink-0 inline-flex items-center px-3 h-8 rounded-md border text-xs font-medium transition-colors ${
+                    browseOpen
+                      ? "border-mycel-accent text-mycel-accent bg-mycel-bg"
+                      : "border-mycel-border bg-mycel-bg text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent"
+                  }`}
+                >
+                  Browse
+                </button>
+              </div>
+              {knownRepos.length > 0 && (
+                <select
+                  value={knownRepos.some((r) => r.path === repo) ? repo : ""}
+                  onChange={(e) => {
+                    if (e.target.value) setRepo(e.target.value);
+                  }}
+                  className={INPUT_CLS}
+                  style={{ fontFamily: MONO }}
+                  aria-label="Known repos"
+                >
+                  <option value="">— known repos —</option>
+                  {knownRepos.map((r) => (
+                    <option key={r.path} value={r.path}>
+                      {r.name} · {r.path}
+                      {r.path === defaultRepo ? " (default)" : ""}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {browseOpen && (
+                <div className="flex flex-col gap-2 rounded-md border border-mycel-border bg-mycel-bg p-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={browseRoot}
+                      onChange={(e) => setBrowseRoot(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void handleScan();
+                        }
+                      }}
+                      className={INPUT_CLS}
+                      style={{ fontFamily: MONO }}
+                      placeholder="/directory/to/scan"
+                      spellCheck={false}
+                      autoComplete="off"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => { void handleScan(); }}
+                      disabled={scanning}
+                      className="shrink-0 inline-flex items-center px-3 h-8 rounded-md border border-mycel-border bg-mycel-surface text-xs font-medium text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors disabled:opacity-50"
+                    >
+                      {scanning ? "Scanning..." : "Scan"}
+                    </button>
+                  </div>
+                  {scanError && (
+                    <div className="text-xs text-mycel-error">
+                      {scanError}
+                    </div>
+                  )}
+                  {candidates && candidates.length === 0 && (
+                    <div className="text-xs text-mycel-muted">
+                      No git repos found under that directory.
+                    </div>
+                  )}
+                  {candidates && candidates.length > 0 && (
+                    <ul className="max-h-36 overflow-y-auto flex flex-col">
+                      {candidates.map((c) => (
+                        <li key={c.path}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRepo(c.path);
+                              setBrowseOpen(false);
+                            }}
+                            className="w-full text-left px-2 py-1 rounded-md text-xs text-mycel-text hover:bg-mycel-surface hover:text-mycel-accent transition-colors truncate"
+                            style={{ fontFamily: MONO }}
+                            title={c.path}
+                          >
+                            {c.name} <span className="text-mycel-muted">{c.path}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
-            {knownRepos.length > 0 && (
-              <select
-                value={knownRepos.some((r) => r.path === repo) ? repo : ""}
-                onChange={(e) => {
-                  if (e.target.value) setRepo(e.target.value);
-                }}
-                className={INPUT_CLS}
-                style={{ fontFamily: MONO }}
-                aria-label="Known repos"
+          </RevealGroup>
+
+          {/* Identity — the character is derived from the name. It
+              regenerates with a soft morph as you type; the regenerate
+              button doubles as "meet a different agent". */}
+          <RevealGroup index={2} label="Identity" reveal={groupReveal.identity}>
+            <div className="flex flex-col gap-4">
+              <div
+                className="flex flex-col items-center gap-1"
+                data-testid="agent-identity-preview"
               >
-                <option value="">— known repos —</option>
-                {knownRepos.map((r) => (
-                  <option key={r.path} value={r.path}>
-                    {r.name} · {r.path}
-                    {r.path === defaultRepo ? " (default)" : ""}
-                  </option>
-                ))}
-              </select>
-            )}
-            {browseOpen && (
-              <div className="flex flex-col gap-2 rounded-md border border-mycel-border bg-mycel-bg p-2">
+                <AnimatePresence mode="popLayout" initial={false}>
+                  <motion.div
+                    key={name.trim() || "unnamed"}
+                    initial={
+                      prefersReducedMotion()
+                        ? { opacity: 0 }
+                        : { opacity: 0, scale: 0.75, rotate: -6 }
+                    }
+                    animate={
+                      prefersReducedMotion()
+                        ? { opacity: 1 }
+                        : { opacity: 1, scale: 1, rotate: 0 }
+                    }
+                    exit={
+                      prefersReducedMotion()
+                        ? { opacity: 0 }
+                        : { opacity: 0, scale: 0.85, rotate: 4 }
+                    }
+                    transition={{ duration: 0.22, ease: [0.34, 1.3, 0.64, 1] }}
+                  >
+                    <AgentCharacter
+                      name={name.trim() || "unnamed"}
+                      state="idle"
+                      size={96}
+                      tool={provider}
+                    />
+                  </motion.div>
+                </AnimatePresence>
+                <span className="text-[10px] text-mycel-muted">
+                  Every name grows its own character
+                </span>
+              </div>
+
+              {/* Name + regen */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
+                  Name
+                </label>
                 <div className="flex items-center gap-2">
                   <input
+                    ref={firstInputRef}
                     type="text"
-                    value={browseRoot}
-                    onChange={(e) => setBrowseRoot(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        void handleScan();
-                      }
-                    }}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
                     className={INPUT_CLS}
                     style={{ fontFamily: MONO }}
-                    placeholder="/directory/to/scan"
+                    placeholder="agent-name"
                     spellCheck={false}
                     autoComplete="off"
                   />
                   <button
                     type="button"
-                    onClick={() => { void handleScan(); }}
-                    disabled={scanning}
-                    className="shrink-0 inline-flex items-center px-3 h-8 rounded-md border border-mycel-border bg-mycel-surface text-xs font-medium text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors disabled:opacity-50"
+                    onClick={handleRegenerate}
+                    title="Meet a different agent"
+                    aria-label="Meet a different agent"
+                    className="shrink-0 flex items-center justify-center w-8 h-8 rounded-md border border-mycel-border bg-mycel-bg text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors"
                   >
-                    {scanning ? "Scanning..." : "Scan"}
+                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11.5 2A6 6 0 1 0 12 6.5" />
+                      <path d="M8 2h3.5V5.5" />
+                    </svg>
                   </button>
                 </div>
-                {scanError && (
-                  <div className="text-xs text-mycel-error">
-                    {scanError}
-                  </div>
-                )}
-                {candidates && candidates.length === 0 && (
-                  <div className="text-xs text-mycel-muted">
-                    No git repos found under that directory.
-                  </div>
-                )}
-                {candidates && candidates.length > 0 && (
-                  <ul className="max-h-36 overflow-y-auto flex flex-col">
-                    {candidates.map((c) => (
-                      <li key={c.path}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setRepo(c.path);
-                            setBrowseOpen(false);
-                          }}
-                          className="w-full text-left px-2 py-1 rounded-md text-xs text-mycel-text hover:bg-mycel-surface hover:text-mycel-accent transition-colors truncate"
-                          style={{ fontFamily: MONO }}
-                          title={c.path}
-                        >
-                          {c.name} <span className="text-mycel-muted">{c.path}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
               </div>
-            )}
-          </div>
 
-          {/* Template */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
-              Template
-            </label>
-            <select
-              value={template}
-              onChange={(e) => setTemplate(e.target.value)}
-              className={INPUT_CLS}
-              style={{ fontFamily: MONO }}
-            >
-              {templates.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-          </div>
+              {/* Template */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
+                  Template
+                </label>
+                <select
+                  value={template}
+                  onChange={(e) => setTemplate(e.target.value)}
+                  className={INPUT_CLS}
+                  style={{ fontFamily: MONO }}
+                >
+                  {templates.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
 
-          {/* Clone from existing agent */}
-          {existingAgents.length > 0 && (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
-                Clone config from{" "}
-                <span className="normal-case font-normal text-mycel-muted">(optional)</span>
-              </label>
-              <AgentSelect
-                agents={existingAgents.map((a) => ({ name: a.name, state: a.state, tool: a.tool }))}
-                value={cloneFrom}
-                onChange={setCloneFrom}
-                allowNone
-                placeholder="— none —"
-                ariaLabel="Clone config from agent"
-              />
-            </div>
-          )}
-
-          {/* Provider + Runtime */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
-                Provider
-              </label>
-              <select
-                value={provider}
-                onChange={(e) => {
-                  setProvider(e.target.value as Provider);
-                  // Model lists are per-provider — reset to default.
-                  setModel("");
-                }}
-                className={INPUT_CLS}
-                style={{ fontFamily: MONO }}
-              >
-                <option value="claude">claude</option>
-                <option value="agy">agy</option>
-                <option value="cursor">cursor</option>
-                <option value="codex">codex</option>
-                <option value="pi">pi</option>
-                <option value="openclaw">openclaw</option>
-              </select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
-                Runtime
-              </label>
-              <select
-                value={runtime}
-                onChange={(e) => setRuntime(e.target.value as Runtime)}
-                className={INPUT_CLS}
-                style={{ fontFamily: MONO }}
-              >
-                <option value="docker">docker</option>
-                <option value="tmux">tmux</option>
-              </select>
-            </div>
-            {/* Model — third grid cell lands directly under Provider.
-                "default" (empty) means the provider default: no model
-                flag is injected. Options repopulate per provider. */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
-                Model
-              </label>
-              <select
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                className={INPUT_CLS}
-                style={{ fontFamily: MONO }}
-                aria-label="Model"
-              >
-                <option value="">default</option>
-                {(providerModels[provider] ?? []).map((m) => (
-                  <option key={m.id} value={m.id}>{m.available ? `✓ ${m.id}` : m.id}</option>
-                ))}
-              </select>
-              {(providerModels[provider] ?? []).length > 0 && (
-                <span className="text-[10px] text-mycel-muted">
-                  {(providerModels[provider] ?? []).filter((m) => m.available).length} live ·{" "}
-                  {(providerModels[provider] ?? []).length} total
-                </span>
+              {/* Clone from existing agent */}
+              {existingAgents.length > 0 && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
+                    Clone config from{" "}
+                    <span className="normal-case font-normal text-mycel-muted">(optional)</span>
+                  </label>
+                  <AgentSelect
+                    agents={existingAgents.map((a) => ({ name: a.name, state: a.state, tool: a.tool }))}
+                    value={cloneFrom}
+                    onChange={setCloneFrom}
+                    allowNone
+                    placeholder="— none —"
+                    ariaLabel="Clone config from agent"
+                  />
+                </div>
               )}
             </div>
-          </div>
+          </RevealGroup>
 
-          {/* Pre-flight readiness warnings — non-blocking, contextual to
-              the provider/runtime just chosen. */}
-          {preflight.length > 0 && (
-            <div
-              role="status"
-              className="flex flex-col gap-2 rounded-md border border-mycel-warning bg-mycel-warning-subtle px-3 py-2.5"
-            >
-              {preflight.map((w, i) => (
-                <div key={i} className="flex flex-col gap-1.5">
-                  <div className="flex items-start gap-2 text-[11px] text-mycel-warning">
-                    <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" className="shrink-0 mt-0.5">
-                      <path d="M7 1.5l6 11H1z" strokeLinejoin="round" />
-                      <path d="M7 6v3M7 10.8v.01" strokeLinecap="round" />
-                    </svg>
-                    <span className="leading-relaxed">{w.message}</span>
-                  </div>
-                  {w.fix && (
-                    <div className="ml-[18px] flex items-center gap-1.5 rounded border border-mycel-border bg-mycel-bg pl-2 pr-0.5 py-1">
-                      <code className="flex-1 min-w-0 font-mono text-[10px] text-mycel-text overflow-x-auto whitespace-nowrap">
-                        {w.fix}
-                      </code>
-                      <CopyButton text={w.fix} />
-                    </div>
+          {/* Tool — provider, model, runtime. Always carries a valid
+              default, so this group completes the moment it's reached. */}
+          <RevealGroup index={3} label="Tool" reveal={groupReveal.tool}>
+            <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
+                    Provider
+                  </label>
+                  <select
+                    value={provider}
+                    onChange={(e) => {
+                      setProvider(e.target.value as Provider);
+                      // Model lists are per-provider — reset to default.
+                      setModel("");
+                    }}
+                    className={INPUT_CLS}
+                    style={{ fontFamily: MONO }}
+                  >
+                    <option value="claude">claude</option>
+                    <option value="agy">agy</option>
+                    <option value="cursor">cursor</option>
+                    <option value="codex">codex</option>
+                    <option value="pi">pi</option>
+                    <option value="openclaw">openclaw</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
+                    Runtime
+                  </label>
+                  <select
+                    value={runtime}
+                    onChange={(e) => setRuntime(e.target.value as Runtime)}
+                    className={INPUT_CLS}
+                    style={{ fontFamily: MONO }}
+                  >
+                    <option value="docker">docker</option>
+                    <option value="tmux">tmux</option>
+                  </select>
+                </div>
+                {/* Model — third grid cell lands directly under Provider.
+                    "default" (empty) means the provider default: no model
+                    flag is injected. Options repopulate per provider. */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
+                    Model
+                  </label>
+                  <select
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    className={INPUT_CLS}
+                    style={{ fontFamily: MONO }}
+                    aria-label="Model"
+                  >
+                    <option value="">default</option>
+                    {(providerModels[provider] ?? []).map((m) => (
+                      <option key={m.id} value={m.id}>{m.available ? `✓ ${m.id}` : m.id}</option>
+                    ))}
+                  </select>
+                  {(providerModels[provider] ?? []).length > 0 && (
+                    <span className="text-[10px] text-mycel-muted">
+                      {(providerModels[provider] ?? []).filter((m) => m.available).length} live ·{" "}
+                      {(providerModels[provider] ?? []).length} total
+                    </span>
                   )}
                 </div>
-              ))}
-              <button
-                type="button"
-                onClick={() => { onClose(); navigate("/readiness"); }}
-                className="text-[10px] text-mycel-warning underline decoration-dotted underline-offset-2 hover:opacity-80 w-fit"
-              >
-                Open System readiness →
-              </button>
+              </div>
+
+              {/* Pre-flight readiness warnings — non-blocking, contextual
+                  to the provider/runtime just chosen. */}
+              {preflight.length > 0 && (
+                <div
+                  role="status"
+                  className="flex flex-col gap-2 rounded-md border border-mycel-warning bg-mycel-warning-subtle px-3 py-2.5"
+                >
+                  {preflight.map((w, i) => (
+                    <div key={i} className="flex flex-col gap-1.5">
+                      <div className="flex items-start gap-2 text-[11px] text-mycel-warning">
+                        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" className="shrink-0 mt-0.5">
+                          <path d="M7 1.5l6 11H1z" strokeLinejoin="round" />
+                          <path d="M7 6v3M7 10.8v.01" strokeLinecap="round" />
+                        </svg>
+                        <span className="leading-relaxed">{w.message}</span>
+                      </div>
+                      {w.fix && (
+                        <div className="ml-[18px] flex items-center gap-1.5 rounded border border-mycel-border bg-mycel-bg pl-2 pr-0.5 py-1">
+                          <code className="flex-1 min-w-0 font-mono text-[10px] text-mycel-text overflow-x-auto whitespace-nowrap">
+                            {w.fix}
+                          </code>
+                          <CopyButton text={w.fix} />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => { onClose(); navigate("/readiness"); }}
+                    className="text-[10px] text-mycel-warning underline decoration-dotted underline-offset-2 hover:opacity-80 w-fit"
+                  >
+                    Open System readiness →
+                  </button>
+                </div>
+              )}
             </div>
-          )}
+          </RevealGroup>
 
-          {/* Environment — collapsible key/value editor with secret
-              reference autocomplete. Collapsed by default. */}
-          <div className="flex flex-col gap-1.5">
-            <button
-              type="button"
-              onClick={() => setEnvOpen((prev) => !prev)}
-              aria-expanded={envOpen}
-              className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted hover:text-mycel-text transition-colors w-fit"
-            >
-              <svg
-                width="8"
-                height="8"
-                viewBox="0 0 8 8"
-                fill="currentColor"
-                className={`transition-transform ${envOpen ? "rotate-90" : ""}`}
-                aria-hidden="true"
-              >
-                <path d="M2 0l4 4-4 4z" />
-              </svg>
-              Environment{" "}
-              <span className="normal-case font-normal">
-                (optional{envRows.some((r) => r.key.trim() !== "") ? ` · ${envRows.filter((r) => r.key.trim() !== "").length}` : ""})
-              </span>
-            </button>
-            {envOpen && <EnvVarsEditor rows={envRows} onChange={setEnvRows} />}
-          </div>
+          {/* Initial task — optional. */}
+          <RevealGroup index={4} label="Task" reveal={groupReveal.task} optional>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
+                Initial Task
+              </label>
+              <textarea
+                value={task}
+                onChange={(e) => setTask(e.target.value)}
+                rows={3}
+                placeholder="Describe the first task for this agent..."
+                className={`${INPUT_CLS} resize-none`}
+              />
+            </div>
+          </RevealGroup>
 
-          {/* Apps — collapsible picker of connected app channels this
-              agent should subscribe to. Wired after create succeeds. */}
-          <div className="flex flex-col gap-1.5" data-testid="create-agent-apps-section">
-            <button
-              type="button"
-              onClick={() => setAppsOpen((prev) => !prev)}
-              aria-expanded={appsOpen}
-              className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted hover:text-mycel-text transition-colors w-fit"
-            >
-              <svg
-                width="8"
-                height="8"
-                viewBox="0 0 8 8"
-                fill="currentColor"
-                className={`transition-transform ${appsOpen ? "rotate-90" : ""}`}
-                aria-hidden="true"
-              >
-                <path d="M2 0l4 4-4 4z" />
-              </svg>
-              Apps{" "}
-              <span className="normal-case font-normal">
-                (optional{appChannels.size > 0 ? ` · ${appChannels.size} channel${appChannels.size === 1 ? "" : "s"}` : ""})
-              </span>
-            </button>
-            {appsOpen && (
-              <AgentAppsPicker selected={appChannels} onChange={setAppChannels} />
-            )}
-          </div>
+          {/* Extras — environment + apps. Both optional, both collapsed by
+              default. */}
+          <RevealGroup index={5} label="Extras" reveal={groupReveal.extras} optional>
+            <div className="flex flex-col gap-3">
+              {/* Environment — collapsible key/value editor with secret
+                  reference autocomplete. Collapsed by default. */}
+              <div className="flex flex-col gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setEnvOpen((prev) => !prev)}
+                  aria-expanded={envOpen}
+                  className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted hover:text-mycel-text transition-colors w-fit"
+                >
+                  <svg
+                    width="8"
+                    height="8"
+                    viewBox="0 0 8 8"
+                    fill="currentColor"
+                    className={`transition-transform ${envOpen ? "rotate-90" : ""}`}
+                    aria-hidden="true"
+                  >
+                    <path d="M2 0l4 4-4 4z" />
+                  </svg>
+                  Environment{" "}
+                  <span className="normal-case font-normal">
+                    (optional{envRows.some((r) => r.key.trim() !== "") ? ` · ${envRows.filter((r) => r.key.trim() !== "").length}` : ""})
+                  </span>
+                </button>
+                {envOpen && <EnvVarsEditor rows={envRows} onChange={setEnvRows} />}
+              </div>
 
-          {/* Initial task */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
-              Initial Task{" "}
-              <span className="normal-case font-normal text-mycel-muted">(optional)</span>
-            </label>
-            <textarea
-              value={task}
-              onChange={(e) => setTask(e.target.value)}
-              rows={3}
-              placeholder="Describe the first task for this agent..."
-              className={`${INPUT_CLS} resize-none`}
-            />
-          </div>
+              {/* Apps — collapsible picker of connected app channels this
+                  agent should subscribe to. Wired after create succeeds. */}
+              <div className="flex flex-col gap-1.5" data-testid="create-agent-apps-section">
+                <button
+                  type="button"
+                  onClick={() => setAppsOpen((prev) => !prev)}
+                  aria-expanded={appsOpen}
+                  className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted hover:text-mycel-text transition-colors w-fit"
+                >
+                  <svg
+                    width="8"
+                    height="8"
+                    viewBox="0 0 8 8"
+                    fill="currentColor"
+                    className={`transition-transform ${appsOpen ? "rotate-90" : ""}`}
+                    aria-hidden="true"
+                  >
+                    <path d="M2 0l4 4-4 4z" />
+                  </svg>
+                  Apps{" "}
+                  <span className="normal-case font-normal">
+                    (optional{appChannels.size > 0 ? ` · ${appChannels.size} channel${appChannels.size === 1 ? "" : "s"}` : ""})
+                  </span>
+                </button>
+                {appsOpen && (
+                  <AgentAppsPicker selected={appChannels} onChange={setAppChannels} />
+                )}
+              </div>
+            </div>
+          </RevealGroup>
         </div>
 
         {/* Footer */}
@@ -843,7 +899,8 @@ export function CreateAgentModal({
             <button
               type="button"
               onClick={() => { void handleCreate(); }}
-              disabled={submitting || !name.trim()}
+              disabled={submitting || !canCreate}
+              title={!canCreate ? "Repo and a name are required" : undefined}
               className="inline-flex items-center h-9 px-3 rounded-md text-sm font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? "Creating..." : "Create agent"}

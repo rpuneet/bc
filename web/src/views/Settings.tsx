@@ -1,13 +1,13 @@
 import { useCallback, useState, useEffect, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api, type OnboardingState, type AppInstance } from "../api/client";
+import { api, type AppInstance, type BudgetStatus } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { useTheme } from "../context/ThemeContext";
-import { WIZARD_STEPS } from "../wizard/types";
 import { ThemePicker, RuntimePicker, AdvancedToggle, systemPrefersDark, type ThemeChoice, type RuntimeChoice } from "../settings/controls";
 import { ProvidersToolsSection } from "../settings/ProvidersToolsSection";
+import { useProgressiveReveal, REVEAL_ORDER, type RevealState } from "../settings/useProgressiveReveal";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -62,7 +62,6 @@ const INPUT_CLS = "w-full px-2.5 py-1.5 text-[13px] rounded-md border border-myc
 // Mono variant — reserved for genuinely technical values (paths, images,
 // sockets, shells) where character alignment actually helps.
 const MONO_INPUT_CLS = `${INPUT_CLS} font-mono`;
-const LINK_CLS = "inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-surface border border-mycel-border text-mycel-text hover:bg-mycel-surface-hover hover:border-mycel-accent transition-colors";
 
 function Field({ label, children, suffix }: { label: string; children: React.ReactNode; suffix?: string }) {
   return (
@@ -155,34 +154,72 @@ const SECTION_META: Record<string, { icon: React.ReactNode; desc: string }> = {
   },
 };
 
+/**
+ * Section's `reveal` prop drives progressive disclosure. There is no
+ * separate "wizard mode" — every Section always renders; `reveal` just
+ * says whether *this* first-run install has satisfied every section
+ * ahead of it yet:
+ *
+ *   - "locked":   header only, greyed, no body — never fetches/renders
+ *                 children, so a locked provider table etc. never fires
+ *                 its request before it's reachable.
+ *   - "active":   forced open, a soft entrance, and a "complete this to
+ *                 continue" CTA beneath the header.
+ *   - "complete": the normal, day-to-day collapsed/expandable section.
+ *
+ * Omit `reveal` (or pass undefined) for sections that are never gated
+ * (Setup, Advanced) — they render exactly as before.
+ */
 function Section({
   title,
   dirty,
   children,
   defaultOpen = true,
   index = 0,
+  reveal,
+  onContinue,
 }: {
   title: string;
   dirty: boolean;
   children: React.ReactNode;
   defaultOpen?: boolean;
   index?: number;
+  reveal?: RevealState;
+  /** Rendered as the CTA button when reveal === "active" and the section
+   *  has no real field to force completion (runtime, apps, budgets). */
+  onContinue?: () => void;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const locked = reveal === "locked";
+  const active = reveal === "active";
+  const [open, setOpen] = useState(active ? true : defaultOpen);
+
+  // An active section is always open — it's the one thing the user
+  // still needs to do.
+  useEffect(() => {
+    if (active) setOpen(true);
+  }, [active]);
+
   const meta = SECTION_META[title];
 
   return (
     <div
-      className={`animate-reveal rounded-xl border ${dirty ? "border-mycel-accent" : "border-mycel-border"} bg-mycel-surface shadow-mycel overflow-hidden`}
+      className={`rounded-xl border overflow-hidden transition-colors ${
+        active ? "animate-reveal border-mycel-accent bg-mycel-surface shadow-mycel-lg" :
+        locked ? "border-mycel-border bg-mycel-bg opacity-60" :
+        `animate-reveal ${dirty ? "border-mycel-accent" : "border-mycel-border"} bg-mycel-surface shadow-mycel`
+      }`}
       style={{ animationDelay: `${index * 45}ms` }}
+      data-reveal={reveal}
     >
       <button
         type="button"
-        onClick={() => setOpen(!open)}
-        aria-expanded={open}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-mycel-surface-hover transition-colors"
+        onClick={() => !locked && setOpen(!open)}
+        aria-expanded={!locked && open}
+        aria-disabled={locked}
+        disabled={locked}
+        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${locked ? "cursor-not-allowed" : "hover:bg-mycel-surface-hover"}`}
       >
-        <span className={`grid place-items-center w-8 h-8 rounded-lg shrink-0 transition-colors ${open ? "bg-mycel-accent-subtle text-mycel-accent" : "bg-mycel-bg text-mycel-muted"}`}>
+        <span className={`grid place-items-center w-8 h-8 rounded-lg shrink-0 transition-colors ${open && !locked ? "bg-mycel-accent-subtle text-mycel-accent" : "bg-mycel-bg text-mycel-muted"}`}>
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
             {meta?.icon}
           </svg>
@@ -191,58 +228,73 @@ function Section({
           <span className="block text-[13.5px] font-semibold capitalize tracking-tight text-mycel-text leading-tight">{title}</span>
           {meta?.desc && <span className="block text-[11px] text-mycel-muted truncate">{meta.desc}</span>}
         </span>
-        {dirty && (
+        {locked && (
+          <svg className="w-3.5 h-3.5 text-mycel-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-label="Locked">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+          </svg>
+        )}
+        {dirty && !locked && (
           <span className="inline-flex items-center gap-1.5 shrink-0 text-[10px] font-medium text-mycel-accent">
             <span className="w-1.5 h-1.5 rounded-full bg-mycel-accent" />
             Edited
           </span>
         )}
-        <svg className={`w-4 h-4 text-mycel-muted shrink-0 transition-transform duration-200 ${open ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-        </svg>
+        {!locked && (
+          <svg className={`w-4 h-4 text-mycel-muted shrink-0 transition-transform duration-200 ${open ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        )}
       </button>
-      {open && <div className="px-4 pb-4 pt-3 space-y-2.5 border-t border-mycel-border">{children}</div>}
+      {/* Locked sections never mount their body — no fetch, no children
+          render — until a prior section completes. */}
+      {!locked && open && (
+        <div className="px-4 pb-4 pt-3 space-y-2.5 border-t border-mycel-border">
+          {children}
+          {active && onContinue && (
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-mycel-accent bg-mycel-accent-subtle px-3 py-2">
+              <span className="text-[11.5px] text-mycel-text-2">Complete this to continue setup.</span>
+              <button
+                type="button"
+                onClick={onContinue}
+                className="inline-flex items-center h-7 px-3 rounded-md text-[11.5px] font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover transition-colors shrink-0"
+              >
+                Continue
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/*  Setup — onboarding progress + resume/re-run                          */
+/*  Setup — progress derived from the same reveal states that gate the  */
+/*  sections below. Re-running setup lives in the page header (the      */
+/*  circular re-run icon) — there is no separate wizard to link to.     */
 /* ------------------------------------------------------------------ */
 
-function SetupSection() {
-  const [state, setState] = useState<OnboardingState | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    api.getOnboardingState()
-      .then((s) => { if (alive) setState(s); })
-      .catch(() => { /* Setup still offers Re-run without live state. */ });
-    return () => { alive = false; };
-  }, []);
-
-  const total = WIZARD_STEPS.length;
-  const done = (state?.completed ?? []).includes("done");
-  const finished = (state?.completed ?? []).filter((s) => s !== "done").length;
-  // An established install — one that already runs agents — has, by
-  // definition, finished setup. Treat that as complete so a user with a
-  // live fleet is never nagged to "resume" a wizard they never need.
-  const hasAgents = state?.hasAgents ?? false;
-  const complete = done || hasAgents || finished >= total;
-  const pct = complete ? 100 : Math.round((Math.min(finished, total) / total) * 100);
+function SetupSection({
+  hasAgents,
+  allComplete,
+  completedCount,
+  total,
+}: {
+  hasAgents: boolean;
+  allComplete: boolean;
+  completedCount: number;
+  total: number;
+}) {
+  const complete = allComplete || hasAgents;
+  const pct = complete ? 100 : Math.round((Math.min(completedCount, total) / total) * 100);
 
   return (
     <div className="space-y-3">
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-xs text-mycel-text-2 max-w-prose">
-          {complete
-            ? "Setup is complete. Re-run it any time to reconfigure — it only rewrites config and never touches your agents or connected apps."
-            : "Finish first-run setup — machine checks, runtime, an agent tool, and your first agent. It only writes config; your agents and apps are left untouched."}
-        </p>
-        <Link to="/welcome" className={`${LINK_CLS} shrink-0`}>
-          {complete ? "Re-run setup" : "Resume setup"}
-        </Link>
-      </div>
+      <p className="text-xs text-mycel-text-2 max-w-prose">
+        {complete
+          ? "Setup is complete. Use the re-run icon above any time to reconfigure — it only re-opens the sections below and never touches your agents or connected apps."
+          : "Sections below unlock one at a time as you finish each — machine checks, runtime, an agent tool, and your first agent. It only writes config; your agents and apps are left untouched."}
+      </p>
 
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-[11px]">
@@ -252,7 +304,7 @@ function SetupSection() {
                 <path d="M20 6L9 17l-5-5" />
               </svg>
             )}
-            {complete ? "Complete" : `Step ${Math.min(finished + 1, total)} of ${total}`}
+            {complete ? "Complete" : `${String(completedCount)} of ${String(total)} sections done`}
           </span>
           <span className="text-mycel-muted tabular-nums">{pct}%</span>
         </div>
@@ -449,6 +501,96 @@ function AppsCard() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Budgets — cost caps as a small list of scope→limit rows. Same        */
+/*  endpoints Insights' BudgetPanel uses (GET/POST/DELETE                */
+/*  /api/costs/budgets); pkg/cost.BudgetConfig is {period, limit_usd,    */
+/*  alert_at, hard_stop}. Entirely optional — never gates reveal.       */
+/* ------------------------------------------------------------------ */
+
+function BudgetsSection() {
+  const fetcher = useCallback(() => api.getCostBudgets(), []);
+  const { data, refresh } = usePolling<BudgetStatus[]>(fetcher, 30000);
+  const budgets = Array.isArray(data) ? data : [];
+  const workspace = budgets.find((b) => b.scope === "workspace");
+  const perAgent = budgets.filter((b) => b.scope.startsWith("agent:"));
+
+  const [limit, setLimit] = useState("");
+  const [status, setStatus] = useState<SaveStatus>("idle");
+
+  const wsLimit = workspace?.limit_usd;
+  useEffect(() => {
+    if (wsLimit !== undefined) setLimit(String(wsLimit));
+  }, [wsLimit]);
+
+  const save = async () => {
+    const value = Number(limit);
+    setStatus("saving");
+    try {
+      if (!limit.trim() || value <= 0) {
+        await api.deleteCostBudget("workspace").catch(() => { /* nothing to remove */ });
+      } else {
+        await api.createCostBudget({ scope: "workspace", period: "monthly", limit_usd: value, alert_at: 0.8 });
+      }
+      refresh();
+      setStatus("saved");
+      setTimeout(() => setStatus("idle"), 2000);
+    } catch {
+      setStatus("error");
+    }
+  };
+
+  return (
+    <div className="space-y-2.5">
+      <Field label="Monthly cap" suffix="alerts at 80%">
+        <span className="text-mycel-muted">$</span>
+        <input
+          type="number"
+          min={0}
+          step={5}
+          value={limit}
+          placeholder="No limit"
+          onChange={(e) => setLimit(e.target.value)}
+          aria-label="Monthly cost cap in dollars"
+          className={INPUT_CLS}
+        />
+        <button
+          type="button"
+          onClick={() => { void save(); }}
+          disabled={status === "saving"}
+          className="inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover active:scale-[0.98] shadow-mycel-sm transition-all disabled:opacity-60 shrink-0"
+        >
+          {status === "saving" ? "Saving…" : "Save"}
+        </button>
+      </Field>
+      {status === "saved" && <p className="text-[11px] text-mycel-success">Saved</p>}
+      {status === "error" && <p className="text-[11px] text-mycel-error">Couldn&apos;t save the cap.</p>}
+
+      {perAgent.length > 0 && (
+        <div className="rounded-lg border border-mycel-border bg-mycel-bg divide-y divide-mycel-border overflow-hidden">
+          {perAgent.map((b) => (
+            <div key={b.scope} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+              <span className="text-mycel-text truncate">{b.scope.replace(/^agent:/, "")}</span>
+              <span className="text-mycel-muted shrink-0 tabular-nums">${b.limit_usd}/{b.period}</span>
+              <button
+                type="button"
+                onClick={() => void api.deleteCostBudget(b.scope).then(refresh)}
+                className="text-mycel-muted hover:text-mycel-error shrink-0 cursor-pointer transition-colors"
+                title="Remove cap"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="text-[11px] text-mycel-muted">
+        Per-agent caps are set from an agent&apos;s own page and listed here read-only. Caps compare against spend computed from provider usage — no separate cost ledger.
+      </p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Advanced — storage, server, logs, injected instructions             */
 /* ------------------------------------------------------------------ */
 
@@ -582,6 +724,7 @@ export function Settings() {
   const fetcher = useCallback(() => api.getSettings(), []);
   const { data: config, loading, error, refresh, timedOut } = usePolling(fetcher, 30000);
   const { setTheme } = useTheme();
+  const reveal = useProgressiveReveal(config, refresh);
 
   const [edited, setEdited] = useState<Record<string, unknown> | null>(null);
   const [original, setOriginal] = useState<Record<string, unknown> | null>(null);
@@ -694,6 +837,17 @@ export function Settings() {
           <h1 className="font-display text-[26px] leading-none text-mycel-text">Settings</h1>
           <p className="mt-2 text-[13px] text-mycel-text-2">The config that has no other home — grouped for day-to-day use.</p>
         </div>
+        <button
+          type="button"
+          onClick={() => { void reveal.replay(); }}
+          title="Re-run setup — replays the guided reveal below without blanking anything you've already set"
+          aria-label="Re-run setup"
+          className="shrink-0 grid place-items-center w-9 h-9 rounded-full border border-mycel-border bg-mycel-surface text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors active:scale-95"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+          </svg>
+        </button>
       </header>
 
       {saveStatus === "saved" && dirtySections.length === 0 && (
@@ -754,10 +908,15 @@ export function Settings() {
       )}
 
       <Section title="setup" dirty={false} index={0}>
-        <SetupSection />
+        <SetupSection
+          hasAgents={reveal.hasAgents}
+          allComplete={reveal.allComplete}
+          completedCount={reveal.completedCount}
+          total={REVEAL_ORDER.length}
+        />
       </Section>
 
-      <Section title="profile" dirty={isDirty("user", "ui")} index={1}>
+      <Section title="profile" dirty={isDirty("user", "ui")} index={1} reveal={reveal.states.profile}>
         <Field label="Name">
           <input
             className={INPUT_CLS}
@@ -786,23 +945,44 @@ export function Settings() {
 
       {/* Providers/Tools folded into Settings as a list-only section — no
           more standalone /tools page. Per-provider drill-down still lives at
-          /settings/providers/:name. */}
-      <Section title="providers & tools" dirty={false} index={2}>
+          /settings/providers/:name. Self-completes once a provider is
+          installed — no CTA needed. */}
+      <Section title="providers & tools" dirty={false} index={2} reveal={reveal.states["providers & tools"]}>
         <ProvidersToolsSection />
       </Section>
 
-      <Section title="runtime" dirty={isDirty("runtime")} index={3}>
+      <Section
+        title="runtime"
+        dirty={isDirty("runtime")}
+        index={3}
+        reveal={reveal.states.runtime}
+        onContinue={reveal.states.runtime === "active" ? () => { void reveal.markTouched("runtime"); } : undefined}
+      >
         <RuntimeSection data={edited} onChange={handleChange} />
       </Section>
 
       {/* Apps owns integrations, notification delivery, and API keys on the
           /apps page; Settings only summarizes and links out. The
-          prefs.notifications{} controls surface there (follow-up PR). */}
-      <Section title="apps" dirty={false} index={4}>
+          prefs.notifications{} controls surface there (follow-up PR).
+          Optional/skippable — the Continue CTA acknowledges without
+          requiring a connected app. */}
+      <Section
+        title="apps"
+        dirty={false}
+        index={4}
+        reveal={reveal.states.apps}
+        onContinue={reveal.states.apps === "active" ? () => { void reveal.markTouched("apps"); } : undefined}
+      >
         <AppsCard />
       </Section>
 
-      <Section title="advanced" dirty={isDirty("storage", "server", "logs")} defaultOpen={false} index={5}>
+      {/* Cost caps — entirely optional, so it self-completes (see
+          useProgressiveReveal) and never shows a Continue CTA. */}
+      <Section title="budgets" dirty={false} index={5} reveal={reveal.states.budgets}>
+        <BudgetsSection />
+      </Section>
+
+      <Section title="advanced" dirty={isDirty("storage", "server", "logs")} defaultOpen={false} index={6}>
         <Advanced label="Storage">
           <StorageFields data={edited} onChange={handleChange} />
         </Advanced>

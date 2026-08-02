@@ -1240,7 +1240,8 @@ function DrawerFooter({ iconOnly }: { iconOnly: boolean }) {
         {!iconOnly && <span className="truncate mycel-fade-slide-in">Insights</span>}
       </NavLink>
       {/* Setup no longer has its own footer entry — it lives inside Settings
-          (the Setup section) and the first-run wizard at /welcome. */}
+          as a progressive reveal across the real sections below (the Setup
+          section shows overall progress; there is no separate wizard). */}
       <NavLink to="/settings" className={linkClass} title={iconOnly ? "Settings" : undefined}>
         <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
           <Icon name="settings" size={15} />

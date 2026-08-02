@@ -28,20 +28,20 @@ const FAST: SplashTimings = {
 
 /** Mirrors App.tsx's HomeGate: probe onboarding, redirect fresh installs. */
 function GateProbe() {
-  const [toWelcome, setToWelcome] = useState(false);
+  const [toSettings, setToSettings] = useState(false);
   useEffect(() => {
     let cancelled = false;
     api
       .getOnboardingState()
       .then((s) => {
-        if (!cancelled && s.firstRun) setToWelcome(true);
+        if (!cancelled && s.firstRun) setToSettings(true);
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, []);
-  return toWelcome ? <Navigate to="/welcome" replace /> : <div data-testid="home">home</div>;
+  return toSettings ? <Navigate to="/settings" replace /> : <div data-testid="home">home</div>;
 }
 
 beforeEach(() => {
@@ -101,9 +101,10 @@ describe("BootGate", () => {
     expect(screen.getByText("daemon online")).toBeInTheDocument();
   });
 
-  it("first-run hand-off lands on /welcome via the existing HomeGate", async () => {
+  it("first-run hand-off lands on /settings via the existing HomeGate", async () => {
     // The boot splash does not itself route; the app's HomeGate reads
-    // /api/onboarding/state and redirects a fresh install to /welcome.
+    // /api/onboarding/state and redirects a fresh install to /settings,
+    // where setup is a progressive reveal (no separate wizard route).
     fetchMock.mockImplementation((url: RequestInfo | URL) => {
       const u = String(url);
       if (u.includes("/api/onboarding/state"))
@@ -125,12 +126,12 @@ describe("BootGate", () => {
         <BootGate timings={FAST}>
           <Routes>
             <Route index element={<GateProbe />} />
-            <Route path="welcome" element={<div data-testid="welcome">welcome wizard</div>} />
+            <Route path="settings" element={<div data-testid="settings">settings, revealing</div>} />
           </Routes>
         </BootGate>
       </MemoryRouter>,
     );
 
-    await waitFor(() => expect(screen.getByTestId("welcome")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("settings")).toBeInTheDocument());
   });
 });
