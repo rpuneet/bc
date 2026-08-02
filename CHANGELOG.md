@@ -7,6 +7,144 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-08-02
+
+App readiness. The surfaces that looked finished in 0.4.3 became real:
+Providers and Tools genuinely install, update, and report true versions;
+setup is Settings revealing itself section by section; external sign-in
+links work inside the desktop window; and the stubs that presented
+invented data as real are gone.
+
+### Added
+- **Progressive-disclosure setup.** Setup is the Settings page revealing
+  itself section by section as each one is satisfied — no separate
+  `/welcome` wizard, and a re-run icon replays the reveal without
+  blanking anything already configured (#3437).
+- **Agent orchestration over MCP.** Agents can `spawn_agent`,
+  `send_to_agent`, `stop_agent`, and `list_children`, each
+  permission-gated and role-checked (#3441).
+- **Agent guardrails.** `MaxCostUSD` and `StuckTimeoutMin` are enforced
+  for real — runaway agents auto-stop, stuck ones get flagged — instead
+  of being config that was only stored and displayed (#3439).
+- **Agent activity Timeline** tab, sourced from persisted lifecycle
+  events (#3443).
+- **GitHub two-way.** Outbound PR/issue comments and commit statuses via
+  the OAuth token, plus `GH_TOKEN`/`GITHUB_TOKEN` injection so `gh` and
+  `git` authenticate inside agents with no per-agent setup (#3445,
+  #3436).
+- **One-click sign-in.** A default GitHub OAuth client ships with the
+  binary (device flow, no secret) and Gmail's Google client is embedded
+  at build time, so both connect with zero setup (#3429, #3438).
+- **`mycel app scaffold`** generates an app/gateway plugin skeleton
+  (#3444, docs #3446, #3447).
+- **MCP health checks in `doctor`** (#3440).
+- **Unified header back/forward** control, replacing per-page back
+  buttons (#3434).
+
+### Changed
+- **Providers & Tools live in Settings** as a list-only section; the
+  standalone `/tools` page is gone and per-provider drill-down stays at
+  `/settings/providers/:name`. tmux is the recommended and default
+  runtime (#3431).
+- **Providers surface revamp** — real brand logos, a logo hero on the
+  detail page, descriptions, and a cleaner hierarchy in both themes
+  (#3450), on top of a comprehensive `ProviderDetail` with sign-in,
+  uninstall, models, and version/help commands (#3433).
+- **Docs** restructured for accuracy, with a PR docs-freshness check so
+  they can't silently drift again (#3430, #3432).
+
+### Fixed
+- **Providers/Tools actually work.** Install and update run for real via
+  streamed NDJSON instead of echoing a hint; versions render clean
+  (`v2.1.205`); CLI-tool detection no longer reports "0 CLI tools" (a
+  dropped `type` column); Claude installs with `npm -g`, not `npx`
+  (#3424, #3427, #3449).
+- **Desktop external links.** Wails never injects `BrowserOpenURL` into
+  the daemon's HTTP origin, so GitHub/Gmail sign-in links were dead in
+  the app window. External links now route through a loopback-only
+  `POST /api/system/open-url` that rejects non-http(s) schemes (#3448,
+  #3435).
+- **Apps showed only half your connected apps.** A stale hardcoded
+  prefix list hid messages from 14 of 28 apps; senders now resolve to
+  real identities (#3420).
+- **Honest numbers.** Insights no longer invents an 80/20 token split,
+  reports live resource usage, and the unrouted `CostsGlobal` view is
+  gone (#3421).
+- **Live feed.** Pause works for real, event coverage is complete,
+  permission rows resolve, and rows title themselves with the tool-call
+  description (#3419, #3426).
+- **Add MCP** resolves a real server definition instead of writing an
+  empty stanza that could never connect (#3422).
+- Browser back/forward behaves across the app, with no phantom pages
+  (#3425); Templates/Marketplace tell the truth about each other and the
+  boot splash has a stall fallback (#3418).
+- Accessibility sweep: touch targets, focus rings, label associations,
+  and keyboard-reachable controls (#3442).
+
+## [0.4.3] - 2026-08-02
+
+Craft and truth pass over the 0.4.0 platform: the Tools/Providers
+manager became real, Live started showing what agents are actually
+doing, and outbound messages started looking like the agent that sent
+them.
+
+### Added
+- **Agent identity everywhere.** A `whoami` MCP tool, a server-rendered
+  public AgentCharacter avatar, and real per-agent icons on outbound
+  Slack messages (#3408, #3395).
+- **Live activity for more providers** — codex and pi via transcript
+  tailing (#3404, #3400) — plus pinned running rows, expandable
+  history, and unified row controls (#3407).
+- **First-run setup wizard** and a branded daemon boot sequence with a
+  live readiness stream (#3384, #3396).
+- **Gmail app** (inbound + send via the Gmail API) and one-click
+  loopback OAuth for Gmail and GitHub connect (#3383, #3392).
+- **Real profile photos** for channels and senders (#3401), and
+  identity avatars across Apps (#3385).
+- **Agent Settings tab** with per-agent CPU/memory budgeting (#3391),
+  and a fleet default provider + model manager (#3389).
+- **Tools manager**: package-manager autodetect, per-provider
+  subcommands, working uninstall, streamed install (#3394, #3403).
+- **Direct messaging** to any contact via `<platform>:<id>` (#3380).
+
+### Changed
+- Settings slimmed and mirrored to the wizard, with setup folded in
+  (#3386); craft passes over Settings, Apps, and Notifications (#3387,
+  #3388, #3382).
+- Landing heroes replaced with live-recorded product motion (#3402).
+- Phase 2 design docs for the marketplace installer and templates as
+  bundles (#3399).
+
+### Fixed
+- Agent lifecycle events persist, so new agents have a timeline (#3397),
+  without double-persisting hook events (#3415).
+- The agent raw stream shows tool output and responses again (#3410).
+- `cpus`/`memory_mb` columns migrate onto existing databases — a
+  release blocker that put running agents at risk (#3393).
+- The agent Metrics "By model" panel reads real data (#3398).
+- `/settings/tools` remount loop, in-surface CLI install, and wizard
+  provider parity (#3390).
+- Stale `bc` MCP-server naming in user-facing surfaces (#3409); dev-only
+  `preferences.json · v3` badge removed from Settings (#3406).
+- Repo hygiene: stray binaries gitignored, dead component directories
+  dropped (#3417).
+
+### Security
+- `golang.org/x/image` bumped to v0.44.0, clearing 12 CodeQL alerts
+  (#3412).
+
+## [0.4.2] - 2026-07-31
+
+### Fixed
+- CD injects the release version into the desktop build, so packaged
+  apps no longer report a dev version (#3381).
+
+## [0.4.1] - 2026-07-31
+
+### Added
+- Message any contact directly via `<platform>:<id>`, without a
+  pre-existing channel (#3380).
+
 ## [0.4.0] - 2026-07-31
 
 The plugin era. mycel becomes a platform: every integration — the AI

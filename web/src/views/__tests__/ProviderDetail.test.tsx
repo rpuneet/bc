@@ -242,6 +242,32 @@ describe("ProviderDetail models", () => {
 
     await waitFor(() => expect(screen.getByText("No models")).toBeTruthy());
   });
+
+  it("labels the billed-model tile distinctly from the curated model list", async () => {
+    // The stat tile counts models that actually billed (cost_by_model),
+    // the Models section counts the curated list. They legitimately differ,
+    // so the tile must not also be called plain "Models".
+    renderDetail(
+      baseProvider({
+        installed: true,
+        status: "healthy",
+        models: [
+          { id: "gpt-5-codex", available: true },
+          { id: "gpt-5-mini", available: false },
+        ],
+        cost_by_model: [
+          { model: "gpt-5-codex", total_cost_usd: 1, total_tokens: 10 },
+          { model: "gpt-5-mini", total_cost_usd: 2, total_tokens: 20 },
+          { model: "gpt-5-legacy", total_cost_usd: 3, total_tokens: 30 },
+        ],
+      }),
+    );
+
+    // The tile reports the 3 billed models under its own label, so it no
+    // longer contradicts the "Models 2" curated-list heading beside it.
+    const tile = await screen.findByText("Models used");
+    expect(tile.closest("div")?.parentElement?.textContent).toContain("3");
+  });
 });
 
 describe("ProviderDetail sign-in", () => {

@@ -16,9 +16,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, type SettingsConfig } from "../api/client";
 import { useReadiness } from "../hooks/useReadiness";
 
-/** Reveal order mirrors the Settings section order. "advanced" is
- *  deliberately excluded — it is never gated. */
-export const REVEAL_ORDER = ["profile", "runtime", "providers & tools", "apps", "budgets"] as const;
+/** Reveal order mirrors the Settings section order, so the guided reveal
+ *  always walks top-down: the "active" card is never below a locked one.
+ *  "advanced" is deliberately excluded — it is never gated. */
+export const REVEAL_ORDER = ["profile", "providers & tools", "runtime", "apps", "budgets"] as const;
 export type RevealSectionId = (typeof REVEAL_ORDER)[number];
 
 export type RevealState = "locked" | "active" | "complete";
@@ -117,16 +118,19 @@ export function useProgressiveReveal(
       for (const id of REVEAL_ORDER) result[id] = "complete";
       return result;
     }
+    // A section that is already satisfied is never locked, wherever it
+    // sits in the order: locking it would hide real, reachable config
+    // behind a padlock (e.g. providers & tools with a CLI already
+    // installed, or budgets, which is optional and always complete).
+    // Only *unsatisfied* sections after the first one are gated.
     let seenIncomplete = false;
     for (const id of REVEAL_ORDER) {
-      if (seenIncomplete) {
-        result[id] = "locked";
-      } else if (complete[id]) {
+      if (complete[id]) {
         result[id] = "complete";
-      } else {
-        result[id] = "active";
-        seenIncomplete = true;
+        continue;
       }
+      result[id] = seenIncomplete ? "locked" : "active";
+      seenIncomplete = true;
     }
     return result;
   }, [loaded, allComplete, complete]);
