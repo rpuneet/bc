@@ -17,6 +17,7 @@ import {
   StatusDot,
 } from "./apps/appStatus";
 import { Header } from "./Header";
+import { HistoryNavButtons } from "./HistoryNavButtons";
 import { AgentNavTree } from "./AgentNavTree";
 import { SetupNudge } from "./SetupNudge";
 import { SidebarToggle } from "./SidebarToggle";
@@ -1296,6 +1297,7 @@ function LayoutHeader({
           />
         )
       }
+      nav={<HistoryNavButtons />}
       center={slot.hidden ? undefined : slot.title}
       actions={slot.hidden ? undefined : slot.actions}
     />

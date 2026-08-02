@@ -30,13 +30,16 @@ import type { ReactNode } from "react";
 export interface HeaderProps {
   /** Left slot — owned by Layout. Drawer toggle + brand. */
   left?: ReactNode;
+  /** Nav slot — the one back/forward history control. Owned by Layout,
+   *  always rendered (not per-view) immediately after the brand column. */
+  nav?: ReactNode;
   /** Center slot — per-page summary / breadcrumb / inline status. */
   center?: ReactNode;
   /** Right slot — per-page actions (search, buttons, filters, menus). */
   actions?: ReactNode;
 }
 
-export function Header({ left, center, actions }: HeaderProps) {
+export function Header({ left, nav, center, actions }: HeaderProps) {
   return (
     <header className="relative z-30 shrink-0 border-b border-mycel-border bg-[color-mix(in_srgb,var(--mycel-surface)_70%,transparent)] backdrop-blur-sm">
       {/* items-stretch so the brand column's right border spans the full
@@ -50,7 +53,10 @@ export function Header({ left, center, actions }: HeaderProps) {
 
         {/* Per-view region — everything the drawer column doesn't own.
             Padded so its content aligns above the main pane. */}
-        <div className="flex flex-1 items-center min-w-0 gap-3 px-3 sm:px-4">
+        <div className="flex flex-1 items-center min-w-0 gap-1 sm:gap-2 px-3 sm:px-4">
+          {/* Nav slot — back/forward, unconditional across every view. */}
+          {nav}
+
           {/* Center slot — per-view summary / presence. */}
           <div className="flex-1 min-w-0 flex items-center gap-2 text-sm text-mycel-text">
             {center}

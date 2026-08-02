@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api/client";
 import type {
@@ -464,7 +463,6 @@ export function GatewayFeed({
   const filterRef = useRef<HTMLDivElement>(null);
   const { subscribe } = useWebSocket();
 
-  const navigate = useNavigate();
   const platform = gatewayPlatform(channelName);
   // Show the leaf channel segment as the visible label. Internal keys carry
   // the full path (e.g. "discord:server:general"); only the final segment is
@@ -758,31 +756,11 @@ export function GatewayFeed({
     (a) => a.state === "running" || a.state === "working",
   ).length;
 
-  // Navigates to the known parent (/apps) rather than navigate(-1): a
-  // channel can be reached by direct deep link (/apps/:sourceName) with no
-  // prior in-app history entry, so history.back() could pop out of the SPA.
+  // Back/forward now lives once, in the header (HistoryNavButtons) —
+  // this view no longer grows its own back button.
   const headerTitle = useMemo(
     () => (
       <div className="flex items-center min-w-0" style={{ gap: 8 }}>
-        <button
-          type="button"
-          onClick={() => navigate("/apps")}
-          className="flex items-center justify-center shrink-0"
-          style={{
-            width: 22,
-            height: 22,
-            borderRadius: 5,
-            color: "var(--mycel-muted)",
-            cursor: "pointer",
-            background: "none",
-            border: "none",
-          }}
-          title="Go back"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </button>
         <span className="shrink-0" style={{ color: "var(--mycel-muted)", fontSize: 13 }}>#</span>
         <span
           className="truncate min-w-0"
@@ -820,7 +798,7 @@ export function GatewayFeed({
         </span>
       </div>
     ),
-    [channelLabel, platform, PlatformGlyph, messages.length, navigate],
+    [channelLabel, platform, PlatformGlyph, messages.length],
   );
 
   const headerActions = useMemo(

@@ -136,3 +136,40 @@ describe("Layout chrome", () => {
     expect(within(nav).queryByRole("link", { name: "Setup" })).not.toBeInTheDocument();
   });
 });
+
+describe("Layout header back/forward", () => {
+  it("renders one Back and one Forward control in the header, on every route", async () => {
+    mockApi("test-host");
+    renderLayout();
+
+    const header = screen.getByRole("banner");
+    expect(within(header).getByRole("button", { name: "Go back" })).toBeInTheDocument();
+    expect(within(header).getByRole("button", { name: "Go forward" })).toBeInTheDocument();
+  });
+
+  it("Back calls history navigate(-1) and Forward calls navigate(1)", async () => {
+    mockApi("test-host");
+    render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={["/", "/agents", "/apps"]} initialIndex={1}>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route index element={<div data-testid="home-page" />} />
+              <Route path="/agents" element={<div data-testid="agents-page" />} />
+              <Route path="/apps" element={<div data-testid="apps-page" />} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </ThemeProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("agents-page")).toBeInTheDocument());
+
+    const header = screen.getByRole("banner");
+    within(header).getByRole("button", { name: "Go back" }).click();
+    await waitFor(() => expect(screen.getByTestId("home-page")).toBeInTheDocument());
+
+    within(header).getByRole("button", { name: "Go forward" }).click();
+    await waitFor(() => expect(screen.getByTestId("agents-page")).toBeInTheDocument());
+  });
+});
