@@ -53,7 +53,11 @@ func TestOAuthConfiguredTracksBuildDefault(t *testing.T) {
 
 	t.Setenv(envGoogleClientID, "")
 	t.Setenv(envGoogleClientSecret, "")
-	t.Cleanup(func() { defaultGoogleClientID, defaultGoogleClientSecret = "", "" })
+
+	// Capture and restore the linker-injected defaults so a binary built with
+	// real embedded values isn't left cleared for later tests.
+	origID, origSecret := defaultGoogleClientID, defaultGoogleClientSecret
+	t.Cleanup(func() { defaultGoogleClientID, defaultGoogleClientSecret = origID, origSecret })
 
 	// Neither env nor build default set: unconfigured.
 	defaultGoogleClientID, defaultGoogleClientSecret = "", ""
