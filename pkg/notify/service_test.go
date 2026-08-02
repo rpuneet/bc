@@ -472,6 +472,84 @@ func TestMigratePlaceholderSubsOnDispatch(t *testing.T) {
 	}
 }
 
+// TestDispatchAutomatedFeedsWithoutWakingAgents pins the notification-mail
+// policy: machine-generated mail still lands in the channel feed and reaches
+// the web UI, but no agent is prompted. Without this, every GitHub
+// notification and newsletter wakes each subscriber and costs tokens on a
+// message nobody can reply to.
+func TestDispatchAutomatedFeedsWithoutWakingAgents(t *testing.T) {
+	store := setupTestStore(t)
+	sender := &mockSender{}
+	hub := &mockHub{}
+	svc := NewService(store, sender, hub)
+	ctx := context.Background()
+
+	if err := store.Subscribe(ctx, "gmail:notificationsgithubcom", "fast-crane", false); err != nil {
+		t.Fatal(err)
+	}
+
+	svc.Dispatch("gmail:notificationsgithubcom", "gmail",
+		`[gmail] "coderabbitai[bot]" <notifications@github.com>`, "notifications@github.com", "",
+		"Re: [rpuneet/mycel] approved this pull request", "m1", nil, nil, nil, Automated())
+
+	if !svc.DrainDispatches(2 * time.Second) {
+		t.Fatal("dispatch did not finish")
+	}
+
+	if calls := sender.getCalls(); len(calls) != 0 {
+		t.Fatalf("automated mail must not be delivered to agents, got %d: %+v", len(calls), calls)
+	}
+
+	// Ingested: the message is still readable in the channel feed.
+	msgs, err := store.GetMessages(ctx, "gmail:notificationsgithubcom", 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected automated mail to be stored in the feed, got %d messages", len(msgs))
+	}
+
+	// And the web UI is still told about it.
+	if len(hub.events) != 1 || hub.events[0] != "gateway.message" {
+		t.Errorf("expected one gateway.message publish, got %v", hub.events)
+	}
+
+	// No delivery attempt was made, so nothing should be logged as failed.
+	entries, err := store.RecentActivity(ctx, "gmail:notificationsgithubcom", 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected no delivery-log entries for automated mail, got %+v", entries)
+	}
+}
+
+// TestDispatchWithoutAutomatedStillDelivers is the control for the test
+// above: the same channel and subscriber, minus the Automated option, must
+// still wake the agent. Guards against the filter swallowing human mail.
+func TestDispatchWithoutAutomatedStillDelivers(t *testing.T) {
+	store := setupTestStore(t)
+	sender := &mockSender{}
+	svc := NewService(store, sender, &mockHub{})
+	ctx := context.Background()
+
+	if err := store.Subscribe(ctx, "gmail:notificationsgithubcom", "fast-crane", false); err != nil {
+		t.Fatal(err)
+	}
+
+	svc.Dispatch("gmail:notificationsgithubcom", "gmail", "[gmail] Puneet <puneet@example.com>",
+		"puneet@example.com", "", "can you ship the release?", "m1", nil, nil, nil)
+
+	if !svc.DrainDispatches(2 * time.Second) {
+		t.Fatal("dispatch did not finish")
+	}
+
+	calls := sender.getCalls()
+	if len(calls) != 1 || calls[0].Name != "fast-crane" {
+		t.Fatalf("expected one delivery to fast-crane, got %+v", calls)
+	}
+}
+
 func TestMigratePlaceholderSubsNoOpWhenRealHasSubs(t *testing.T) {
 	store := setupTestStore(t)
 	sender := &mockSender{}

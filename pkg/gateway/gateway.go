@@ -63,6 +63,11 @@ type Notification struct {
 	Content      string          `json:"content"`                 // human-readable text for display/storage
 	MessageID    string          `json:"message_id,omitempty"`    // platform-native message id (for reactions, threading)
 	Mentions     []string        `json:"mentions"`
+	// Automated marks machine-generated events that no human is waiting on a
+	// reply to — notification mail, newsletters, bounces. Adapters set it;
+	// the notify layer ingests such events into the channel feed but does not
+	// wake subscribed agents for them.
+	Automated bool `json:"automated,omitempty"`
 }
 
 // ChannelInfo represents a discovered channel on a platform.

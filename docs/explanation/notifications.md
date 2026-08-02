@@ -559,7 +559,9 @@ flowchart TD
     B --> C[Manager dispatches in goroutine]
     C --> D["notify.Service.Dispatch()"]
     D --> E[Save message to notification_log]
-    D --> F[Load subscribers from subscriptions]
+    D --> R{Automated event?}
+    R -->|Yes| S[Feed and SSE only -- no agent woken]
+    R -->|No| F[Load subscribers from subscriptions]
     D --> G["Extract @mentions from content"]
 
     F --> H{For each subscriber}
@@ -577,6 +579,29 @@ flowchart TD
     D --> P[Publish gateway.message to SSE hub]
     D --> Q[Prune old delivery log entries]
 ```
+
+**Automated events** are machine-generated messages that no human is waiting on a
+reply to: GitHub notification mail, newsletters, bounces, out-of-office replies.
+They are saved to the channel feed and published to the web UI like any other
+message, but no subscribed agent is woken for them -- prompting every subscriber
+costs real tokens on a message that cannot be answered.
+
+Adapters decide what qualifies and pass `notify.Automated()` on dispatch. The
+Gmail adapter classifies from standard mail headers rather than address-name
+guesses, preferring the sender's own declaration:
+
+| Signal | Meaning |
+|--------|---------|
+| `Auto-Submitted` other than `no` (RFC 3834) | Sender declares the message was generated automatically |
+| `X-Auto-Response-Suppress` | Only ever set by automated systems |
+| `Precedence: bulk` or `junk` | Bulk mailing rather than a message to you |
+| `List-Unsubscribe` | Mailing to many recipients |
+| No-reply local part (`noreply@`, `notifications@`, `mailer-daemon@`, ...) | Address cannot receive a reply |
+
+Deliberately excluded: `Precedence: list` and `List-Id` on their own, because
+genuine team discussion lists set them, and human-staffed role addresses such as
+`support@` or `info@`. Filtered mail stays visible in the channel, so a
+misclassification hides nothing -- it only means no agent was woken.
 
 **Self-skip** prevents agents from receiving their own messages echoed back by the platform. Each adapter extracts the sender with a single field lookup (`event.User` for Slack, `message.From.UserName` for Telegram, `message.Author.ID` for Discord). The `[platform] ` prefix is stripped before comparison.
 

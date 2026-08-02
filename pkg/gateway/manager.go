@@ -70,7 +70,9 @@ type Manager struct {
 	// so callers can use it for follow-up operations such as reactions.
 	// senderAvatar is the raw platform avatar URL for the sender when the
 	// adapter cheaply resolved one (empty otherwise → initials fallback).
-	onInbound    func(channel, sender, senderID, senderAvatar, content, messageID string, mentions []string, raw json.RawMessage)
+	// automated marks machine-generated events that should reach the channel
+	// feed without waking subscribed agents.
+	onInbound    func(channel, sender, senderID, senderAvatar, content, messageID string, mentions []string, raw json.RawMessage, automated bool)
 	channelStore ChannelStore
 	mu           sync.RWMutex
 	// adapterWG tracks boot-time and hot-started adapter goroutines so Stop/
@@ -114,8 +116,9 @@ func (m *Manager) SetChannelStore(store ChannelStore) {
 // The callback receives the mycel channel name, sender display name, platform-native
 // sender id (e.g. WhatsApp JID — used for follow-up reactions), text content,
 // platform-native message ID, pre-extracted mentions (e.g. WhatsApp JID user parts),
-// and the raw platform payload.
-func (m *Manager) SetInboundHandler(fn func(channel, sender, senderID, senderAvatar, content, messageID string, mentions []string, raw json.RawMessage)) {
+// the raw platform payload, and whether the event is machine-generated
+// (notification mail and similar — feed-worthy, but no agent should be woken).
+func (m *Manager) SetInboundHandler(fn func(channel, sender, senderID, senderAvatar, content, messageID string, mentions []string, raw json.RawMessage, automated bool)) {
 	m.onInbound = fn
 }
 
@@ -768,7 +771,7 @@ func (m *Manager) handleNotification(platform string, n Notification) {
 		content = string(n.Raw)
 	}
 	if m.onInbound != nil {
-		m.onInbound(channel, sender, n.SenderID, n.SenderAvatar, content, n.MessageID, n.Mentions, n.Raw)
+		m.onInbound(channel, sender, n.SenderID, n.SenderAvatar, content, n.MessageID, n.Mentions, n.Raw, n.Automated)
 	}
 }
 
