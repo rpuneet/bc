@@ -545,9 +545,9 @@ func TestStorageToolSmoke(t *testing.T) {
 	if got == nil || got.Name != "smoke-tool" {
 		t.Fatalf("expected 'smoke-tool', got %v", got)
 	}
-	// The internal add() method does not persist Type, so it defaults to "provider".
-	if got.Type != tool.ToolTypeProvider {
-		t.Errorf("Type = %q, want %q", got.Type, tool.ToolTypeProvider)
+	// add() now persists Type (previously omitted → wrongly defaulted to "provider").
+	if got.Type != tool.ToolTypeCLI {
+		t.Errorf("Type = %q, want %q", got.Type, tool.ToolTypeCLI)
 	}
 
 	// Update
