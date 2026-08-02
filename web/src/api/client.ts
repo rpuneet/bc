@@ -1358,7 +1358,14 @@ export const api = {
   checkTools: () =>
     request<Tool[]>("/tools/unified/check", { method: "POST" }),
 
-  /** Create or update a CLI tool. */
+  /** Create a new CLI tool (POST → store.Add). Defaults type to "cli". */
+  createTool: (tool: Partial<CLITool> & { name: string }) =>
+    request<CLITool>("/tools", {
+      method: "POST",
+      body: JSON.stringify({ type: "cli", ...tool }),
+    }),
+
+  /** Update an existing CLI tool. */
   upsertTool: (tool: Partial<CLITool> & { name: string }) =>
     request<CLITool>(`/tools/${encodeURIComponent(tool.name)}`, {
       method: "PUT",

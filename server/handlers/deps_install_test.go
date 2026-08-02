@@ -28,7 +28,7 @@ func TestInstallCommand(t *testing.T) {
 		{"tmux", "linux", "sudo apt-get update && sudo apt-get install -y tmux", true},
 		{"docker", "darwin", "", false},
 		{"docker", "linux", "", false},
-		{"claude", "darwin", "npx -y @anthropic-ai/claude-code", true},
+		{"claude", "darwin", "npm install -g @anthropic-ai/claude-code", true},
 		{"codex", "linux", "npm install -g @openai/codex", true},
 		{"cursor", "darwin", "", false}, // hint is a bare URL — not auto-installable
 		{"nonesuch", "linux", "", false},

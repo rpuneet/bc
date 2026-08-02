@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -585,9 +586,20 @@ func npmPackageForHint(hint string) (string, bool) {
 	return "", false
 }
 
-// normalizeVersion strips a leading "v" so "v1.2.3" and "1.2.3" compare equal.
+// semverTokenRe extracts the leading semantic-version token from a version
+// string, so decorated output like "2.1.205 (Claude Code)" reduces to the
+// bare "2.1.205" for comparison.
+var semverTokenRe = regexp.MustCompile(`(\d+\.\d+\.\d+)`)
+
+// normalizeVersion reduces a version string to its bare semver token so
+// "v1.2.3", "1.2.3", and "1.2.3 (Claude Code)" all compare equal. Falls back
+// to the "v"-stripped, trimmed string when no semver token is present.
 func normalizeVersion(v string) string {
-	return strings.TrimPrefix(strings.TrimSpace(v), "v")
+	v = strings.TrimSpace(v)
+	if m := semverTokenRe.FindString(v); m != "" {
+		return m
+	}
+	return strings.TrimPrefix(v, "v")
 }
 
 // npmRegistryBaseURL and npmHTTPClient are package vars so tests can point

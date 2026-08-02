@@ -388,7 +388,7 @@ function AddCLIToolForm({ onClose, onAdded, onToast }: { onClose: () => void; on
     setSubmitting(true);
     setError(null);
     try {
-      await api.upsertTool({ name: name.trim(), command: command.trim(), install_cmd: installCmd.trim(), enabled: true });
+      await api.createTool({ name: name.trim(), command: command.trim(), install_cmd: installCmd.trim(), enabled: true });
       onToast("info", `Tool '${name.trim()}' added`);
       onAdded();
       onClose();

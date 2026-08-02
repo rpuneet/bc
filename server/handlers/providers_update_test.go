@@ -109,6 +109,47 @@ func TestCheckUpdate_RealNpmCompareUpToDate(t *testing.T) {
 	}
 }
 
+// TestCheckUpdate_DecoratedCurrentVersionNoFalsePositive guards the claude
+// regression: Version() returns "2.1.205 (Claude Code)" while npm reports the
+// bare "2.1.205". normalizeVersion must reduce both to "2.1.205" so the check
+// reports up-to-date instead of a perpetual false "update available".
+func TestCheckUpdate_DecoratedCurrentVersionNoFalsePositive(t *testing.T) {
+	withNpmRegistryStub(t, "2.1.205", http.StatusOK)
+	mux := newFakeUpdateMux(&fakeUpdateProvider{name: "fakenpm", installHint: "npm install -g fake-cli", version: "2.1.205 (Claude Code)"})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/providers/fakenpm/check-update", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	var result UpdateCheck
+	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !result.Checked {
+		t.Error("Checked = false, want true")
+	}
+	if result.UpdateAvailable {
+		t.Error("UpdateAvailable = true, want false ('2.1.205 (Claude Code)' vs '2.1.205')")
+	}
+}
+
+// TestNormalizeVersion checks the semver-token reduction directly.
+func TestNormalizeVersion(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"2.1.205 (Claude Code)", "2.1.205"},
+		{"v1.2.3", "1.2.3"},
+		{"1.2.3", "1.2.3"},
+		{"  2.1.205  ", "2.1.205"},
+		{"codex-cli 0.111.0", "0.111.0"},
+		{"weird-nonsemver", "weird-nonsemver"},
+	}
+	for _, c := range cases {
+		if got := normalizeVersion(c.in); got != c.want {
+			t.Errorf("normalizeVersion(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
 // TestCheckUpdate_NonNpmHintIsHonestlyUnverified covers a provider installed
 // via a mechanism with no queryable registry (e.g. cursor's bare download
 // URL). checkUpdate must not claim the version is current — Checked stays
