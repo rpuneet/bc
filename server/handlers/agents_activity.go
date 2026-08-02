@@ -15,6 +15,10 @@ type activityItem struct { //nolint:govet // field order matches JSON contract
 	Event     string         `json:"event"`
 	Message   string         `json:"message,omitempty"`
 	Agent     string         `json:"agent,omitempty"`
+	// ID is the underlying event store row id, exposed so callers can page
+	// backwards through an agent's full history via before=<id> (the
+	// Timeline tab, #3423) without a second lookup.
+	ID int64 `json:"id,omitempty"`
 }
 
 // toActivityItem normalizes an events.Event into the timeline DTO consumed by
@@ -46,6 +50,7 @@ func toActivityItem(e events.Event, includeAgent bool) activityItem {
 		Event:     strings.TrimPrefix(strings.TrimPrefix(string(e.Type), "hook."), "agent."),
 		Message:   msg,
 		Data:      e.Data,
+		ID:        e.ID,
 	}
 	if includeAgent {
 		out.Agent = e.Agent
