@@ -25,12 +25,19 @@ import (
 // Config holds the daemon-owned dependencies the tool handlers dispatch to.
 // All stores are shared with the daemon; the MCP layer owns no connections.
 type Config struct {
-	Home    *home.Home
-	Agents  *agent.Manager
-	Costs   *cost.Service
-	Gateway *gateway.Manager
-	Notify  *notify.Service
-	Version string
+	Home   *home.Home
+	Agents *agent.Manager
+	// AgentSvc is the application-level agent API (spawn/send/stop with
+	// event publishing). Orchestration tools (spawn_agent, send_to_agent,
+	// stop_agent) dispatch through it instead of Agents directly so agent
+	// lifecycle events fire the same way they do for CLI/API-driven
+	// operations. May be nil (those tools degrade with a tool error);
+	// read-only tools (list_agents, list_children, whoami) only need Agents.
+	AgentSvc *agent.AgentService
+	Costs    *cost.Service
+	Gateway  *gateway.Manager
+	Notify   *notify.Service
+	Version  string
 }
 
 // Handler serves the agent-scoped MCP endpoints. It lazily builds one

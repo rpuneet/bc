@@ -472,6 +472,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		}
 		if svc.Agents != nil {
 			mcpCfg.Agents = svc.Agents.Manager()
+			mcpCfg.AgentSvc = svc.Agents
 		}
 		if mcpSrv, mcpErr := servermcp.New(mcpCfg); mcpErr != nil {
 			log.Warn("MCP server unavailable", "error", mcpErr)

@@ -10,6 +10,7 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/pkg/avatar"
 	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
@@ -96,6 +97,35 @@ func addTools(s *sdk.Server, cfg Config, agentName string) {
 		Annotations: readOnly,
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in queryCostsIn) (*sdk.CallToolResult, queryCostsOut, error) {
 		return queryCosts(ctx, cfg, in)
+	})
+
+	sdk.AddTool(s, &sdk.Tool{
+		Name:        "spawn_agent",
+		Description: "Spawn a new child agent under this agent. This agent's role must be permitted to create the requested role (the same role-hierarchy check the daemon enforces for --parent-based creation); an unpermitted role is rejected.",
+	}, func(ctx context.Context, _ *sdk.CallToolRequest, in spawnAgentIn) (*sdk.CallToolResult, spawnAgentOut, error) {
+		return spawnAgent(ctx, cfg, agentName, in)
+	})
+
+	sdk.AddTool(s, &sdk.Tool{
+		Name:        "send_to_agent",
+		Description: "Send a message or task instruction to another agent's session, as this agent",
+	}, func(ctx context.Context, _ *sdk.CallToolRequest, in sendToAgentIn) (*sdk.CallToolResult, sendToAgentOut, error) {
+		return sendToAgent(ctx, cfg, agentName, in)
+	})
+
+	sdk.AddTool(s, &sdk.Tool{
+		Name:        "stop_agent",
+		Description: "Stop a running agent. Restricted to the root agent or an ancestor (direct or indirect parent) of the target — an agent cannot stop a peer or an unrelated agent.",
+	}, func(ctx context.Context, _ *sdk.CallToolRequest, in stopAgentIn) (*sdk.CallToolResult, stopAgentOut, error) {
+		return stopAgent(ctx, cfg, agentName, in)
+	})
+
+	sdk.AddTool(s, &sdk.Tool{
+		Name:        "list_children",
+		Description: "List agents directly spawned by this agent",
+		Annotations: readOnly,
+	}, func(ctx context.Context, _ *sdk.CallToolRequest, _ emptyIn) (*sdk.CallToolResult, listChildrenOut, error) {
+		return listChildren(cfg, agentName)
 	})
 }
 
@@ -562,6 +592,194 @@ func queryCosts(ctx context.Context, cfg Config, in queryCostsIn) (*sdk.CallTool
 			OutputTokens: s.OutputTokens,
 			TotalTokens:  s.TotalTokens,
 			TotalCostUSD: s.TotalCostUSD,
+		})
+	}
+	return nil, out, nil
+}
+
+// ─── spawn_agent ────────────────────────────────────────────────────────────
+//
+// Generalizes the root-agent/merge-queue pattern (see the workspace root
+// CLAUDE.md's create_agent MCP tool) so ANY agent — not just a hardcoded
+// root — can spawn children, subject to the same role-hierarchy check the
+// daemon already enforces for --parent-based creation
+// (Manager.SpawnAgentWithOptions → agent.CanCreateRole via ParentID).
+
+type spawnAgentIn struct {
+	Name     string `json:"name,omitempty" jsonschema:"name for the new agent (letters, numbers, dash, underscore); omit to auto-generate a unique name"`
+	Role     string `json:"role" jsonschema:"role for the new agent; this agent's role must be permitted to create it (role hierarchy), or the spawn is rejected"`
+	Task     string `json:"task,omitempty" jsonschema:"one-line initial task description recorded on the new agent (shown in the TUI/web UI)"`
+	Provider string `json:"provider,omitempty" jsonschema:"AI provider/tool for the new agent (e.g. claude); empty uses the fleet default"`
+	Repo     string `json:"repo,omitempty" jsonschema:"absolute path of the git repo to bind the new agent to; empty binds it to this agent's own repo"`
+}
+
+type spawnAgentOut struct {
+	Agent    string `json:"agent"`
+	Role     string `json:"role"`
+	State    string `json:"state"`
+	ParentID string `json:"parent_id,omitempty"`
+}
+
+func spawnAgent(ctx context.Context, cfg Config, agentName string, in spawnAgentIn) (*sdk.CallToolResult, spawnAgentOut, error) {
+	var out spawnAgentOut
+	if in.Role == "" {
+		return nil, out, fmt.Errorf("role is required")
+	}
+	if len(in.Role) > maxRoleLen {
+		return nil, out, fmt.Errorf("role too long: %d bytes (max %d)", len(in.Role), maxRoleLen)
+	}
+	if in.Name != "" && !agent.IsValidAgentName(in.Name) {
+		return nil, out, fmt.Errorf("agent name %q is invalid: use letters, numbers, dash, underscore (max %d chars)", in.Name, agent.MaxAgentNameLength)
+	}
+	if len(in.Task) > maxTaskLen {
+		return nil, out, fmt.Errorf("task too long: %d bytes (max %d)", len(in.Task), maxTaskLen)
+	}
+	if len(in.Repo) > maxPathLen {
+		return nil, out, fmt.Errorf("repo too long: %d bytes (max %d)", len(in.Repo), maxPathLen)
+	}
+	if cfg.AgentSvc == nil || cfg.Agents == nil {
+		return nil, out, fmt.Errorf("agent orchestration not available")
+	}
+
+	// Default to the caller's own repo so a spawned child shares the
+	// caller's worktree root unless a different repo is explicitly named.
+	repo := in.Repo
+	if repo == "" {
+		if caller := cfg.Agents.GetAgent(agentName); caller != nil {
+			repo = caller.Repo
+		}
+	}
+
+	// Parent is always the authenticated caller — never client-supplied —
+	// so AgentService.Create → SpawnAgentWithOptions enforces
+	// agent.CanCreateRole(caller.Role, requested role) for us. A caller
+	// whose role isn't permitted to create the requested role gets a
+	// clear error and no agent is spawned.
+	child, err := cfg.AgentSvc.Create(ctx, agent.CreateOptions{
+		Name:   in.Name,
+		Role:   agent.Role(in.Role),
+		Tool:   in.Provider,
+		Repo:   repo,
+		Parent: agentName,
+	})
+	if err != nil {
+		return nil, out, fmt.Errorf("spawn failed: %w", err)
+	}
+
+	out.Agent = child.Name
+	out.Role = string(child.Role)
+	out.State = string(child.State)
+	out.ParentID = child.ParentID
+
+	if in.Task != "" {
+		if taskErr := cfg.Agents.SetAgentTask(ctx, child.Name, in.Task); taskErr != nil {
+			log.Warn("spawn_agent: failed to set initial task", "agent", child.Name, "error", taskErr)
+		}
+	}
+	return nil, out, nil
+}
+
+// ─── send_to_agent ──────────────────────────────────────────────────────────
+
+type sendToAgentIn struct {
+	Agent   string `json:"agent" jsonschema:"name of the target agent"`
+	Message string `json:"message" jsonschema:"message or task instruction text to send"`
+}
+
+type sendToAgentOut struct {
+	Agent string `json:"agent"`
+}
+
+func sendToAgent(ctx context.Context, cfg Config, agentName string, in sendToAgentIn) (*sdk.CallToolResult, sendToAgentOut, error) {
+	out := sendToAgentOut{Agent: in.Agent}
+	if in.Agent == "" || in.Message == "" {
+		return nil, out, fmt.Errorf("agent and message are required")
+	}
+	if len(in.Agent) > agent.MaxAgentNameLength {
+		return nil, out, fmt.Errorf("agent name too long: %d bytes (max %d)", len(in.Agent), agent.MaxAgentNameLength)
+	}
+	if len(in.Message) > maxMessageLen {
+		return nil, out, fmt.Errorf("message too long: %d bytes (max %d)", len(in.Message), maxMessageLen)
+	}
+	if cfg.AgentSvc == nil {
+		return nil, out, fmt.Errorf("agent orchestration not available")
+	}
+	log.Debug("mcp: send_to_agent", "from", agentName, "to", in.Agent)
+	if err := cfg.AgentSvc.Send(ctx, in.Agent, in.Message); err != nil {
+		return nil, out, fmt.Errorf("send failed: %w", err)
+	}
+	return nil, out, nil
+}
+
+// ─── stop_agent ─────────────────────────────────────────────────────────────
+
+type stopAgentIn struct {
+	Agent string `json:"agent" jsonschema:"name of the agent to stop"`
+}
+
+type stopAgentOut struct {
+	Agent string `json:"agent"`
+}
+
+func stopAgent(ctx context.Context, cfg Config, agentName string, in stopAgentIn) (*sdk.CallToolResult, stopAgentOut, error) {
+	out := stopAgentOut(in)
+	if in.Agent == "" {
+		return nil, out, fmt.Errorf("agent is required")
+	}
+	if len(in.Agent) > agent.MaxAgentNameLength {
+		return nil, out, fmt.Errorf("agent name too long: %d bytes (max %d)", len(in.Agent), agent.MaxAgentNameLength)
+	}
+	if cfg.AgentSvc == nil || cfg.Agents == nil {
+		return nil, out, fmt.Errorf("agent orchestration not available")
+	}
+	if in.Agent == agentName {
+		return nil, out, fmt.Errorf("cannot stop yourself via stop_agent")
+	}
+	if !canStopAgent(cfg, agentName, in.Agent) {
+		return nil, out, fmt.Errorf("agent %q is not permitted to stop %q: only the root agent or an ancestor of the target may stop it", agentName, in.Agent)
+	}
+	if err := cfg.AgentSvc.Stop(ctx, in.Agent); err != nil {
+		return nil, out, fmt.Errorf("stop failed: %w", err)
+	}
+	return nil, out, nil
+}
+
+// canStopAgent enforces the permission model for stop_agent: there is no
+// per-agent "can_stop" capability today (pkg/agent's Permission enum is
+// unwired for MCP callers), so this gates on the same parent/child
+// relationship the daemon already tracks via Agent.ParentID — the root
+// agent (singleton, workspace owner) may stop anyone; any other agent may
+// only stop its own descendants (children, grandchildren, ...), never a
+// peer or an unrelated agent.
+func canStopAgent(cfg Config, caller, target string) bool {
+	if c := cfg.Agents.GetAgent(caller); c != nil && c.Role == agent.RoleRoot {
+		return true
+	}
+	for _, d := range cfg.Agents.ListDescendants(caller) {
+		if d.Name == target {
+			return true
+		}
+	}
+	return false
+}
+
+// ─── list_children ──────────────────────────────────────────────────────────
+
+type listChildrenOut struct {
+	Children []agentInfo `json:"children"`
+}
+
+func listChildren(cfg Config, agentName string) (*sdk.CallToolResult, listChildrenOut, error) {
+	var out listChildrenOut
+	if cfg.Agents == nil {
+		return nil, out, fmt.Errorf("agent manager not available")
+	}
+	for _, c := range cfg.Agents.ListChildren(agentName) {
+		out.Children = append(out.Children, agentInfo{
+			Name:  c.Name,
+			Role:  string(c.Role),
+			State: string(c.State),
+			Task:  c.Task,
 		})
 	}
 	return nil, out, nil
