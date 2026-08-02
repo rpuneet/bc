@@ -55,6 +55,14 @@ jobs:
             org.opencontainers.image.source=https://github.com/rpuneet/mycel
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.description=mycel AI agent orchestration (main branch)
+          # mycel's registered Google "Desktop app" OAuth client, baked into
+          # the daemon binary so Gmail "Sign in with Google" works
+          # zero-setup. Empty when the repo secrets aren't set (e.g. forks)
+          # — the image then behaves exactly as an unconfigured server. See
+          # pkg/gateway/gmail/oauth.go for why this is safe to embed.
+          build-args: |
+            GOOGLE_OAUTH_CLIENT_ID=${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+            GOOGLE_OAUTH_CLIENT_SECRET=${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

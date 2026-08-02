@@ -44,6 +44,50 @@ func TestOAuthConfiguredTracksEnv(t *testing.T) {
 	}
 }
 
+// TestOAuthConfiguredTracksBuildDefault verifies one-click availability also
+// follows the ldflags-injected default* vars (simulated here by setting them
+// directly, since the real injection happens via `go build -ldflags -X` and
+// can't be exercised from within a test binary).
+func TestOAuthConfiguredTracksBuildDefault(t *testing.T) {
+	p := newTestPlugin()
+
+	t.Setenv(envGoogleClientID, "")
+	t.Setenv(envGoogleClientSecret, "")
+
+	// Capture and restore the linker-injected defaults so a binary built with
+	// real embedded values isn't left cleared for later tests.
+	origID, origSecret := defaultGoogleClientID, defaultGoogleClientSecret
+	t.Cleanup(func() { defaultGoogleClientID, defaultGoogleClientSecret = origID, origSecret })
+
+	// Neither env nor build default set: unconfigured.
+	defaultGoogleClientID, defaultGoogleClientSecret = "", ""
+	if p.OAuthConfigured() {
+		t.Error("OAuthConfigured() = true with no creds at all; want false")
+	}
+
+	// Build-time default set, no env override: configured, and the flow
+	// resolves to the injected default values.
+	defaultGoogleClientID = "default.apps.googleusercontent.com"
+	defaultGoogleClientSecret = "GOCSPX-default" //nolint:gosec // test fixture, not a real credential
+
+	if !p.OAuthConfigured() {
+		t.Error("OAuthConfigured() = false with build default set; want true")
+	}
+	gotID, gotSecret := resolveGoogleClientCreds()
+	if gotID != defaultGoogleClientID || gotSecret != defaultGoogleClientSecret {
+		t.Errorf("resolveGoogleClientCreds() = (%q, %q), want build defaults (%q, %q)",
+			gotID, gotSecret, defaultGoogleClientID, defaultGoogleClientSecret)
+	}
+
+	// Env var set alongside a build default: env wins.
+	t.Setenv(envGoogleClientID, "env.apps.googleusercontent.com")
+	t.Setenv(envGoogleClientSecret, "GOCSPX-env")
+	gotID, gotSecret = resolveGoogleClientCreds()
+	if gotID != "env.apps.googleusercontent.com" || gotSecret != "GOCSPX-env" { //nolint:gosec // test fixture, not a real credential
+		t.Errorf("resolveGoogleClientCreds() = (%q, %q), want env override", gotID, gotSecret)
+	}
+}
+
 // TestBeginAuthUnconfigured surfaces an actionable error (not a dead flow)
 // when the server has no Google client.
 func TestBeginAuthUnconfigured(t *testing.T) {

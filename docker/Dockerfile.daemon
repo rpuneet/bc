@@ -25,7 +25,19 @@ COPY server/ server/
 COPY internal/ internal/
 COPY --from=web /app/web/dist /app/server/web/dist
 
-RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /mycel ./cmd/mycel
+# mycel's registered Google "Desktop app" OAuth client, baked in at build
+# time so Gmail "Sign in with Google" works zero-setup. Passed as build args
+# (not secrets) because for a Google "installed application" OAuth client the
+# secret is explicitly documented as non-confidential — see
+# pkg/gateway/gmail/oauth.go. Left unset, these default to empty and the
+# built binary behaves exactly as an unconfigured server (manual paste path
+# only).
+ARG GOOGLE_OAUTH_CLIENT_ID=""
+ARG GOOGLE_OAUTH_CLIENT_SECRET=""
+RUN CGO_ENABLED=1 go build -ldflags="-s -w \
+    -X github.com/rpuneet/mycel/pkg/gateway/gmail.defaultGoogleClientID=${GOOGLE_OAUTH_CLIENT_ID} \
+    -X github.com/rpuneet/mycel/pkg/gateway/gmail.defaultGoogleClientSecret=${GOOGLE_OAUTH_CLIENT_SECRET}" \
+    -o /mycel ./cmd/mycel
 
 # Stage 3: Runtime (bundles the Go toolchain so tmux-mode agents can build
 # Go projects in-container; see pkg/tool "go" tool)

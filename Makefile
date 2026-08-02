@@ -60,7 +60,18 @@ IMAGE_TAG ?= latest
 AGENT_PROVIDERS := claude agy codex cursor openclaw pi
 
 LDFLAGS_VERSION = -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
-LDFLAGS_RELEASE = -s -w $(LDFLAGS_VERSION)
+
+# Official mycel builds embed the registered Google "Desktop app" OAuth
+# client so Gmail "Sign in with Google" works zero-setup. GOOGLE_OAUTH_CLIENT_ID
+# / GOOGLE_OAUTH_CLIENT_SECRET are sourced from the environment (maintainer
+# exports them locally, or CI reads them from repo Actions secrets); when
+# unset both ldflags args are empty and the built binary behaves exactly as
+# before (one-click sign-in reports unconfigured, manual paste path still
+# works). Nothing secret is ever committed — see pkg/gateway/gmail/oauth.go.
+GMAIL_PKG := github.com/rpuneet/mycel/pkg/gateway/gmail
+LDFLAGS_GMAIL = -X '$(GMAIL_PKG).defaultGoogleClientID=$(GOOGLE_OAUTH_CLIENT_ID)' -X '$(GMAIL_PKG).defaultGoogleClientSecret=$(GOOGLE_OAUTH_CLIENT_SECRET)'
+
+LDFLAGS_RELEASE = -s -w $(LDFLAGS_VERSION) $(LDFLAGS_GMAIL)
 
 _CYAN  := \033[36m
 _GREEN := \033[32m
@@ -108,11 +119,11 @@ build-local-go: build-local-mycel ## Build all Go binaries
 build-local-mycel: build-local-web ## Build mycel (embeds web UI, server)
 	@mkdir -p $(BUILD_DIR)
 	@if [ ! -f server/web/dist/index.html ]; then mkdir -p server/web/dist && echo "<!-- stub -->" > server/web/dist/index.html; fi
-	$(GO) build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/mycel ./cmd/mycel
+	$(GO) build -ldflags="$(LDFLAGS_VERSION) $(LDFLAGS_GMAIL)" -o $(BUILD_DIR)/mycel ./cmd/mycel
 
 
 build-local-desktop: build-local-web ## Build desktop app for the host OS (requires wails CLI)
-	cd desktop && wails build -ldflags "$(LDFLAGS_VERSION)"
+	cd desktop && wails build -ldflags "$(LDFLAGS_VERSION) $(LDFLAGS_GMAIL)"
 
 
 # =============================================================================
@@ -282,6 +293,7 @@ release-local-mycel: ## Build optimized mycel binary (embeds web UI)
 	@mkdir -p $(BUILD_DIR)
 	@if [ ! -f server/web/dist/index.html ]; then mkdir -p server/web/dist && echo "<!-- stub -->" > server/web/dist/index.html; fi
 	$(GO) build -ldflags="$(LDFLAGS_RELEASE)" -o $(BUILD_DIR)/mycel ./cmd/mycel
+	# LDFLAGS_RELEASE already includes LDFLAGS_GMAIL (see Variables section).
 
 
 # =============================================================================

@@ -107,6 +107,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          # mycel's registered Google "Desktop app" OAuth client, baked in at
+          # build time so Gmail "Sign in with Google" works zero-setup on
+          # official release binaries. Empty when the repo secrets aren't
+          # set — the built binary then behaves exactly as an unconfigured
+          # server (manual paste path only). See pkg/gateway/gmail/oauth.go.
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
 
   # ── macOS release (native CGO builds on both architectures) ─────────
   release-macos:
@@ -133,11 +140,18 @@ jobs:
       - name: Build macOS binaries
         env:
           RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          # mycel's registered Google "Desktop app" OAuth client — see the
+          # GoReleaser job above for the full rationale. Empty when repo
+          # secrets aren't set; behavior is then unchanged.
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
         run: |
           VERSION=${RELEASE_TAG#v}
           COMMIT=$(git rev-parse --short HEAD)
           DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}"
+          LDFLAGS="${LDFLAGS} -X github.com/rpuneet/mycel/pkg/gateway/gmail.defaultGoogleClientID=${GOOGLE_OAUTH_CLIENT_ID}"
+          LDFLAGS="${LDFLAGS} -X github.com/rpuneet/mycel/pkg/gateway/gmail.defaultGoogleClientSecret=${GOOGLE_OAUTH_CLIENT_SECRET}"
 
           # arm64 (native on macos-latest)
           CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/mycel ./cmd/mycel
@@ -213,11 +227,18 @@ jobs:
           PLATFORM: ${{ matrix.os }}/${{ matrix.arch }}
           VERSION: ${{ needs.prepare.outputs.version }}
           COMMIT: ${{ github.sha }}
+          # mycel's registered Google "Desktop app" OAuth client — see the
+          # GoReleaser job above for the full rationale. Empty when repo
+          # secrets aren't set; behavior is then unchanged.
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
         run: |
           # Inject the release version so the app's About/info shows it instead
           # of the "dev" default, and sync the Wails product version so the
           # bundle metadata (macOS Info.plist / Windows file info) matches.
           LDFLAGS="-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          LDFLAGS="${LDFLAGS} -X github.com/rpuneet/mycel/pkg/gateway/gmail.defaultGoogleClientID=${GOOGLE_OAUTH_CLIENT_ID}"
+          LDFLAGS="${LDFLAGS} -X github.com/rpuneet/mycel/pkg/gateway/gmail.defaultGoogleClientSecret=${GOOGLE_OAUTH_CLIENT_SECRET}"
           sed -i.bak "s/\"productVersion\": \"[^\"]*\"/\"productVersion\": \"${VERSION}\"/" wails.json && rm -f wails.json.bak
           case "${{ matrix.os }}" in
             linux)
