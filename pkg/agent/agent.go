@@ -917,17 +917,32 @@ func (m *Manager) SetAgentByName(name string) bool {
 	return true
 }
 
-// writeActivityConfig writes the provider's activity configuration (hook
-// settings) into the agent worktree. Providers that implement
-// provider.ActivitySource in hooks mode own their config; everything else
-// falls back to the Claude hook settings — today every agent gets Claude
-// hook settings regardless of tool (claude-compatible sessions), and this
-// refactor preserves that behavior exactly. Per-provider activity sources
-// land in follow-up PRs.
+// writeActivityConfig writes the provider's activity configuration into the
+// agent worktree, dispatching on how the provider reports activity:
+//
+//   - hooks mode: the provider owns its config and writes it (claude →
+//     .claude/settings.json, agy → .agents/hooks.json, cursor →
+//     .cursor/hooks.json).
+//   - transcript mode (pi, codex): nothing to write. The daemon tails the
+//     session file the provider already keeps; it needs no cooperation from the
+//     agent.
+//   - none (openclaw): nothing to write, because nothing would read it.
+//
+// A tool absent from the registry gets Claude hook settings. That is the useful
+// default rather than a guess: an unknown tool is most often a wrapper around a
+// claude-compatible session, and the settings are inert if it is not.
+//
+// Only providers that declare no ActivitySource at all fall through to that
+// default. Before, every provider that was not hooks-mode did, which wrote
+// .claude/settings.json into pi, codex, cursor and openclaw worktrees where no
+// process ever read it.
 func (m *Manager) writeActivityConfig(toolName, wtDir, agentName string) error {
 	if toolName != "" && m.providerRegistry != nil {
 		if p, ok := m.providerRegistry.Get(toolName); ok {
-			if src, ok := p.(provider.ActivitySource); ok && src.ActivityMode() == provider.ActivityModeHooks {
+			if src, ok := p.(provider.ActivitySource); ok {
+				if src.ActivityMode() != provider.ActivityModeHooks {
+					return nil
+				}
 				return src.WriteHookConfig(wtDir, "", agentName)
 			}
 		}

@@ -108,6 +108,7 @@ func (p *CursorProvider) Version(ctx context.Context) string {
 
 // Ensure CursorProvider implements Provider interface.
 var _ Provider = (*CursorProvider)(nil)
+var _ ActivitySource = (*CursorProvider)(nil)
 var _ ModelLister = (*CursorProvider)(nil)
 var _ MCPConfigReader = (*CursorProvider)(nil)
 var _ ContainerCustomizer = (*CursorProvider)(nil)

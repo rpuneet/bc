@@ -543,6 +543,13 @@ export interface ProviderInfo {
   install_hint: string;
   version: string;
   status: string;
+  /**
+   * How mycel observes agents driven by this provider: "hooks" (the provider
+   * POSTs lifecycle events), "transcript" (the daemon tails its session file),
+   * or "none" (no attributable signal exists). Anything other than "none" means
+   * the Live feed should expect events.
+   */
+  activity_mode?: string;
   /** Curated model list for UI pickers; empty = no model selection. */
   models?: ModelInfo[];
   total_cost_usd: number;
