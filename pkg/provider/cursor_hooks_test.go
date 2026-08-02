@@ -154,6 +154,33 @@ func TestCursorReporterIsExecutable(t *testing.T) {
 	}
 }
 
+// A reporter left non-executable — by an earlier mycel version, or by a user —
+// must be repaired on the next write. os.WriteFile applies its mode only when it
+// creates the file, so without an explicit chmod the agent would start with a
+// hook that can never run.
+func TestCursorReporterRegainsExecutableBit(t *testing.T) {
+	root := t.TempDir()
+	if err := WriteCursorHookSettings(root); err != nil {
+		t.Fatalf("first write: %v", err)
+	}
+	path := filepath.Join(root, filepath.FromSlash(cursorReporterRelPath))
+	if err := os.Chmod(path, 0600); err != nil {
+		t.Fatalf("chmod reporter non-executable: %v", err)
+	}
+
+	if err := WriteCursorHookSettings(root); err != nil {
+		t.Fatalf("second write: %v", err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat reporter: %v", err)
+	}
+	if info.Mode().Perm()&0100 == 0 {
+		t.Errorf("reporter mode = %v, want owner-executable after rewrite", info.Mode().Perm())
+	}
+}
+
 // The reporter must be a valid shell script. A syntax error would make every
 // hook a no-op with nothing in the UI to explain why.
 func TestCursorReporterIsValidBash(t *testing.T) {
@@ -510,5 +537,21 @@ func TestWriteCursorHookSettingsRebuildsCorruptFile(t *testing.T) {
 func TestWriteCursorHookSettingsRejectsUnsafeRoot(t *testing.T) {
 	if err := WriteCursorHookSettings("wt/../../etc"); err == nil {
 		t.Error("expected an error for a root escaping the worktree")
+	}
+}
+
+// The traversal guard matches whole path segments, so a directory whose name
+// merely contains dots is a legitimate worktree. Rejecting it would make mycel
+// refuse to configure hooks for an agent on a perfectly valid path.
+func TestWriteCursorHookSettingsAcceptsDotsInDirName(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "notes..archive")
+	if err := os.MkdirAll(root, 0750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := WriteCursorHookSettings(root); err != nil {
+		t.Fatalf("WriteCursorHookSettings(%q): %v", root, err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".cursor", "hooks.json")); err != nil {
+		t.Errorf("hooks.json not written: %v", err)
 	}
 }

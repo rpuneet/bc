@@ -196,7 +196,7 @@ func WriteCursorHookSettings(worktreeRoot string) error {
 	// segments so hook settings can never be written outside the intended
 	// directory.
 	worktreeRoot = filepath.Clean(worktreeRoot)
-	if strings.Contains(worktreeRoot, "..") {
+	if hasParentSegment(worktreeRoot) {
 		return fmt.Errorf("unsafe worktree root %q", worktreeRoot)
 	}
 	cursorDir := filepath.Join(worktreeRoot, ".cursor")
@@ -211,8 +211,29 @@ func WriteCursorHookSettings(worktreeRoot string) error {
 	if err := os.WriteFile(reporterPath, []byte(cursorReporterScript), 0700); err != nil { //nolint:gosec // must be executable
 		return fmt.Errorf("write cursor hook reporter: %w", err)
 	}
+	// WriteFile applies its mode only when it creates the file, so a reporter
+	// left non-executable by an earlier mycel version — or by a user — would stay
+	// that way and silently never run. Chmod every time makes regeneration
+	// self-healing.
+	if err := os.Chmod(reporterPath, 0700); err != nil { //nolint:gosec // must be executable
+		return fmt.Errorf("make cursor hook reporter executable: %w", err)
+	}
 
 	return writeCursorHooksFile(filepath.Join(cursorDir, "hooks.json"))
+}
+
+// hasParentSegment reports whether a cleaned path still walks upward, i.e. has
+// a ".." path segment. It compares whole segments rather than substrings so a
+// legitimate directory name that merely contains dots — "notes..archive" — is
+// not mistaken for traversal. Clean collapses interior "..", so a survivor can
+// only be a leading one on a relative path.
+func hasParentSegment(path string) bool {
+	for _, seg := range strings.Split(filepath.ToSlash(path), "/") {
+		if seg == ".." {
+			return true
+		}
+	}
+	return false
 }
 
 // writeCursorHooksFile merges the mycel hook set into hooks.json at path.
