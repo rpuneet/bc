@@ -163,7 +163,22 @@ func checkBinaryExists(_ context.Context, name string) bool {
 	return err == nil
 }
 
-// getBinaryVersion runs a command and returns the first line of output.
+// semverRe extracts the first semantic-version token (e.g. "2.1.205") from a
+// version line such as "2.1.205 (Claude Code)" or "codex-cli 0.111.0".
+var semverRe = regexp.MustCompile(`(\d+\.\d+\.\d+)`)
+
+// extractSemver returns the first semver token found in line, or the trimmed
+// line unchanged if none is present (so unusual formats never regress to "").
+func extractSemver(line string) string {
+	line = strings.TrimSpace(line)
+	if m := semverRe.FindString(line); m != "" {
+		return m
+	}
+	return line
+}
+
+// getBinaryVersion runs a command and returns the semver extracted from the
+// first line of output. Falls back to the raw first line if no semver matches.
 func getBinaryVersion(ctx context.Context, name string, args ...string) string {
 	cmd := exec.CommandContext(ctx, name, args...) //nolint:gosec // args are trusted provider names
 	output, err := cmd.Output()
@@ -172,7 +187,7 @@ func getBinaryVersion(ctx context.Context, name string, args ...string) string {
 	}
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	if len(lines) > 0 {
-		return lines[0]
+		return extractSemver(lines[0])
 	}
 	return ""
 }

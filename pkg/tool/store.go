@@ -180,7 +180,7 @@ func initSchema(db *sql.DB) error {
 	_, err := db.ExecContext(context.TODO(), `
 		CREATE TABLE IF NOT EXISTS tools (
 			name          TEXT PRIMARY KEY,
-			type          TEXT NOT NULL DEFAULT 'provider',
+			type          TEXT NOT NULL DEFAULT 'cli',
 			command       TEXT NOT NULL DEFAULT '',
 			install_cmd   TEXT,
 			upgrade_cmd   TEXT,
@@ -205,7 +205,7 @@ func initSchema(db *sql.DB) error {
 
 	// Migration: add new columns to existing tables
 	for _, col := range []string{
-		"ALTER TABLE tools ADD COLUMN type TEXT NOT NULL DEFAULT 'provider'",
+		"ALTER TABLE tools ADD COLUMN type TEXT NOT NULL DEFAULT 'cli'",
 		"ALTER TABLE tools ADD COLUMN transport TEXT DEFAULT ''",
 		"ALTER TABLE tools ADD COLUMN url TEXT",
 		"ALTER TABLE tools ADD COLUMN args TEXT DEFAULT '[]'",
@@ -228,11 +228,21 @@ func (s *Store) seedBuiltins(ctx context.Context) error {
 	}
 
 	for _, t := range allBuiltins() {
+		t := t
 		existing, err := s.Get(ctx, t.Name)
 		if err != nil {
 			return fmt.Errorf("failed to check %s: %w", t.Name, err)
 		}
 		if existing != nil {
+			// Correct rows seeded by older code that dropped the type and
+			// version_cmd columns (all builtins landed as type='provider'
+			// with an empty version_cmd). Idempotent: only writes when the
+			// builtin row's type/version_cmd drifts from the definition.
+			if existing.Builtin && (existing.Type != t.Type || existing.VersionCmd != t.VersionCmd) {
+				if err := s.correctBuiltin(ctx, t.Name, t.Type, t.VersionCmd); err != nil {
+					return fmt.Errorf("failed to correct %s: %w", t.Name, err)
+				}
+			}
 			continue
 		}
 		if err := s.add(ctx, &t); err != nil {
@@ -240,6 +250,16 @@ func (s *Store) seedBuiltins(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// correctBuiltin fixes the type/version_cmd of an existing built-in row that
+// predates the columns being persisted. Idempotent by construction.
+func (s *Store) correctBuiltin(ctx context.Context, name, toolType, versionCmd string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE tools SET type=?, version_cmd=? WHERE name=? AND builtin=1`,
+		toolType, versionCmd, name,
+	)
+	return err
 }
 
 // allBuiltins returns all built-in tool definitions (providers, MCP servers, CLI tools).
@@ -308,11 +328,25 @@ func (s *Store) add(ctx context.Context, t *Tool) error {
 	if err != nil {
 		return err
 	}
+	args, err := marshalJSON(t.Args)
+	if err != nil {
+		return err
+	}
+	env, err := marshalJSON(t.Env)
+	if err != nil {
+		return err
+	}
+
+	toolType := t.Type
+	if toolType == "" {
+		toolType = ToolTypeCLI
+	}
 
 	_, err = s.db.ExecContext(ctx,
-		`INSERT INTO tools (name, command, install_cmd, upgrade_cmd, slash_cmds, mcp_servers, config, builtin, enabled)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		t.Name, t.Command, t.InstallCmd, t.UpgradeCmd,
+		`INSERT INTO tools (name, type, command, install_cmd, upgrade_cmd, version_cmd, transport, url, args, env, slash_cmds, mcp_servers, config, builtin, enabled)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		t.Name, toolType, t.Command, t.InstallCmd, t.UpgradeCmd, t.VersionCmd,
+		t.Transport, t.URL, args, env,
 		slashCmds, mcpServers, config, t.Builtin, t.Enabled,
 	)
 	return err
@@ -457,11 +491,25 @@ func (s *Store) Update(ctx context.Context, t *Tool) error {
 	if err != nil {
 		return err
 	}
+	args, err := marshalJSON(t.Args)
+	if err != nil {
+		return err
+	}
+	env, err := marshalJSON(t.Env)
+	if err != nil {
+		return err
+	}
+
+	toolType := t.Type
+	if toolType == "" {
+		toolType = ToolTypeCLI
+	}
 
 	res, err := s.db.ExecContext(ctx,
-		`UPDATE tools SET command=?, install_cmd=?, upgrade_cmd=?, slash_cmds=?, mcp_servers=?, config=?, enabled=?
+		`UPDATE tools SET type=?, command=?, install_cmd=?, upgrade_cmd=?, version_cmd=?, transport=?, url=?, args=?, env=?, slash_cmds=?, mcp_servers=?, config=?, enabled=?
 		 WHERE name=?`,
-		t.Command, t.InstallCmd, t.UpgradeCmd,
+		toolType, t.Command, t.InstallCmd, t.UpgradeCmd, t.VersionCmd,
+		t.Transport, t.URL, args, env,
 		slashCmds, mcpServers, config, t.Enabled,
 		t.Name,
 	)

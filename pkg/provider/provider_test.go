@@ -273,7 +273,7 @@ func TestProviderBinaryAndInstallHint(t *testing.T) {
 		binary      string
 		installHint string
 	}{
-		{"claude", NewClaudeProvider(), "claude", "npx -y @anthropic-ai/claude-code"},
+		{"claude", NewClaudeProvider(), "claude", "npm install -g @anthropic-ai/claude-code"},
 		{"agy", NewAgyProvider(), "agy", "curl -fsSL https://antigravity.google/install.sh | sh"},
 		{"cursor", NewCursorProvider(), "cursor-agent", "https://cursor.sh"},
 		{"codex", NewCodexProvider(), "codex", "npm install -g @openai/codex"},
@@ -536,6 +536,30 @@ func TestSafeSessionID(t *testing.T) {
 	for _, tt := range tests {
 		if got := SafeSessionID(tt.id); got != tt.want {
 			t.Errorf("SafeSessionID(%q) = %v, want %v", tt.id, got, tt.want)
+		}
+	}
+}
+
+// TestExtractSemver covers the version-line normalization shared by every
+// provider's Version() via getBinaryVersion. Guards the claude/cursor/agy
+// regression where the decorated first line ("2.1.205 (Claude Code)") leaked
+// through raw instead of the bare semver.
+func TestExtractSemver(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{"2.1.205 (Claude Code)", "2.1.205"},
+		{"cursor-agent 0.4.1", "0.4.1"},
+		{"codex-cli 0.111.0", "0.111.0"},
+		{"v1.2.3", "1.2.3"},
+		{"1.2.3", "1.2.3"},
+		{"  0.9.0  ", "0.9.0"},
+		{"no-version-here", "no-version-here"},
+	}
+	for _, tt := range tests {
+		if got := extractSemver(tt.in); got != tt.want {
+			t.Errorf("extractSemver(%q) = %q, want %q", tt.in, got, tt.want)
 		}
 	}
 }

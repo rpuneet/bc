@@ -279,3 +279,117 @@ func TestTool_JSONSerialization(t *testing.T) {
 		t.Errorf("Config mismatch: %v", got.Config)
 	}
 }
+
+// TestStore_SeededCLIToolRoundTrips guards the SQLite type-column regression:
+// built-in CLI tools must persist with type='cli' and their version_cmd, so
+// the web UI's non-provider/non-mcp filter surfaces them (previously every
+// builtin landed as type='provider' with an empty version_cmd → "0 CLI tools").
+func TestStore_SeededCLIToolRoundTrips(t *testing.T) {
+	s := NewStore(setupSharedDB(t), "sqlite")
+	if err := s.Open(); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer s.Close() //nolint:errcheck // test cleanup
+
+	ctx := context.Background()
+
+	gh, err := s.Get(ctx, "gh")
+	if err != nil {
+		t.Fatalf("Get gh: %v", err)
+	}
+	if gh == nil {
+		t.Fatal("expected gh built-in CLI tool to be seeded")
+	}
+	if gh.Type != ToolTypeCLI {
+		t.Errorf("gh.Type = %q, want %q", gh.Type, ToolTypeCLI)
+	}
+	if gh.VersionCmd != "gh --version" {
+		t.Errorf("gh.VersionCmd = %q, want %q", gh.VersionCmd, "gh --version")
+	}
+
+	// A provider builtin must keep its provider type.
+	claude, err := s.Get(ctx, "claude")
+	if err != nil {
+		t.Fatalf("Get claude: %v", err)
+	}
+	if claude.Type != ToolTypeProvider {
+		t.Errorf("claude.Type = %q, want %q", claude.Type, ToolTypeProvider)
+	}
+
+	// At least one tool must be a CLI type so the UI filter is non-empty.
+	tools, err := s.ListWithOptions(ctx, ListOptions{Types: []string{ToolTypeCLI}})
+	if err != nil {
+		t.Fatalf("ListWithOptions: %v", err)
+	}
+	if len(tools) == 0 {
+		t.Fatal("expected at least one type='cli' tool")
+	}
+}
+
+// TestStore_SeedCorrectsMislabeledBuiltins verifies the idempotent startup
+// correction: a builtin row left as type='provider' with empty version_cmd by
+// older code gets rewritten to its true type/version_cmd on the next seed.
+func TestStore_SeedCorrectsMislabeledBuiltins(t *testing.T) {
+	d := setupSharedDB(t)
+	s := NewStore(d, "sqlite")
+	if err := s.Open(); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer s.Close() //nolint:errcheck // test cleanup
+
+	ctx := context.Background()
+
+	// Simulate the legacy mislabeling directly in the DB.
+	if _, err := d.ExecContext(ctx,
+		`UPDATE tools SET type='provider', version_cmd='' WHERE name='gh'`); err != nil {
+		t.Fatalf("mislabel gh: %v", err)
+	}
+
+	// Re-seeding (as happens on every Open) must correct it.
+	if err := s.seedBuiltins(ctx); err != nil {
+		t.Fatalf("seedBuiltins: %v", err)
+	}
+
+	gh, err := s.Get(ctx, "gh")
+	if err != nil {
+		t.Fatalf("Get gh: %v", err)
+	}
+	if gh.Type != ToolTypeCLI {
+		t.Errorf("after correction gh.Type = %q, want %q", gh.Type, ToolTypeCLI)
+	}
+	if gh.VersionCmd != "gh --version" {
+		t.Errorf("after correction gh.VersionCmd = %q, want %q", gh.VersionCmd, "gh --version")
+	}
+}
+
+// TestStore_AddCLIToolPersistsType verifies a user-added CLI tool (POST →
+// Add) round-trips with type='cli' and version_cmd — the add-new-tool flow.
+func TestStore_AddCLIToolPersistsType(t *testing.T) {
+	s := NewStore(setupSharedDB(t), "sqlite")
+	if err := s.Open(); err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer s.Close() //nolint:errcheck // test cleanup
+
+	ctx := context.Background()
+	custom := &Tool{
+		Name:       "ripgrep",
+		Type:       ToolTypeCLI,
+		Command:    "rg",
+		VersionCmd: "rg --version",
+		Enabled:    true,
+	}
+	if err := s.Add(ctx, custom); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	got, err := s.Get(ctx, "ripgrep")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.Type != ToolTypeCLI {
+		t.Errorf("Type = %q, want %q", got.Type, ToolTypeCLI)
+	}
+	if got.VersionCmd != "rg --version" {
+		t.Errorf("VersionCmd = %q, want %q", got.VersionCmd, "rg --version")
+	}
+}

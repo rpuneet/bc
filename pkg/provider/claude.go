@@ -72,7 +72,7 @@ func (p *ClaudeProvider) Binary() string {
 
 // InstallHint returns a human-readable install instruction.
 func (p *ClaudeProvider) InstallHint() string {
-	return "npx -y @anthropic-ai/claude-code"
+	return "npm install -g @anthropic-ai/claude-code"
 }
 
 // BuildCommand returns the full command for a given runtime context.
