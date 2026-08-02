@@ -546,7 +546,17 @@ func runToolHealthLoop(ctx context.Context, store *toolpkg.Store) {
 	}
 }
 
+// checkToolsOnce runs a single health pass. It recovers from a panic in the
+// check itself: this runs on a background goroutine, where the HTTP Recovery
+// middleware cannot help, so an escaping panic would take the daemon down over
+// a status refresh — and would do so again on the next tick, since whatever
+// stored row provoked it is still there.
 func checkToolsOnce(ctx context.Context, store *toolpkg.Store) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error("tool health auto-check panicked", "recover", r)
+		}
+	}()
 	if _, err := store.CheckAll(ctx); err != nil {
 		log.Warn("tool health auto-check failed", "error", err)
 	}
