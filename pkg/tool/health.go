@@ -21,12 +21,22 @@ func checkOne(t *Tool) HealthResult {
 	r := HealthResult{Name: t.Name, Type: t.Type, Status: "ok"}
 	switch t.Type {
 	case ToolTypeMCP:
-		if t.Transport == "stdio" && t.Command != "" {
-			cmd := strings.Fields(t.Command)[0]
-			if _, err := exec.LookPath(cmd); err != nil {
-				r.Status = "error"
-				r.Error = "command not found: " + cmd
-			}
+		// Only a stdio server runs a local command. An SSE server's endpoint
+		// is not probed here, so it keeps the default "ok".
+		if t.Transport != "stdio" {
+			break
+		}
+		// Length check rather than t.Command != "": a command of only
+		// whitespace is non-empty yet yields no fields to look up.
+		fields := strings.Fields(t.Command)
+		if len(fields) == 0 {
+			r.Status = "error"
+			r.Error = "no command configured"
+			break
+		}
+		if _, err := exec.LookPath(fields[0]); err != nil {
+			r.Status = "error"
+			r.Error = "command not found: " + fields[0]
 		}
 	case ToolTypeCLI, ToolTypeProvider:
 		fields := strings.Fields(t.Command)
