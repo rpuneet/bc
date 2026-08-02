@@ -16,6 +16,7 @@
 //	cat := doctor.CheckDatabase(ctx, h)
 //	cat := doctor.CheckAgents(ctx, h)
 //	cat := doctor.CheckTools(ctx)
+//	cat := doctor.CheckMCP(ctx, h)
 //	cat := doctor.CheckGit(ctx, h)
 package doctor
 
@@ -140,6 +141,7 @@ func RunAll(ctx context.Context, h *home.Home) *Report {
 		CheckDatabase(ctx, h),
 		CheckAgents(ctx, h),
 		CheckTools(ctx, h),
+		CheckMCP(ctx, h),
 		CheckGit(ctx, h),
 		CheckDaemon(ctx),
 	}
@@ -162,6 +164,9 @@ func CategoryByName(ctx context.Context, h *home.Home, name string) *CategoryRep
 	case "tools", "tool":
 		c := CheckTools(ctx, h)
 		return &c
+	case "mcp", "mcp servers":
+		c := CheckMCP(ctx, h)
+		return &c
 	case "git":
 		c := CheckGit(ctx, h)
 		return &c
@@ -175,7 +180,7 @@ func CategoryByName(ctx context.Context, h *home.Home, name string) *CategoryRep
 
 // ValidCategories returns the list of valid category names.
 func ValidCategories() []string {
-	return []string{"home", "database", "agents", "tools", "git", "daemon"}
+	return []string{"home", "database", "agents", "tools", "mcp", "git", "daemon"}
 }
 
 // ─── Home ────────────────────────────────────────────────────────────────────
