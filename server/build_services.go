@@ -527,12 +527,19 @@ func runEventPruneLoop(ctx context.Context, prunable *eventspkg.SQLiteLog) {
 // re-verifies install status after its initial boot-time pass.
 const toolHealthCheckInterval = 10 * time.Minute
 
+// toolHealthChecker is the one method of tool.Store the health loop uses.
+// Narrowed to an interface so a checker that panics can be substituted in
+// tests, which is the only way to exercise checkToolsOnce's recovery.
+type toolHealthChecker interface {
+	CheckAll(ctx context.Context) ([]toolpkg.HealthResult, error)
+}
+
 // runToolHealthLoop runs store.CheckAll once immediately (off the request
 // path, so it never delays daemon startup) and then on a fixed interval,
 // keeping every tool's health_status fresh without requiring a manual
 // POST /api/tools/check. See tool.Store.CheckAll for the check itself and
 // ToolHandler.checkAll for the manual force-refresh that shares it.
-func runToolHealthLoop(ctx context.Context, store *toolpkg.Store) {
+func runToolHealthLoop(ctx context.Context, store toolHealthChecker) {
 	checkToolsOnce(ctx, store)
 	ticker := time.NewTicker(toolHealthCheckInterval)
 	defer ticker.Stop()
@@ -551,7 +558,7 @@ func runToolHealthLoop(ctx context.Context, store *toolpkg.Store) {
 // middleware cannot help, so an escaping panic would take the daemon down over
 // a status refresh — and would do so again on the next tick, since whatever
 // stored row provoked it is still there.
-func checkToolsOnce(ctx context.Context, store *toolpkg.Store) {
+func checkToolsOnce(ctx context.Context, store toolHealthChecker) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Error("tool health auto-check panicked", "recover", r)

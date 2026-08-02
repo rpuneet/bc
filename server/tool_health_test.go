@@ -93,3 +93,52 @@ func TestRunToolHealthLoop_StopsOnContextCanceled(t *testing.T) {
 	cancel()
 	<-done // must return once ctx is canceled, not block forever on the ticker
 }
+
+// panickingChecker stands in for a store whose check blows up, the way indexing
+// a blank command's fields used to.
+type panickingChecker struct{ calls int }
+
+func (p *panickingChecker) CheckAll(context.Context) ([]toolpkg.HealthResult, error) {
+	p.calls++
+	panic("health check exploded")
+}
+
+// TestCheckToolsOnce_RecoversFromPanic covers the reason the recovery exists:
+// this runs on a background goroutine, where the HTTP Recovery middleware
+// cannot help, so a panic escaping here terminates the daemon over a status
+// refresh. The test fails by crashing the whole test binary rather than by
+// reporting, which is precisely the production symptom.
+func TestCheckToolsOnce_RecoversFromPanic(t *testing.T) {
+	checker := &panickingChecker{}
+
+	checkToolsOnce(context.Background(), checker)
+
+	if checker.calls != 1 {
+		t.Fatalf("CheckAll called %d times, want 1", checker.calls)
+	}
+}
+
+// TestRunToolHealthLoop_SurvivesPanickingCheck: the loop must also keep its
+// ticker after a failed pass. A panic in the boot-time check that unwound
+// through the loop would leave tool status frozen for the daemon's lifetime,
+// even once the daemon itself stopped dying.
+func TestRunToolHealthLoop_SurvivesPanickingCheck(t *testing.T) {
+	checker := &panickingChecker{}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+
+	go func() {
+		runToolHealthLoop(ctx, checker)
+		close(done)
+	}()
+
+	// Reaching the select after a panicking first pass is what proves the loop
+	// survived: a propagated panic would take the goroutine, and the process,
+	// down before this cancel could be observed.
+	cancel()
+	<-done
+
+	if checker.calls != 1 {
+		t.Errorf("CheckAll called %d times, want 1 boot-time pass", checker.calls)
+	}
+}
