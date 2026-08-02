@@ -251,8 +251,13 @@ func (w *gzipResponseWriter) Write(b []byte) (int, error) {
 }
 
 // CORSWithOrigin returns a middleware that adds CORS headers with the specified
-// allowed origin. Use "*" for permissive (safe on loopback) or a specific
-// origin like "http://localhost:9374" when exposed beyond loopback.
+// allowed origin. Use "*" for permissive, or a specific origin like
+// "http://localhost:9374" when exposed beyond loopback.
+//
+// "*" governs what a foreign origin may read; it is not what keeps one from
+// writing. Loopback is no defense against a browser, since a page in another tab
+// reaches 127.0.0.1 with the user's authority — see RejectCrossOriginMutations,
+// which gates every state-changing request.
 func CORSWithOrigin(allowedOrigin string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
@@ -267,7 +272,7 @@ func CORSWithOrigin(allowedOrigin string, next http.Handler) http.Handler {
 }
 
 // CORS returns a middleware with permissive CORS headers (Allow-Origin: *).
-// Safe because the daemon only binds to loopback by default.
+// Mutations are gated separately by RejectCrossOriginMutations.
 func CORS(next http.Handler) http.Handler {
 	return CORSWithOrigin("*", next)
 }
