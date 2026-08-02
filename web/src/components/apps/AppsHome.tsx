@@ -395,8 +395,16 @@ export function AppsHome() {
   useEffect(() => {
     const action = searchParams.get("action");
     const connect = searchParams.get("connect");
-    if (action === "connect") setChooserOpen(true);
-    if (connect) setConnectAppId(connect);
+    // Mutually exclusive: a named ?connect=<id> jumps straight to that
+    // app's connect modal and wins over ?action=connect (the catalog
+    // chooser) — opening both would leave the chooser stuck open behind
+    // the wizard after it closes.
+    if (connect) {
+      setChooserOpen(false);
+      setConnectAppId(connect);
+    } else if (action === "connect") {
+      setChooserOpen(true);
+    }
     if (action === "connect" || connect) {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
