@@ -136,6 +136,129 @@ describe("ProvidersToolsSection optional services", () => {
   });
 });
 
+describe("ProvidersToolsSection expanded tool details", () => {
+  /** Render the table with one CLI tool and expand its row. */
+  async function expandTool(tool: Record<string, unknown>) {
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u === "/api/providers") return jsonResponse([]);
+      if (u === "/api/tools/unified") return jsonResponse([tool]);
+      if (u === "/api/system/package-managers") return jsonResponse({ os: "darwin", arch: "arm64", managers: [] });
+      return jsonResponse({});
+    });
+
+    render(
+      <MemoryRouter>
+        <ProvidersToolsSection />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByText(String(tool.name)));
+  }
+
+  it("shows the resolved path and inferred owner, not the bare command name", async () => {
+    await expandTool({
+      name: "rg",
+      type: "cli",
+      status: "installed",
+      version: "14.1.1",
+      required: false,
+      command: "rg",
+      path: "/opt/homebrew/bin/rg",
+      manager: "brew",
+    });
+
+    // The real path — the old UI labelled the bare command "rg" as the Path,
+    // which told the user nothing.
+    expect(await screen.findByText("/opt/homebrew/bin/rg")).toBeInTheDocument();
+    expect(screen.getByText("Homebrew")).toBeInTheDocument();
+    // The version command was pure derivable noise and is gone.
+    expect(screen.queryByText(/Version cmd/)).not.toBeInTheDocument();
+    expect(screen.queryByText("rg --version")).not.toBeInTheDocument();
+  });
+
+  it("names the update command its manager would use when none is configured", async () => {
+    await expandTool({
+      name: "rg",
+      type: "cli",
+      status: "installed",
+      required: false,
+      command: "rg",
+      path: "/opt/homebrew/bin/rg",
+      manager: "brew",
+    });
+
+    // No upgrade_cmd is configured, so the hint must point at something real
+    // instead of "copy the command above" with no command above.
+    expect(await screen.findByText("brew upgrade rg")).toBeInTheDocument();
+    expect(screen.getByText(/copy the Update command below/)).toBeInTheDocument();
+  });
+
+  it("says an OS-provided tool is not mycel's to update", async () => {
+    await expandTool({
+      name: "git",
+      type: "cli",
+      status: "installed",
+      version: "2.50.1",
+      required: false,
+      command: "git",
+      path: "/usr/bin/git",
+      manager: "system",
+    });
+
+    expect(await screen.findByText("/usr/bin/git")).toBeInTheDocument();
+    expect(screen.getByText("Your OS")).toBeInTheDocument();
+    expect(screen.getByText(/update it through the system/i)).toBeInTheDocument();
+    // No manager owns it, so no update command may be suggested.
+    expect(screen.queryByText(/upgrade git/)).not.toBeInTheDocument();
+    // And /usr/bin/git is not mycel's to delete — an Uninstall button here
+    // could only ever produce the backend's refusal.
+    expect(screen.queryByRole("button", { name: /uninstall/i })).not.toBeInTheDocument();
+  });
+
+  it("still offers Uninstall for a tool a package manager owns", async () => {
+    await expandTool({
+      name: "rg",
+      type: "cli",
+      status: "installed",
+      required: false,
+      command: "rg",
+      path: "/opt/homebrew/bin/rg",
+      manager: "brew",
+    });
+
+    expect(await screen.findByRole("button", { name: /uninstall/i })).toBeInTheDocument();
+  });
+
+  it("reports honestly when a tool is not on PATH", async () => {
+    await expandTool({
+      name: "wrangler",
+      type: "cli",
+      status: "not_installed",
+      required: false,
+      command: "wrangler",
+      manager: "npm",
+      install_cmd: "npm install -g wrangler",
+    });
+
+    expect(await screen.findByText("Not found on PATH")).toBeInTheDocument();
+    expect(screen.getByText("npm (global)")).toBeInTheDocument();
+  });
+
+  it("falls back to Unknown when nothing identifies an owner", async () => {
+    await expandTool({
+      name: "mytool",
+      type: "cli",
+      status: "installed",
+      required: false,
+      command: "mytool",
+      path: "/usr/local/bin/mytool",
+    });
+
+    expect(await screen.findByText("Unknown")).toBeInTheDocument();
+  });
+});
+
 describe("ProvidersToolsSection providers list", () => {
   it("renders providers as a list/table with no card/grid view toggle", async () => {
     fetchMock.mockImplementation((url: RequestInfo | URL) => {

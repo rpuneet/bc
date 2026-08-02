@@ -293,42 +293,33 @@ function Section({
 /* ------------------------------------------------------------------ */
 
 function SetupSection({
-  hasAgents,
-  allComplete,
   completedCount,
   total,
 }: {
-  hasAgents: boolean;
-  allComplete: boolean;
   completedCount: number;
   total: number;
 }) {
-  const complete = allComplete || hasAgents;
-  const pct = complete ? 100 : Math.round((Math.min(completedCount, total) / total) * 100);
+  // Rendered only while setup is unfinished (see the call site), so there is no
+  // "complete" state to draw here.
+  const pct = Math.round((Math.min(completedCount, total) / total) * 100);
 
   return (
     <div className="space-y-3">
       <p className="text-xs text-mycel-text-2 max-w-prose">
-        {complete
-          ? "Setup is complete. Use the re-run icon above any time to reconfigure — it only re-opens the sections below and never touches your agents or connected apps."
-          : "Sections below unlock one at a time as you finish each — machine checks, runtime, an agent tool, and your first agent. It only writes config; your agents and apps are left untouched."}
+        Sections below unlock one at a time as you finish each — machine checks, runtime, an agent
+        tool, and your first agent. It only writes config; your agents and apps are left untouched.
       </p>
 
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-[11px]">
-          <span className={`inline-flex items-center gap-1.5 font-medium ${complete ? "text-mycel-success" : "text-mycel-text-2"}`}>
-            {complete && (
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M20 6L9 17l-5-5" />
-              </svg>
-            )}
-            {complete ? "Complete" : `${String(completedCount)} of ${String(total)} sections done`}
+          <span className="inline-flex items-center gap-1.5 font-medium text-mycel-text-2">
+            {`${String(completedCount)} of ${String(total)} sections done`}
           </span>
           <span className="text-mycel-muted tabular-nums">{pct}%</span>
         </div>
         <div className="h-2 rounded-full bg-mycel-bg border border-mycel-border overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all duration-500 ease-out ${complete ? "bg-mycel-success" : "bg-gradient-to-r from-mycel-accent to-mycel-accent-hover"}`}
+            className="h-full rounded-full transition-all duration-500 ease-out bg-gradient-to-r from-mycel-accent to-mycel-accent-hover"
             style={{ width: `${Math.max(pct, 4)}%` }}
           />
         </div>
@@ -745,6 +736,10 @@ export function Settings() {
   const themeLabelId = useId();
   const reveal = useProgressiveReveal(config, refresh);
 
+  // An install that already runs agents has finished setup by definition, so
+  // it counts as complete however the individual sections read.
+  const setupComplete = reveal.allComplete || reveal.hasAgents;
+
   const [edited, setEdited] = useState<Record<string, unknown> | null>(null);
   const [original, setOriginal] = useState<Record<string, unknown> | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
@@ -926,14 +921,19 @@ export function Settings() {
         </div>
       )}
 
-      <Section title="setup" dirty={false} index={0}>
-        <SetupSection
-          hasAgents={reveal.hasAgents}
-          allComplete={reveal.allComplete}
-          completedCount={reveal.completedCount}
-          total={REVEAL_ORDER.length}
-        />
-      </Section>
+      {/* Only while setup is unfinished. Once it's done this card said nothing
+          except "it's done — use the re-run icon", which the icon in the header
+          already offers: a permanent 100% bar at the top of Settings is noise
+          on every visit. Gated on `loaded` so an established install never
+          flashes it before the onboarding state arrives. */}
+      {reveal.loaded && !setupComplete && (
+        <Section title="setup" dirty={false} index={0}>
+          <SetupSection
+            completedCount={reveal.completedCount}
+            total={REVEAL_ORDER.length}
+          />
+        </Section>
+      )}
 
       <Section title="profile" dirty={isDirty("user", "ui")} index={1} reveal={reveal.states.profile}>
         <Field label="Name">

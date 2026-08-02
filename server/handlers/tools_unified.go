@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -18,11 +19,19 @@ const maxVersionLen = 80
 
 // UnifiedTool represents a tool (MCP or CLI) with its status.
 type UnifiedTool struct { //nolint:govet // field order matches JSON/API contract
-	Name       string `json:"name"`
-	Type       string `json:"type"`
-	Status     string `json:"status"`
-	Transport  string `json:"transport,omitempty"`
-	Command    string `json:"command,omitempty"`
+	Name      string `json:"name"`
+	Type      string `json:"type"`
+	Status    string `json:"status"`
+	Transport string `json:"transport,omitempty"`
+	Command   string `json:"command,omitempty"`
+	// Path is where the binary actually resolved on PATH, absolute. Kept
+	// distinct from Command, which is what was configured: for most tools
+	// Command is a bare name ("git") and calling that a path — as the UI
+	// once did — tells the user nothing they didn't type.
+	Path string `json:"path,omitempty"`
+	// Manager is the package manager that owns this tool, inferred rather
+	// than configured. See InferToolManager.
+	Manager    string `json:"manager,omitempty"`
 	URL        string `json:"url,omitempty"`
 	Version    string `json:"version,omitempty"`
 	Error      string `json:"error,omitempty"`
@@ -119,6 +128,31 @@ func runVersion(ctx context.Context, versionCmd string) string {
 	return cliVersion(string(out))
 }
 
+// describeBinary resolves bin on PATH and reports both where it is and which
+// package manager owns it, so neither has to be configured by hand.
+//
+// Symlinks are resolved for the manager inference only: the path reported is
+// the one PATH actually yields (what the user would run), while its target is
+// what identifies the owner — a Homebrew binary on PATH is typically a symlink
+// and only the Cellar target names brew.
+//
+// When bin is not on PATH there is no path to report, and the manager can only
+// come from the configured install command.
+func describeBinary(bin, installCmd string) (path, manager string) {
+	p, err := exec.LookPath(bin)
+	if err != nil {
+		return "", managerFromInstallCmd(installCmd)
+	}
+	if abs, absErr := filepath.Abs(p); absErr == nil {
+		p = abs
+	}
+	real := p
+	if target, symErr := filepath.EvalSymlinks(p); symErr == nil {
+		real = target
+	}
+	return p, InferToolManager(real, installCmd)
+}
+
 // resolveToolStatus determines a tool's status based on enabled state, type, and binary availability.
 func resolveToolStatus(enabled bool, toolType, command, name string) string {
 	if !enabled {
@@ -178,11 +212,12 @@ func (h *UnifiedToolsHandler) list(w http.ResponseWriter, r *http.Request) {
 				ut := UnifiedTool{
 					Name:     t,
 					Type:     "cli",
+					Command:  t,
 					Required: true,
 				}
-				if path, err := exec.LookPath(t); err == nil {
+				ut.Path, ut.Manager = describeBinary(t, "")
+				if ut.Path != "" {
 					ut.Status = "installed"
-					ut.Command = path
 					ut.Version = runVersion(r.Context(), t+" --version")
 				} else {
 					ut.Status = "not_installed"
@@ -215,6 +250,9 @@ func (h *UnifiedToolsHandler) list(w http.ResponseWriter, r *http.Request) {
 					Status:     status,
 					InstallCmd: t.InstallCmd,
 					UpgradeCmd: t.UpgradeCmd,
+				}
+				if toolType == "cli" {
+					ut.Path, ut.Manager = describeBinary(resolveBinary(t.Command, t.Name), t.InstallCmd)
 				}
 				if toolType == "cli" && status == "installed" && t.VersionCmd != "" {
 					ut.Version = runVersion(r.Context(), t.VersionCmd)
@@ -275,11 +313,12 @@ func (h *UnifiedToolsHandler) checkAll(w http.ResponseWriter, r *http.Request) {
 				ut := UnifiedTool{
 					Name:     t,
 					Type:     "cli",
+					Command:  t,
 					Required: true,
 				}
-				if path, err := exec.LookPath(t); err == nil {
+				ut.Path, ut.Manager = describeBinary(t, "")
+				if ut.Path != "" {
 					ut.Status = "installed"
-					ut.Command = path
 					ut.Version = runVersion(r.Context(), t+" --version")
 				} else {
 					ut.Status = "not_installed"
@@ -313,22 +352,21 @@ func (h *UnifiedToolsHandler) checkAll(w http.ResponseWriter, r *http.Request) {
 					InstallCmd: t.InstallCmd,
 					UpgradeCmd: t.UpgradeCmd,
 				}
-				if !t.Enabled {
+				bin := resolveBinary(t.Command, t.Name)
+				ut.Path, ut.Manager = describeBinary(bin, t.InstallCmd)
+				switch {
+				case !t.Enabled:
 					ut.Status = "disabled"
-				} else {
-					bin := resolveBinary(t.Command, t.Name)
-					if path, lookErr := exec.LookPath(bin); lookErr != nil {
-						ut.Status = "not_installed"
-						ut.Error = bin + " not found in PATH"
-					} else {
-						ut.Status = "installed"
-						ut.Command = path
-						versionCmd := t.VersionCmd
-						if versionCmd == "" {
-							versionCmd = bin + " --version"
-						}
-						ut.Version = runVersion(r.Context(), versionCmd)
+				case ut.Path == "":
+					ut.Status = "not_installed"
+					ut.Error = bin + " not found in PATH"
+				default:
+					ut.Status = "installed"
+					versionCmd := t.VersionCmd
+					if versionCmd == "" {
+						versionCmd = bin + " --version"
 					}
+					ut.Version = runVersion(r.Context(), versionCmd)
 				}
 				results = append(results, ut)
 			}

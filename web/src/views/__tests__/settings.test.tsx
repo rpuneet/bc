@@ -139,15 +139,32 @@ describe("Settings redesign", () => {
     expect(screen.getByRole("button", { name: /re-run setup/i })).toBeInTheDocument();
   });
 
-  it("treats an install that already runs agents as setup-complete (no nag)", async () => {
+  it("drops the setup card once setup is done — the re-run icon is the entry point", async () => {
     mockApi({
       onboarding: { firstRun: false, hasAgents: true, prefsValid: true, completed: [], step: "" },
       settings: { ...SETTINGS, user: { name: "" }, onboarding: { step: "", completed: [] } },
     });
     renderSettings();
-    // Even with an unfinished reveal, a live fleet means done.
-    await waitFor(() => expect(screen.getAllByText(/Complete/).length).toBeGreaterThan(0));
-    expect(screen.getByRole("button", { name: /re-run setup/i })).toBeInTheDocument();
+
+    // Reconfiguring stays available whether or not the card is showing.
+    expect(await screen.findByRole("button", { name: /re-run setup/i })).toBeInTheDocument();
+
+    // Even with an unfinished reveal, a live fleet means done — and a finished
+    // install gets no card, since all it ever said was "done, use the icon".
+    await waitFor(() => expect(screen.queryByText("setup")).not.toBeInTheDocument());
+    expect(screen.queryByText(/sections done/)).not.toBeInTheDocument();
+    // The sections it used to gate are all still there and reachable.
+    expect(await screen.findByText("providers & tools")).toBeInTheDocument();
+  });
+
+  it("keeps the setup card while setup is genuinely unfinished", async () => {
+    mockApi({
+      settings: { ...SETTINGS, user: { name: "" }, onboarding: { step: "", completed: [] } },
+      onboarding: { firstRun: true, hasAgents: false, prefsValid: true, completed: [], step: "" },
+    });
+    renderSettings();
+    expect(await screen.findByText("setup")).toBeInTheDocument();
+    expect(await screen.findByText(/sections done/)).toBeInTheDocument();
   });
 
   it("never locks a section that is already satisfied", async () => {
