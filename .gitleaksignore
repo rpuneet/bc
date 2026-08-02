@@ -1,0 +1,34 @@
+# Known-safe gitleaks findings, allowlisted by fingerprint.
+#
+# Why this file exists: on pull_request and push events the gitleaks action
+# scans only the pushed commits, but on workflow_dispatch it scans the whole
+# repository history. That made the documented "Actions -> Release -> Run
+# workflow" path fail the Security gate every time while tag-push releases
+# passed, because these findings live in history and cannot be edited out of
+# it without a rewrite.
+#
+# Each entry below was inspected individually. None is a live credential.
+# Fingerprints are commit:file:rule:startline — an entry stops applying if the
+# secret ever moves or changes, so a genuine new leak in these files still fails.
+
+# server/ws/redact_test.go — fixtures for RedactSecrets(). These tests exist to
+# prove tokens get scrubbed, so they must contain token-shaped strings. The
+# values are synthetic (line 20 is a literal A-Z alphabet) and the file is
+# already annotated //nolint:gosec // test fixture data.
+db272a3894bd374560e37a5e80ccd4bfec02a85e:server/ws/redact_test.go:github-fine-grained-pat:9
+cbeca3b6439242c727092570a721934ef1b3c081:server/ws/redact_test.go:github-fine-grained-pat:9
+7598f146c647d6c6cd870f0eadead742fbeabf4f:server/ws/redact_test.go:github-fine-grained-pat:9
+6687c799a252d24375aa698569116049c65b5e52:server/ws/redact_test.go:github-fine-grained-pat:9
+6687c799a252d24375aa698569116049c65b5e52:server/ws/redact_test.go:github-pat:20
+7598f146c647d6c6cd870f0eadead742fbeabf4f:server/ws/redact_test.go:github-pat:20
+
+# landing/src/app/layout.tsx — Cloudflare Web Analytics beacon token in a
+# data-cf-beacon attribute. These are public by design: the value ships in the
+# HTML of every page and is visible to any visitor. It identifies a site, it
+# does not authenticate anything.
+afdb3acd24986762118f51701ae4babec37adb65:landing/src/app/layout.tsx:generic-api-key:86
+56d0ce47b8ee12b34429f4b8359e7a61848a0550:landing/src/app/layout.tsx:generic-api-key:86
+
+# internal/tui/queueitem_test.go — a padded display string in a TUI queue-item
+# test, matched by the generic-api-key heuristic on entropy alone.
+0f4fdf6d06281221e38c5cd65fad8a63297beb46:internal/tui/queueitem_test.go:generic-api-key:65

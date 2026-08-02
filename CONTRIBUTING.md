@@ -268,26 +268,57 @@ Open an issue or discussion on GitHub.
 
 ## Releasing
 
-Releases are cut manually via GitHub Actions. CI/CD is fully automated from tag onwards.
+Releases are cut manually by pushing a tag. Everything from the tag onwards —
+CI, builds for every platform, the GitHub release, Homebrew and the SBOM — is
+automated.
 
 ### Steps
 
 1. Ensure `main` is green. Check https://github.com/rpuneet/mycel/actions/workflows/ci.yml
-2. Go to **Actions → Release → Run workflow**
-3. Enter version in semver format: `vMAJOR.MINOR.PATCH` (e.g. `v0.4.4`)
-   - Alpha/RC allowed: `v0.5.0-alpha`, `v1.0.0-rc.1`
-4. Click **Run workflow**
+2. Tag the commit you want to ship and push the tag:
+
+   ```bash
+   git tag -a v0.4.4 -m "v0.4.4"
+   git push origin v0.4.4
+   ```
+
+   Use semver: `vMAJOR.MINOR.PATCH`. Alpha/RC allowed: `v0.5.0-alpha`, `v1.0.0-rc.1`.
+
+Pushing the tag is what triggers the release. **Actions → Release → Run workflow**
+also works and tags for you, but push the tag by hand when you want the released
+artifacts to come from a specific commit you have already verified.
+
+> **If you use Run workflow and it fails at the Security gate:** the `Prepare` job
+> creates and pushes the tag *before* CI runs, so a later failure leaves a tag with
+> no release attached. Because that tag was pushed by `GITHUB_TOKEN` it does not
+> trigger a workflow run of its own. Delete and re-push it from your own account to
+> start a real release from the same commit:
+>
+> ```bash
+> git push origin :refs/tags/v0.4.4
+> git tag -a v0.4.4 <sha> -m "v0.4.4" && git push origin v0.4.4
+> ```
 
 ### What happens
 
-The release workflow:
+The release workflow (`.github/workflows/release.yml`):
 
-1. **Prepare** — validates version format, creates and pushes git tag
-2. **CI** — full test suite (lint, test, web, landing, build gate, security, container scan)
-3. **Release Linux** — GoReleaser builds `linux/amd64`, creates archive + checksums, publishes GitHub release
-4. **Release macOS** — Native CGO builds for `darwin/amd64` and `darwin/arm64`, uploads to release
-5. **Release Docker** — Pushes `ghcr.io/rpuneet/mycel:<version>` and `:latest` to GHCR
-6. **SBOM** — Generates and uploads `sbom.spdx.json` to release
+1. **Prepare** — validates version format; creates and pushes the git tag when
+   started via **Run workflow** (on a tag push the tag already exists)
+2. **CI** — full suite: lint, test, test (full), web, landing, build gate, security
+3. **Release Linux + Windows** — GoReleaser builds `linux/{amd64,arm64}` and
+   `windows/{amd64,arm64}`, plus `.deb` and `.rpm` packages, and publishes the
+   GitHub release with `checksums.txt`
+4. **Release macOS** — native CGO builds for `darwin/amd64` and `darwin/arm64`,
+   uploaded with `checksums-macos.txt`
+5. **Release Desktop** — Wails desktop app for macOS, Linux and Windows
+6. **Update Homebrew Formula** — see below
+7. **SBOM** — generates and uploads `sbom.spdx.json`
+
+Docker images are **not** built here. `cd-main.yml` publishes
+`ghcr.io/rpuneet/mycel:main` and `:main-<sha>` on every merge to `main`, so there
+is no `:<version>` image per release — see
+[Continuous deployment](#continuous-deployment).
 
 ### Homebrew tap publish
 
