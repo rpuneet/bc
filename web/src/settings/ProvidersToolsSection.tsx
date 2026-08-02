@@ -10,6 +10,7 @@ import { ProvidersTable } from "../components/ProvidersTable";
 import { ProviderDefaults } from "../components/ProviderDefaults";
 import { PackageManagers } from "../components/PackageManagers";
 import { RegistrySearch } from "../components/RegistrySearch";
+import { DependenciesSection } from "../components/settings/Dependencies";
 import { CopyButton } from "../components/CopyButton";
 import { ToastContainer, useToast } from "../components/Toast";
 import type { ToastLevel } from "../components/Toast";
@@ -755,6 +756,24 @@ export function ProvidersToolsSection() {
             </table>
           </div>
         )}
+      </section>
+
+      {/* Optional services (pkg/deps): containers the user can start from here,
+          such as mycel-code-server. This is the only UI for the /api/deps
+          lifecycle — without it the Code tab's "Edit in VS Code" button can
+          never appear, since it renders only while the container is running. */}
+      <section>
+        <div className="flex items-baseline gap-2 mb-3">
+          <h2 className="text-[11px] font-medium text-mycel-muted uppercase tracking-[0.08em]">
+            Optional Services
+          </h2>
+          <span className="flex-1 h-px bg-mycel-border self-center" aria-hidden />
+        </div>
+        <p className="text-[10.5px] text-mycel-muted mb-2">
+          Background containers the daemon can start for you. Starting
+          mycel-code-server enables "Edit in VS Code" on the Code tab.
+        </p>
+        <DependenciesSection />
       </section>
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />

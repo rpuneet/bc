@@ -42,8 +42,11 @@ async function fetchCodeServerStatus(): Promise<{ running: boolean; endpoint: st
     const d = (await r.json()) as { state?: string };
     return {
       running: d.state === "running",
-      // Hardcoded for now — backend exposes on :8100 per pkg/deps/code_server.go
-      endpoint: "http://localhost:8100/?folder=/home/coder/workspace",
+      // The port is fixed by pkg/deps/code_server.go, but the host is not:
+      // "localhost" resolves against whichever machine the browser is on, so it
+      // breaks as soon as the UI is opened from anywhere but the daemon's host.
+      // Scheme stays http because the container serves http.
+      endpoint: `http://${window.location.hostname}:8100/?folder=/home/coder/workspace`,
     };
   } catch {
     return { running: false, endpoint: "" };
