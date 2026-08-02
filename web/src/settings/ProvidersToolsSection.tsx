@@ -281,7 +281,9 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
         <td className="px-4 py-2.5 text-sm">
           <span className="inline-flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-            <span className={`text-xs ${cfg.textColor}`}>{tool.version || cfg.label}</span>
+            {/* The status label, not the version — Version is its own column
+                right beside this one. */}
+            <span className={`text-xs ${cfg.textColor}`}>{cfg.label}</span>
           </span>
         </td>
         <td className="px-4 py-2.5 text-xs text-mycel-muted font-mono max-w-[180px] truncate" title={tool.version || ""}>{tool.version || "—"}</td>

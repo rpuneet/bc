@@ -14,6 +14,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { Settings } from "../Settings";
+import { REVEAL_ORDER } from "../../settings/useProgressiveReveal";
 
 const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
 
@@ -147,6 +148,42 @@ describe("Settings redesign", () => {
     // Even with an unfinished reveal, a live fleet means done.
     await waitFor(() => expect(screen.getAllByText(/Complete/).length).toBeGreaterThan(0));
     expect(screen.getByRole("button", { name: /re-run setup/i })).toBeInTheDocument();
+  });
+
+  it("never locks a section that is already satisfied", async () => {
+    // Profile has no name, so setup is genuinely unfinished — but a provider
+    // is installed, so "providers & tools" is satisfied and must stay
+    // reachable. Locking it would hide real config (and the optional
+    // budgets section) behind a padlock on a first run.
+    mockApi({
+      settings: { ...SETTINGS, user: { name: "" }, onboarding: { step: "", completed: [] } },
+      onboarding: { firstRun: true, hasAgents: false, prefsValid: true, completed: [], step: "" },
+    });
+    renderSettings();
+
+    await waitFor(() =>
+      expect(screen.getByText("profile").closest("[data-reveal]")).toHaveAttribute("data-reveal", "active"),
+    );
+    expect(screen.getByText("providers & tools").closest("[data-reveal]")).toHaveAttribute("data-reveal", "complete");
+    expect(screen.getByText("budgets").closest("[data-reveal]")).toHaveAttribute("data-reveal", "complete");
+    // Satisfied means usable: the body mounted, so the provider row renders.
+    expect(await screen.findByText("claude")).toBeInTheDocument();
+    // Sections that genuinely aren't done yet still gate behind profile.
+    expect(screen.getByText("runtime").closest("[data-reveal]")).toHaveAttribute("data-reveal", "locked");
+  });
+
+  it("walks the reveal top-down — gated sections match the rendered order", async () => {
+    mockApi();
+    const { container } = renderSettings();
+    await screen.findByText("budgets");
+
+    const rendered = Array.from(container.querySelectorAll<HTMLElement>("[data-reveal]")).map(
+      (card) => card.querySelector("button")?.textContent ?? "",
+    );
+    const positions = REVEAL_ORDER.map((id) => rendered.findIndex((text) => text.startsWith(id)));
+    expect(positions).not.toContain(-1);
+    // Ascending — otherwise the "active" card can land below a locked one.
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
   });
 
   it("the re-run icon clears onboarding.completed without touching other config", async () => {

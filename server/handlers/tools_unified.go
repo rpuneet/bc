@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	"github.com/rpuneet/mycel/pkg/agent"
@@ -58,6 +59,38 @@ func truncVersion(ver string) string {
 	return ver
 }
 
+// looseVersionRe matches two-part versions with an optional qualifier, for
+// CLIs that never print a third component ("tmux 3.5a", "GNU Make 3.81").
+var looseVersionRe = regexp.MustCompile(`\d+\.\d+[A-Za-z0-9.+-]*`)
+
+// cliVersion reduces a `--version` banner to the version itself. Banners are
+// chatty and often multi-line ("aws-cli/2.36.14 Python/3.14.6 Darwin/...", GNU
+// Make's version followed by its license), so truncating the raw text left the
+// Tools table showing a sentence sliced mid-word.
+//
+// Lines are considered in order and the earliest one carrying any version wins,
+// because the version is what a CLI leads with. Preferring a full semver token
+// across the whole banner instead would mine later lines for junk: GNU Make
+// prints "GNU Make 3.81" and, six lines down, "built for i386-apple-darwin11.3.0"
+// — reporting make as 11.3.0.
+func cliVersion(out string) string {
+	lines := strings.Split(out, "\n")
+	for _, line := range lines {
+		if m := semverTokenRe.FindString(line); m != "" {
+			return m
+		}
+		if m := looseVersionRe.FindString(line); m != "" {
+			return m
+		}
+	}
+	for _, line := range lines {
+		if line = strings.TrimSpace(line); line != "" {
+			return truncVersion(line)
+		}
+	}
+	return ""
+}
+
 // resolveBinary extracts the binary name from a command string, falling back to name.
 func resolveBinary(command, name string) string {
 	bin := command
@@ -70,17 +103,20 @@ func resolveBinary(command, name string) string {
 	return bin
 }
 
-// runVersion runs a version command and returns the truncated output.
+// runVersion runs a version command and returns just the version it printed.
+// Output is read combined and parsed even on a non-zero exit, because some
+// CLIs report their version on stderr or fail a later check after printing it
+// (`docker --version` with the daemon down).
 func runVersion(ctx context.Context, versionCmd string) string {
 	parts := strings.Fields(versionCmd)
 	if len(parts) == 0 {
 		return ""
 	}
-	out, err := exec.CommandContext(ctx, parts[0], parts[1:]...).Output() //nolint:gosec // tool names from config
-	if err != nil {
+	out, err := exec.CommandContext(ctx, parts[0], parts[1:]...).CombinedOutput() //nolint:gosec // tool names from config
+	if err != nil && len(out) == 0 {
 		return ""
 	}
-	return truncVersion(string(out))
+	return cliVersion(string(out))
 }
 
 // resolveToolStatus determines a tool's status based on enabled state, type, and binary availability.
