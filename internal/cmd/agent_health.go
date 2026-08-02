@@ -263,10 +263,15 @@ func sendStuckAlertViaClient(ctx context.Context, c *client.Client, channelName 
 
 	message := sb.String()
 
-	// Send via daemon channel API
-	_, sendErr := c.Channels.Send(ctx, channelName, "mycel-health", message)
+	// Send via daemon channel API. An unroutable channel comes back as
+	// not-sent rather than as an error, and a health alert that silently went
+	// nowhere is the worst possible outcome for this command — so say so.
+	sent, sendErr := c.Channels.Send(ctx, channelName, "mycel-health", message)
 	if sendErr != nil {
 		return fmt.Errorf("failed to send alert to channel %q: %w", channelName, sendErr)
+	}
+	if !sent {
+		return fmt.Errorf("alert not delivered: channel %q has no delivery route configured", channelName)
 	}
 
 	fmt.Printf("Alert sent to channel %q\n", channelName)

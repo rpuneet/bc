@@ -19,6 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`mycel channel send` works again.** Every send failed with
+  `405 method not allowed`, and so did `mycel agent health`'s alert delivery:
+  the Go client posted to `/api/channels/{name}/messages`, a path no route
+  serves. `/api/channels/` is handled by the history endpoint, which accepts GET
+  only. Both now use `POST /api/channels/send` — the endpoint the web UI and the
+  `send_message` MCP tool have been using all along, which is why sending
+  appeared to work everywhere except the CLI. An unroutable channel is also no
+  longer reported as sent: the endpoint answers `{"sent": false}` without an
+  error, and both commands now say so instead of printing success over a message
+  that went nowhere (#3487).
 - **A blank MCP command no longer takes the daemon down.** The tool health
   check indexed the first field of a stored command without checking there was
   one, so a whitespace-only entry panicked — on a background goroutine, where

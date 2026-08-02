@@ -7,6 +7,7 @@
 package server_test
 
 import (
+	"net/http"
 	"testing"
 )
 
@@ -178,4 +179,25 @@ func TestE2E_ChannelCreateDeleteVerify(t *testing.T) {
 		t.Fatalf("list channels: want 200, got %d", channelsCode)
 	}
 	_ = channels // fresh home has no active gateway channels
+}
+
+// The route the Go client sends on must be mounted for POST. It was not: the
+// client posted to /api/channels/{name}/messages, which falls through to the
+// GET-only history handler, so every `mycel channel send` failed with 405 while
+// the client's own unit test — a fake server answering any path — stayed green.
+//
+// This E2E server has no gateway configured, so a mounted route answers 503
+// ("gateway not available"). Anything is acceptable here except 405 and 404,
+// which mean the route is missing or method-mismatched.
+func TestE2E_ChannelSendRouteAcceptsPost(t *testing.T) {
+	s := newE2EServer(t)
+
+	code, _ := s.postJSON(t, "/api/channels/send", map[string]any{
+		"channel": "slack:general",
+		"sender":  "alice",
+		"message": "hi",
+	})
+	if code == http.StatusMethodNotAllowed || code == http.StatusNotFound {
+		t.Fatalf("POST /api/channels/send returned %d — the send route the CLI uses is not mounted", code)
+	}
 }

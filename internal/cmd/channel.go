@@ -430,8 +430,15 @@ func runChannelSend(cmd *cobra.Command, args []string) error {
 	}
 
 	sender := getUserSenderCtx(cmd.Context())
-	if _, err := c.Channels.Send(cmd.Context(), channelName, sender, message); err != nil {
+	sent, err := c.Channels.Send(cmd.Context(), channelName, sender, message)
+	if err != nil {
 		return err
+	}
+	// The daemon reports an unroutable channel as not-sent rather than as an
+	// error. Printing success there would leave the user believing a message
+	// was delivered that nothing ever carried.
+	if !sent {
+		return fmt.Errorf("channel %q has no delivery route configured; run 'mycel channel list' to see reachable channels", channelName)
 	}
 
 	fmt.Printf("Sent message to #%s\n", channelName)
