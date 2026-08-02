@@ -72,7 +72,12 @@ type Manager struct {
 	// adapter cheaply resolved one (empty otherwise → initials fallback).
 	// automated marks machine-generated events that should reach the channel
 	// feed without waking subscribed agents.
-	onInbound    func(channel, sender, senderID, senderAvatar, content, messageID string, mentions []string, raw json.RawMessage, automated bool)
+	onInbound func(channel, sender, senderID, senderAvatar, content, messageID string, mentions []string, raw json.RawMessage, automated bool)
+	// onOutbound is called after a message has been successfully handed to a
+	// platform, so the channel's stored history holds both sides of the
+	// conversation. Inbound messages are recorded from onInbound; without this
+	// hook a transcript shows only what arrived, never what an agent replied.
+	onOutbound   func(channel, sender, content string)
 	channelStore ChannelStore
 	mu           sync.RWMutex
 	// adapterWG tracks boot-time and hot-started adapter goroutines so Stop/
@@ -120,6 +125,31 @@ func (m *Manager) SetChannelStore(store ChannelStore) {
 // (notification mail and similar — feed-worthy, but no agent should be woken).
 func (m *Manager) SetInboundHandler(fn func(channel, sender, senderID, senderAvatar, content, messageID string, mentions []string, raw json.RawMessage, automated bool)) {
 	m.onInbound = fn
+}
+
+// SetOutboundHandler sets the callback invoked after a message has been
+// successfully sent to a platform. It receives the mycel channel name, the
+// sender the message was attributed to (an agent name, or "api"), and the text.
+//
+// Wired to the notify store so channel history records replies as well as
+// arrivals. Called synchronously on the send path, so the handler should stay
+// cheap and must not call back into the gateway.
+func (m *Manager) SetOutboundHandler(fn func(channel, sender, content string)) {
+	m.onOutbound = fn
+}
+
+// recordOutbound notifies the outbound handler, if one is wired. A panic in the
+// handler must not fail a send that the platform already accepted.
+func (m *Manager) recordOutbound(channel, sender, content string) {
+	if m.onOutbound == nil {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error("gateway: outbound handler panic", "channel", channel, "recover", r)
+		}
+	}()
+	m.onOutbound(channel, sender, content)
 }
 
 // Register adds a NotificationAdapter to the manager.
@@ -485,6 +515,7 @@ func (m *Manager) Send(ctx context.Context, channel, sender, content string) (bo
 				if err := ms.Send(ctx, id, sender, content); err != nil {
 					return true, fmt.Errorf("gateway send to %s: %w", channel, err)
 				}
+				m.recordOutbound(channel, sender, content)
 				return true, nil
 			}
 		}
@@ -503,6 +534,7 @@ func (m *Manager) Send(ctx context.Context, channel, sender, content string) (bo
 	if err := ms.Send(ctx, route.ChannelID, sender, content); err != nil {
 		return true, fmt.Errorf("gateway send to %s: %w", channel, err)
 	}
+	m.recordOutbound(channel, sender, content)
 	return true, nil
 }
 

@@ -44,14 +44,16 @@ func (m *mockSender) getCalls() []sendCall {
 
 // mockHub records Publish calls.
 type mockHub struct {
-	events []string
-	mu     sync.Mutex
+	events   []string
+	payloads []map[string]any
+	mu       sync.Mutex
 }
 
-func (m *mockHub) Publish(eventType string, _ map[string]any) {
+func (m *mockHub) Publish(eventType string, payload map[string]any) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.events = append(m.events, eventType)
+	m.payloads = append(m.payloads, payload)
 }
 
 func setupTestStore(t *testing.T) *Store {
@@ -671,5 +673,112 @@ func TestMigratePlaceholderSubsNoOpWhenRealHasSubs(t *testing.T) {
 	calls := sender.getCalls()
 	if len(calls) != 1 || calls[0].Name != "real-agent" {
 		t.Fatalf("expected delivery only to real-agent, got %+v", calls)
+	}
+}
+
+// TestRecordOutboundStoresAndPublishes covers the other half of the
+// conversation. Channel history is built from notify_messages, and only inbound
+// messages were ever written there, so a transcript showed the question and
+// never the answer.
+func TestRecordOutboundStoresAndPublishes(t *testing.T) {
+	store := setupTestStore(t)
+	hub := &mockHub{}
+	sender := &mockSender{}
+	svc := NewService(store, sender, hub)
+	ctx := context.Background()
+
+	svc.RecordOutbound("slack:general", "fast-crane", "merged both PRs, tracker is #3468")
+
+	msgs, err := store.GetMessages(ctx, "slack:general", 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected the outbound message to be stored, got %d", len(msgs))
+	}
+	if msgs[0].Sender != "fast-crane" {
+		t.Errorf("stored sender = %q, want fast-crane", msgs[0].Sender)
+	}
+	if msgs[0].Content != "merged both PRs, tracker is #3468" {
+		t.Errorf("stored content = %q", msgs[0].Content)
+	}
+
+	// An open channel view appends from channel.message, so the payload has to
+	// carry a nested message object or the UI silently ignores the event.
+	if len(hub.events) != 1 || hub.events[0] != "channel.message" {
+		t.Fatalf("published events = %v, want [channel.message]", hub.events)
+	}
+	p := hub.payloads[0]
+	if p["channel"] != "slack:general" {
+		t.Errorf("payload channel = %v, want slack:general", p["channel"])
+	}
+	msg, ok := p["message"].(map[string]any)
+	if !ok {
+		t.Fatalf("payload has no nested message object: %+v", p)
+	}
+	if msg["sender"] != "fast-crane" || msg["content"] != "merged both PRs, tracker is #3468" {
+		t.Errorf("published message = %+v", msg)
+	}
+	if msg["type"] != "text" {
+		t.Errorf("published message type = %v, want text", msg["type"])
+	}
+
+	// Recording an outbound message must never prompt an agent: the message
+	// came *from* one.
+	if calls := sender.getCalls(); len(calls) != 0 {
+		t.Errorf("recording an outbound message woke %d agent(s): %+v", len(calls), calls)
+	}
+}
+
+// TestRecordOutboundIgnoresEmpty keeps blank rows out of the transcript.
+func TestRecordOutboundIgnoresEmpty(t *testing.T) {
+	store := setupTestStore(t)
+	hub := &mockHub{}
+	svc := NewService(store, &mockSender{}, hub)
+	ctx := context.Background()
+
+	svc.RecordOutbound("", "fast-crane", "no channel")
+	svc.RecordOutbound("slack:general", "fast-crane", "")
+
+	for _, ch := range []string{"", "slack:general"} {
+		msgs, err := store.GetMessages(ctx, ch, 10, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(msgs) != 0 {
+			t.Errorf("channel %q stored %d message(s), want 0", ch, len(msgs))
+		}
+	}
+	if len(hub.events) != 0 {
+		t.Errorf("published %v for an empty message, want nothing", hub.events)
+	}
+}
+
+// TestRecordOutboundThenInboundReadsAsConversation is the end-to-end shape the
+// bug report asked for: history in order, both sides present.
+func TestRecordOutboundThenInboundReadsAsConversation(t *testing.T) {
+	store := setupTestStore(t)
+	svc := NewService(store, &mockSender{}, &mockHub{})
+	ctx := context.Background()
+
+	svc.Dispatch("slack:general", "slack", "[slack] Puneet Rai", "U1", "", "??", "m1", nil, nil, nil)
+	if !svc.DrainDispatches(2 * time.Second) {
+		t.Fatal("dispatch did not finish")
+	}
+	svc.RecordOutbound("slack:general", "fast-crane", "answered in Slack a minute ago")
+
+	msgs, err := store.GetMessages(ctx, "slack:general", 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("expected both sides of the exchange, got %d message(s)", len(msgs))
+	}
+	// GetMessages returns newest first.
+	if msgs[0].Sender != "fast-crane" {
+		t.Errorf("newest message sender = %q, want the agent's reply", msgs[0].Sender)
+	}
+	if msgs[1].Sender != "[slack] Puneet Rai" {
+		t.Errorf("older message sender = %q, want the human's question", msgs[1].Sender)
 	}
 }
