@@ -108,7 +108,7 @@ crafted key names.
 The mycel server applies middleware in this order (outermost runs first):
 
 ```
-RateLimit → APIKeyAuth → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize → CORS → Router
+RateLimit → APIKeyAuth → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize → CORS → RejectCrossOriginMutations → Router
 ```
 
 ### API Key Authentication
@@ -154,8 +154,42 @@ instead of crashing the server or exposing stack traces.
 
 ### CORS
 
-CORS is enabled by default with origin `*` (safe because the server only
-listens on localhost). The origin can be restricted via `Config.CORSOrigin`.
+CORS is enabled by default with origin `*`, and the origin can be restricted via
+`Config.CORSOrigin`.
+
+Listening only on localhost does **not** make `*` safe on its own. A web page the
+user has open in another tab can call `http://127.0.0.1:9374`, and the request
+arrives from a loopback address carrying the user's full authority — the browser
+acts as a confused deputy, so binding to loopback keeps other machines out but
+not other websites.
+
+### Cross-origin mutations
+
+`RejectCrossOriginMutations` answers that. Any request whose method is not `GET`,
+`HEAD` or `OPTIONS` must show that it came from an origin the daemon serves, or
+from something that is not a browser:
+
+- **No `Origin` header** — allowed. A browser sets `Origin` on every request whose
+  method is not `GET` or `HEAD`, even a same-origin one, so its absence means the
+  caller is the CLI, the SDK, or another server. A `Sec-Fetch-Site: cross-site`
+  header still rejects the request, since a browser sets that one itself and page
+  script cannot forge it.
+- **The daemon's own origin** — allowed.
+- **Any loopback origin** — allowed, whatever the port. The dev server proxies
+  `/api` while forwarding the browser's `Origin`, and the desktop shell serves its
+  boot page from a separate loopback origin; a page from a remote site can never
+  present a loopback origin. The residual risk is a hostile server running on the
+  user's own machine, which is a far narrower threat than any website they visit.
+- **The configured `CORSOrigin`**, when set to a specific origin rather than `*` —
+  allowed, so a separately hosted UI can still write.
+- **Anything else** — `403`.
+
+Reads are deliberately untouched: what a foreign origin may *read* is a privacy
+question that CORS already governs, whereas a write can store a tool's install
+command and have it executed. The middleware is applied even when CORS headers
+are disabled, because a request needing no preflight is sent regardless of what
+headers come back — turning CORS off hides the response from an attacker without
+preventing the write.
 
 ### Request IDs
 

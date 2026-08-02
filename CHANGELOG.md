@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Cross-origin writes are refused.** Any page the user had open in another
+  tab could call the daemon's API — loopback keeps other machines out, not
+  other websites — and `POST /api/tools` accepted an arbitrary `install_cmd`
+  that `POST /api/deps/install` then handed to `sh -c`. State-changing
+  requests now have to come from an origin the daemon serves, from a loopback
+  origin, or from a non-browser client such as the CLI. Reads are unchanged
+  (#3470).
+
 ## [0.4.4] - 2026-08-02
 
 App readiness. The surfaces that looked finished in 0.4.3 became real:

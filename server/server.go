@@ -533,13 +533,18 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 
 	// Middleware chain (outermost runs first):
-	// RateLimit → APIKeyAuth → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize → CORS → mux
+	// RateLimit → APIKeyAuth → RequestID → RequestLogger → Recovery → Gzip →
+	// MaxBodySize → CORS → RejectCrossOriginMutations → mux
 	var handler http.Handler = mux
+	origin := cfg.CORSOrigin
+	if origin == "" {
+		origin = "*"
+	}
+	// Inside CORS so a preflight is still answered and the 403 carries CORS
+	// headers, but applied even when CORS is off: a request that needs no
+	// preflight reaches the mux regardless of what headers come back.
+	handler = handlers.RejectCrossOriginMutations(origin, handler)
 	if cfg.CORS {
-		origin := cfg.CORSOrigin
-		if origin == "" {
-			origin = "*"
-		}
 		handler = handlers.CORSWithOrigin(origin, handler)
 	}
 	handler = handlers.MaxBodySize(1 << 20)(handler) // 1MB request body limit
