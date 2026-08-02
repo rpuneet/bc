@@ -63,6 +63,7 @@ mycel [flags]
 ### SEE ALSO
 
 * [mycel agent](mycel_agent.md)	 - Manage mycel agents
+* [mycel app](mycel_app.md)	 - Manage app (gateway plugin) integrations
 * [mycel channel](mycel_channel.md)	 - Manage communication channels
 * [mycel completion](mycel_completion.md)	 - Generate shell completion scripts
 * [mycel config](mycel_config.md)	 - Manage repo configuration
