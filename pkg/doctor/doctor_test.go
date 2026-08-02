@@ -99,6 +99,7 @@ func TestValidCategories(t *testing.T) {
 		"database": true,
 		"agents":   true,
 		"tools":    true,
+		"mcp":      true,
 		"git":      true,
 		"daemon":   true,
 	}
