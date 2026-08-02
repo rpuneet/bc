@@ -1039,10 +1039,11 @@ export const api = {
       body: JSON.stringify({ agents, message }),
     }),
 
-  // Agent activity timeline — newest first, capped at `limit` entries (default 50, max 1000).
-  // `before` pages backwards through full history via the event store's
-  // cursor (the row id of the oldest item already loaded) — the Timeline
-  // tab's "load older" pagination (#3423).
+  // Agent activity — newest first, capped at `limit` entries (default 50, max 1000).
+  // `before` pages backwards through full history via the event store's cursor
+  // (the row id of the oldest item already loaded). No UI surface pages today —
+  // the Live tab loads a single large window — but the daemon supports it, so
+  // full history stays reachable for callers that need more than one page.
   getAgentActivity: (name: string, limit = 50, before?: number) =>
     request<AgentActivityItem[]>(
       `/agents/${encodeURIComponent(name)}/activity?limit=${limit}${before ? `&before=${before}` : ""}`,

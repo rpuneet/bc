@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -423,6 +424,74 @@ func TestWriteCursorHookSettingsReplacesStaleMycelHooks(t *testing.T) {
 	}
 }
 
+// A worktree written by a newer cursor may declare a later schema. Stamping
+// mycel's version over it would tell cursor to read that file with older rules,
+// breaking hooks mycel does not own.
+func TestWriteCursorHookSettingsKeepsANewerSchemaVersion(t *testing.T) {
+	root := t.TempDir()
+	cursorDir := filepath.Join(root, ".cursor")
+	if err := os.MkdirAll(cursorDir, 0750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	future := cursorHooksSchemaVersion + 1
+	seed := `{"version":` + strconv.Itoa(future) + `,"hooks":{}}`
+	if err := os.WriteFile(filepath.Join(cursorDir, "hooks.json"), []byte(seed), 0600); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if err := WriteCursorHookSettings(root); err != nil {
+		t.Fatalf("WriteCursorHookSettings: %v", err)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(cursorDir, "hooks.json")) //nolint:gosec // test-local temp dir
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	var file struct {
+		Version int `json:"version"`
+	}
+	if err := json.Unmarshal(raw, &file); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if file.Version != future {
+		t.Errorf("version = %d, want %d preserved", file.Version, future)
+	}
+	// The hooks must still be installed — preserving the version must not mean
+	// skipping the work.
+	var hooksOnly struct {
+		Hooks map[string][]cursorHook `json:"hooks"`
+	}
+	if err := json.Unmarshal(raw, &hooksOnly); err != nil {
+		t.Fatalf("parse hooks: %v", err)
+	}
+	mycelEntry(t, hooksOnly.Hooks, "stop")
+}
+
+// A file with no version, or an unreadable one, must be stamped with the schema
+// mycel writes rather than left ambiguous.
+func TestWriteCursorHookSettingsStampsMissingOrBadVersion(t *testing.T) {
+	for name, seed := range map[string]string{
+		"missing":      `{"hooks":{}}`,
+		"not-a-number": `{"version":"one","hooks":{}}`,
+		"older":        `{"version":0,"hooks":{}}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			cursorDir := filepath.Join(root, ".cursor")
+			if err := os.MkdirAll(cursorDir, 0750); err != nil {
+				t.Fatalf("mkdir: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(cursorDir, "hooks.json"), []byte(seed), 0600); err != nil {
+				t.Fatalf("seed: %v", err)
+			}
+			if err := WriteCursorHookSettings(root); err != nil {
+				t.Fatalf("WriteCursorHookSettings: %v", err)
+			}
+			// readCursorHooks asserts the version equals the schema we write.
+			mycelEntry(t, readCursorHooks(t, root), "stop")
+		})
+	}
+}
+
 func TestWriteCursorHookSettingsRebuildsCorruptFile(t *testing.T) {
 	root := t.TempDir()
 	cursorDir := filepath.Join(root, ".cursor")
@@ -436,12 +505,6 @@ func TestWriteCursorHookSettingsRebuildsCorruptFile(t *testing.T) {
 		t.Fatalf("WriteCursorHookSettings: %v", err)
 	}
 	mycelEntry(t, readCursorHooks(t, root), "stop")
-}
-
-func TestWriteCursorHookSettingsRejectsTraversal(t *testing.T) {
-	if err := WriteCursorHookSettings("/tmp/../etc"); err == nil {
-		t.Skip("path cleaned to a safe absolute root")
-	}
 }
 
 func TestWriteCursorHookSettingsRejectsUnsafeRoot(t *testing.T) {
