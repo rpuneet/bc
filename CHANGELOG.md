@@ -25,6 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   detection — the unattended case the guardrails exist for. It now accepts a
   template and, when none is given, inherits the caller's, so omitting the field
   cannot silently mean "unguarded" (#3472).
+- **Optional services are manageable again.** The dependency manager UI existed
+  but nothing imported it, so the whole `/api/deps` lifecycle — list, start,
+  stop, stream logs — had no entry point, and the Code tab's "Edit in VS Code"
+  button could never appear, because it only renders while
+  `mycel-code-server` is running. It now sits under Settings → Providers &
+  Tools → Optional Services. The code-server URL also derives its host from the
+  page instead of hardcoding `localhost`, which broke whenever the UI was opened
+  from another machine (#3473).
 
 ## [0.4.4] - 2026-08-02
 

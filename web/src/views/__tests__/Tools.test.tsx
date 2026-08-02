@@ -96,6 +96,46 @@ describe("ProvidersToolsSection CLI tools table", () => {
   });
 });
 
+describe("ProvidersToolsSection optional services", () => {
+  // DependenciesSection was written, then left with no importer, so the whole
+  // /api/deps lifecycle had no entry point in the app and the Code tab's "Edit
+  // in VS Code" button — which only renders while mycel-code-server runs — could
+  // never appear. This asserts the component is actually mounted.
+  it("renders the dependency manager, so /api/deps has an entry point", async () => {
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u === "/api/providers") return jsonResponse([]);
+      if (u === "/api/tools/unified") return jsonResponse([]);
+      if (u === "/api/system/package-managers") return jsonResponse({ os: "darwin", arch: "arm64", managers: [] });
+      if (u === "/api/deps") {
+        return jsonResponse({
+          deps: [{
+            id: "mycel-code-server",
+            name: "mycel-code-server",
+            description: "VS Code in the browser",
+            state: "stopped",
+            deprecated: false,
+          }],
+        });
+      }
+      return jsonResponse({});
+    });
+
+    render(
+      <MemoryRouter>
+        <ProvidersToolsSection />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Optional Services")).toBeTruthy();
+    // The dependency itself is listed, which means /api/deps was fetched and
+    // rendered rather than the heading merely existing.
+    await waitFor(() => {
+      expect(screen.getAllByText("mycel-code-server").length).toBeGreaterThan(0);
+    });
+  });
+});
+
 describe("ProvidersToolsSection providers list", () => {
   it("renders providers as a list/table with no card/grid view toggle", async () => {
     fetchMock.mockImplementation((url: RequestInfo | URL) => {
