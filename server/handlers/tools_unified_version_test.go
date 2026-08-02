@@ -54,14 +54,22 @@ func TestCLIVersion(t *testing.T) {
 }
 
 // TestCLIVersionNeverExceedsMaxLen: the fallback path still has to respect the
-// response's version budget.
+// response's version budget. The banner carries no digits, so no version token
+// matches and cliVersion falls through to the first non-empty line.
 func TestCLIVersionNeverExceedsMaxLen(t *testing.T) {
 	long := ""
 	for i := 0; i < 40; i++ {
 		long += "verbose-banner-"
 	}
-	if got := cliVersion(long); len(got) > maxVersionLen {
-		t.Errorf("cliVersion returned %d chars, want <= %d", len(got), maxVersionLen)
+	got := cliVersion(long)
+	// Assert the value, not just its length: a length-only check also passes
+	// when the fallback returns nothing at all.
+	if want := truncVersion(long); got != want {
+		t.Errorf("cliVersion() = %q, want %q", got, want)
+	}
+	if len(got) != maxVersionLen {
+		t.Errorf("fallback returned %d chars for a %d-char banner, want exactly %d",
+			len(got), len(long), maxVersionLen)
 	}
 }
 
