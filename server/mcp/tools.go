@@ -26,8 +26,11 @@ const (
 	maxRoleLen    = 256       // role filter on list_agents
 	maxTaskLen    = 1024      // report_status task line
 	maxPathLen    = 4 * 1024  // file_path on send_file (typical PATH_MAX)
-	maxFileSize   = 50 * 1024 * 1024
-	maxReadLimit  = 200 // read_channel page size cap
+	// maxTemplateLen bounds a template name on spawn_agent. Names are short
+	// identifiers, so this only exists to reject junk before it reaches the store.
+	maxTemplateLen = 256
+	maxFileSize    = 50 * 1024 * 1024
+	maxReadLimit   = 200 // read_channel page size cap
 )
 
 // readOnly marks tools with no side effects so MCP clients can skip
@@ -611,6 +614,7 @@ type spawnAgentIn struct {
 	Task     string `json:"task,omitempty" jsonschema:"one-line initial task description recorded on the new agent (shown in the TUI/web UI)"`
 	Provider string `json:"provider,omitempty" jsonschema:"AI provider/tool for the new agent (e.g. claude); empty uses the fleet default"`
 	Repo     string `json:"repo,omitempty" jsonschema:"absolute path of the git repo to bind the new agent to; empty binds it to this agent's own repo"`
+	Template string `json:"template,omitempty" jsonschema:"template to spawn the new agent from; recorded on the agent so the template's guardrails (max cost, stuck timeout) are enforced against it. Empty inherits this agent's own template"`
 }
 
 type spawnAgentOut struct {
@@ -618,6 +622,10 @@ type spawnAgentOut struct {
 	Role     string `json:"role"`
 	State    string `json:"state"`
 	ParentID string `json:"parent_id,omitempty"`
+	// Template reports what the child was actually spawned with, which is not
+	// always what was asked for: an omitted template is inherited from the
+	// caller. Reported so guardrail coverage is visible rather than assumed.
+	Template string `json:"template,omitempty"`
 }
 
 func spawnAgent(ctx context.Context, cfg Config, agentName string, in spawnAgentIn) (*sdk.CallToolResult, spawnAgentOut, error) {
@@ -637,16 +645,30 @@ func spawnAgent(ctx context.Context, cfg Config, agentName string, in spawnAgent
 	if len(in.Repo) > maxPathLen {
 		return nil, out, fmt.Errorf("repo too long: %d bytes (max %d)", len(in.Repo), maxPathLen)
 	}
+	if len(in.Template) > maxTemplateLen {
+		return nil, out, fmt.Errorf("template too long: %d bytes (max %d)", len(in.Template), maxTemplateLen)
+	}
 	if cfg.AgentSvc == nil || cfg.Agents == nil {
 		return nil, out, fmt.Errorf("agent orchestration not available")
 	}
 
-	// Default to the caller's own repo so a spawned child shares the
-	// caller's worktree root unless a different repo is explicitly named.
-	repo := in.Repo
-	if repo == "" {
+	// Default to the caller's own repo so a spawned child shares the caller's
+	// worktree root unless a different repo is explicitly named.
+	//
+	// Inherit the caller's template for a different reason: guardrails
+	// (MaxCostUSD, StuckTimeoutMin) are enforced per template, and an agent with
+	// no template recorded is exempt from them entirely. Without inheritance a
+	// child would be unguarded whenever the field was simply left out — which is
+	// every existing caller, since the field did not exist until now.
+	repo, template := in.Repo, in.Template
+	if repo == "" || template == "" {
 		if caller := cfg.Agents.GetAgent(agentName); caller != nil {
-			repo = caller.Repo
+			if repo == "" {
+				repo = caller.Repo
+			}
+			if template == "" {
+				template = caller.Template
+			}
 		}
 	}
 
@@ -656,11 +678,12 @@ func spawnAgent(ctx context.Context, cfg Config, agentName string, in spawnAgent
 	// whose role isn't permitted to create the requested role gets a
 	// clear error and no agent is spawned.
 	child, err := cfg.AgentSvc.Create(ctx, agent.CreateOptions{
-		Name:   in.Name,
-		Role:   agent.Role(in.Role),
-		Tool:   in.Provider,
-		Repo:   repo,
-		Parent: agentName,
+		Name:     in.Name,
+		Role:     agent.Role(in.Role),
+		Tool:     in.Provider,
+		Repo:     repo,
+		Parent:   agentName,
+		Template: template,
 	})
 	if err != nil {
 		return nil, out, fmt.Errorf("spawn failed: %w", err)
@@ -670,6 +693,7 @@ func spawnAgent(ctx context.Context, cfg Config, agentName string, in spawnAgent
 	out.Role = string(child.Role)
 	out.State = string(child.State)
 	out.ParentID = child.ParentID
+	out.Template = child.Template
 
 	if in.Task != "" {
 		if taskErr := cfg.Agents.SetAgentTask(ctx, child.Name, in.Task); taskErr != nil {

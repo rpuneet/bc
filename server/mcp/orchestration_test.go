@@ -133,6 +133,95 @@ func TestE2E_SpawnAgent_Success(t *testing.T) {
 	}
 }
 
+// spawnChild runs spawn_agent as "boss" and returns the registered child. The
+// parent is seeded with parentTemplate so inheritance can be observed.
+func spawnChild(t *testing.T, parentTemplate string, args map[string]any) (*agent.Agent, map[string]any) {
+	t.Helper()
+	withRoleHierarchy(t, agent.Role("manager"), agent.Role("engineer"))
+	mgr, svc, h := newOrchestrationSvc(t)
+
+	if err := mgr.RegisterStopped(&agent.Agent{
+		Name: "boss", Role: agent.Role("manager"), Repo: h.RootDir, Template: parentTemplate,
+	}); err != nil {
+		t.Fatalf("seed parent: %v", err)
+	}
+
+	session, _ := newTestSession(t, Config{Home: h, Agents: mgr, AgentSvc: svc}, "boss")
+
+	if args["role"] == nil {
+		args["role"] = "engineer"
+	}
+	if args["provider"] == nil {
+		args["provider"] = "mcp-test-tool"
+	}
+	res, err := session.CallTool(t.Context(), &sdk.CallToolParams{Name: "spawn_agent", Arguments: args})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("spawn_agent errored: %v", errText(t, res))
+	}
+
+	name, _ := args["name"].(string)
+	child := mgr.GetAgent(name)
+	if child == nil {
+		t.Fatalf("%q was not registered in the manager", name)
+	}
+	return child, structured(t, res)
+}
+
+// TestE2E_SpawnAgent_RecordsTemplate covers the guardrail bypass: guardrails are
+// enforced per template and the enforcement loop skips any agent whose Template
+// is empty, so a child spawned without one is exempt from its cost cap and stuck
+// detection. spawn_agent had no template field at all, which made every
+// agent-spawned child unguarded — the unattended case guardrails exist for.
+func TestE2E_SpawnAgent_RecordsTemplate(t *testing.T) {
+	child, out := spawnChild(t, "", map[string]any{"name": "worker-tmpl", "template": "capped"})
+
+	if child.Template != "capped" {
+		t.Errorf("child template = %q, want %q — the guardrail loop skips agents with none",
+			child.Template, "capped")
+	}
+	// Reported back, so a caller can see the child is covered rather than assume it.
+	if out["template"] != "capped" {
+		t.Errorf("reported template = %v, want capped", out["template"])
+	}
+}
+
+// TestE2E_SpawnAgent_InheritsParentTemplate: omitting the field must not mean
+// "unguarded". Every caller written before the field existed omits it, so
+// without inheritance the bypass would survive the fix that added it.
+func TestE2E_SpawnAgent_InheritsParentTemplate(t *testing.T) {
+	child, out := spawnChild(t, "capped", map[string]any{"name": "worker-inherit"})
+
+	if child.Template != "capped" {
+		t.Errorf("child template = %q, want the parent's %q", child.Template, "capped")
+	}
+	if out["template"] != "capped" {
+		t.Errorf("reported template = %v, want capped", out["template"])
+	}
+}
+
+// TestE2E_SpawnAgent_ExplicitTemplateWins keeps inheritance from becoming a
+// straitjacket: a caller may still spawn a child under a different template.
+func TestE2E_SpawnAgent_ExplicitTemplateWins(t *testing.T) {
+	child, _ := spawnChild(t, "capped", map[string]any{"name": "worker-override", "template": "generous"})
+
+	if child.Template != "generous" {
+		t.Errorf("child template = %q, want the explicitly requested %q", child.Template, "generous")
+	}
+}
+
+// TestE2E_SpawnAgent_NoTemplateAnywhere: an unguarded parent still spawns an
+// unguarded child. Inheritance propagates guardrails, it does not invent them.
+func TestE2E_SpawnAgent_NoTemplateAnywhere(t *testing.T) {
+	child, _ := spawnChild(t, "", map[string]any{"name": "worker-none"})
+
+	if child.Template != "" {
+		t.Errorf("child template = %q, want empty when neither side names one", child.Template)
+	}
+}
+
 // TestE2E_SpawnAgent_DeniedWithoutCapability verifies the role-hierarchy
 // gate: a caller whose role has no entry permitting the requested child
 // role is rejected and no agent is created.
