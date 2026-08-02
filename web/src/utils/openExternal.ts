@@ -41,11 +41,18 @@ export function openExternal(url: string): void {
   }
 
   if (isDesktop()) {
+    const fallback = () => window.open(url, "_blank", "noopener,noreferrer");
     fetch("/api/system/open-url", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ url }),
-    }).catch(() => window.open(url, "_blank", "noopener,noreferrer"));
+    })
+      // fetch only rejects on network failure — a 400/403/502 from the daemon
+      // still resolves, so check res.ok explicitly or the failure is silent.
+      .then((res) => {
+        if (!res.ok) fallback();
+      })
+      .catch(fallback);
     return;
   }
 

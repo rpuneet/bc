@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os/exec"
 	"runtime"
+	"time"
 )
 
 // OpenURLHandler exposes POST /api/system/open-url, the one reliable way for
@@ -45,9 +46,25 @@ func realOpenURL(ctx context.Context, rawURL string) error {
 	default:
 		name, args = "xdg-open", []string{rawURL}
 	}
+	// The launch must OUTLIVE the HTTP request: r.Context() is cancelled the
+	// instant the handler returns 204, which would kill the opener before it
+	// hands the URL to the browser. Sever cancellation (keep any values) and
+	// give the child a bounded lifetime of its own.
+	launchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 20*time.Second)
 	// #nosec G204 -- name is a fixed constant; rawURL is validated http/https
 	// and passed as a single argv element, so no shell interprets it.
-	return exec.CommandContext(ctx, name, args...).Start()
+	cmd := exec.CommandContext(launchCtx, name, args...)
+	if err := cmd.Start(); err != nil {
+		cancel()
+		return err
+	}
+	// Reap the child so it doesn't linger as a zombie; cancel frees the
+	// timeout context once the opener exits (it does so near-instantly).
+	go func() {
+		_ = cmd.Wait()
+		cancel()
+	}()
+	return nil
 }
 
 // openURLFunc is the injectable opener so tests can stub the OS call.
