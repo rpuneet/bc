@@ -415,4 +415,36 @@ describe("AppsHome", () => {
     const viewAll = screen.getByRole("link", { name: /View all/i });
     expect(viewAll).toHaveAttribute("href", "/apps/activity");
   });
+
+  it("?connect=<app> deep-links straight into that app's connect modal (the degraded banner's Check setup target)", async () => {
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.includes("/api/notifications/overview")) return errorResponse(404);
+      if (u.includes("/history")) return jsonResponse([]);
+      if (u.includes("/api/apps/channels")) return jsonResponse(sources);
+      if (u.includes("/api/apps")) {
+        return jsonResponse({
+          catalog: [
+            ...appsCatalog.catalog,
+            { id: "gmail", label: "Gmail", auth: "token", multi: false, oauth_available: true, fields: [], docs: [] },
+          ],
+          instances: appsCatalog.instances,
+        });
+      }
+      return jsonResponse([]);
+    });
+    render(
+      <MemoryRouter initialEntries={["/apps?connect=gmail"]}>
+        <HeaderSlotProvider>
+          <HeaderHost />
+          <AppsHome />
+        </HeaderSlotProvider>
+      </MemoryRouter>,
+    );
+    // The connect modal for the named app opens directly — no detour
+    // through a generic readiness page or the app-picker catalog.
+    await waitFor(() => {
+      expect(screen.getByText("Connect Gmail")).toBeInTheDocument();
+    });
+  });
 });

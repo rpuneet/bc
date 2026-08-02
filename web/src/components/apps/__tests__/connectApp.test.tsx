@@ -11,6 +11,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AppChooser, ConnectWizard, sanitizeInstanceLabel } from "../ConnectApp";
+import { openExternal } from "../../../utils/openExternal";
+
+// openExternal is the one seam that must own "open the system browser" —
+// in the Wails desktop app a plain <a target=_blank> click never reaches
+// the OS browser, so every sign-in affordance routes through here instead.
+// Mocked so tests assert the call without touching window.open/navigation.
+vi.mock("../../../utils/openExternal", () => ({ openExternal: vi.fn() }));
 
 const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
 
@@ -72,7 +79,18 @@ const catalog = {
         { key: "client_secret", label: "OAuth Client Secret", placeholder: "GOCSPX-...", secret: true, required: true },
         { key: "refresh_token", label: "OAuth Refresh Token", placeholder: "1//0g...", secret: true, required: true },
       ],
-      docs: [],
+      // The dense manual path: create OAuth creds, OAuth Playground, paste
+      // a refresh token — the seven-step wall that must collapse behind
+      // "Advanced" whenever one-click sign-in is available.
+      docs: [
+        "Create a project in Google Cloud Console",
+        "Enable the Gmail API",
+        "Configure the OAuth consent screen",
+        "Create an OAuth Client ID (Desktop app)",
+        "Open the OAuth 2.0 Playground",
+        "Authorize the Gmail scope and exchange for a refresh token",
+        "Paste the client ID, secret and refresh token below",
+      ],
     },
   ],
   instances: [
@@ -97,6 +115,7 @@ function mockCatalog(overrides: { post?: () => Promise<Response> } = {}) {
 
 beforeEach(() => {
   fetchMock.mockReset();
+  vi.mocked(openExternal).mockReset();
 });
 
 /* ── AppChooser — catalog rendering ──────────────────────────── */
@@ -300,7 +319,20 @@ describe("ConnectWizard OAuth", () => {
     });
     const link = screen.getByRole("link", { name: /\bgithub\.com\/login\/device/ });
     expect(link).toHaveAttribute("href", "https://github.com/login/device");
-    expect(screen.getByText("Waiting for authorization...")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(/Waiting for authorization/);
+
+    // "Sign in" itself already opened the system browser via openExternal
+    // (not a plain <a target=_blank> navigation — that's a no-op inside
+    // the Wails desktop webview, the original "link doesn't work" bug).
+    expect(openExternal).toHaveBeenCalledWith("https://github.com/login/device");
+    expect(openExternal).toHaveBeenCalledTimes(1);
+
+    // The visible link is still a real, clickable fallback...
+    fireEvent.click(link);
+    expect(openExternal).toHaveBeenCalledTimes(2);
+    // ...and so is "Reopen browser", for a missed/closed/blocked popup.
+    fireEvent.click(screen.getByRole("button", { name: "Reopen browser" }));
+    expect(openExternal).toHaveBeenCalledTimes(3);
 
     const begin = fetchMock.mock.calls.find(
       (c) => String(c[0]) === "/api/apps/github/auth" && (c[1] as RequestInit | undefined)?.method === "POST",
@@ -379,16 +411,45 @@ describe("ConnectWizard OAuth", () => {
     await waitFor(() => {
       expect(screen.getByText("Connect Gmail")).toBeInTheDocument();
     });
-    // Callback flow has no user code — manual fields stay collapsed.
+    // Callback flow has no user code — manual fields, and the seven dense
+    // setup steps, stay collapsed under Advanced by default (native
+    // <details> collapse is the `open` attribute, which jsdom does not
+    // strip content for — so assert the attribute, not text absence).
     expect(screen.getByTestId("manual-config")).toBeInTheDocument();
+    expect(screen.getByTestId("manual-config")).not.toHaveAttribute("open");
+    // The raw authorization URL (with client_id/redirect_uri query params)
+    // must never be dumped into the page as sprawling body text.
+    expect(screen.queryByText(/redirect_uri/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/client_id=x/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Sign in with Gmail" }));
 
-    // Callback-flow UX: a link to open the Google consent page (no code).
+    // Callback-flow UX: a short link (host + path only, no query string)
+    // to open the Google consent page (no device code for this kind).
+    const authURL =
+      "https://accounts.google.com/o/oauth2/auth?client_id=x&redirect_uri=http%3A%2F%2F127.0.0.1%3A54321%2Foauth%2Fcallback";
+    let link: HTMLElement;
     await waitFor(() => {
-      expect(screen.getByRole("link", { name: /\baccounts\.google\.com\// })).toBeInTheDocument();
+      link = screen.getByRole("link", { name: /\baccounts\.google\.com\// });
+      expect(link).toBeInTheDocument();
     });
+    expect(link!).toHaveTextContent("accounts.google.com/o/oauth2/auth");
+    expect(link!).not.toHaveTextContent("redirect_uri");
     expect(screen.queryByTestId("oauth-user-code")).not.toBeInTheDocument();
+
+    // "Sign in with Gmail" already opened the browser with the full
+    // authorize URL (query string and all) — the shortened label is
+    // display-only, never what's actually opened or posted anywhere.
+    expect(openExternal).toHaveBeenCalledWith(authURL);
+    // The link is still a working manual fallback.
+    fireEvent.click(link!);
+    expect(openExternal).toHaveBeenCalledTimes(2);
+
+    // Advanced disclosure can still be opened manually — nothing was
+    // deleted, just collapsed.
+    fireEvent.click(screen.getByText("Advanced — configure manually or paste a token"));
+    expect(screen.getByTestId("manual-config")).toHaveAttribute("open");
+    expect(screen.getByText("Create a project in Google Cloud Console")).toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getByText("Add agents to Gmail")).toBeInTheDocument();

@@ -24,6 +24,7 @@ import { api } from "../../api/client";
 import type { Agent, AppAuthSession, AppDescriptor, AppInstance } from "../../api/client";
 import { AppIcon, presentationFor } from "./PlatformIcons";
 import { StatusDot } from "./appStatus";
+import { openExternal } from "../../utils/openExternal";
 
 /* ── Presentation-only metadata (backend owns the rest) ──────────────
    App icon/color/category/description metadata lives in PlatformIcons.tsx
@@ -583,6 +584,20 @@ function humanURL(url: string): string {
   return url.replace(/^https?:\/\//, "").replace(/\/$/, "");
 }
 
+/** Short, display-safe label for an authorization URL: host + path only,
+ *  never the query string. OAuth authorize URLs carry client_id,
+ *  redirect_uri, scope and state as query params — sprawling, useless-to-
+ *  read text that must never be rendered as the button/body copy. The
+ *  full URL (query string included) is still what gets opened. */
+function shortURLLabel(url: string): string {
+  try {
+    const u = new URL(url);
+    return humanURL(`${u.origin}${u.pathname}`);
+  } catch {
+    return humanURL(url).split("?")[0] ?? humanURL(url);
+  }
+}
+
 /** Normalize a user-typed instance label to the id-safe segment after ":". */
 export function sanitizeInstanceLabel(label: string): string {
   return label.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -751,6 +766,14 @@ export function ConnectWizard({
       const session = await api.beginAppOAuth(instanceName, config);
       setOauthSession(session);
       setOauthState("pending");
+      // One click really means one click: open the system browser the
+      // moment the session exists, instead of making the user find and
+      // click a second link. openExternal itself picks Wails'
+      // BrowserOpenURL vs window.open, so this works in the desktop app
+      // too. The "Reopen browser" control below covers popup blockers /
+      // an accidental close.
+      const authURL = session.verification_url ?? session.auth_url;
+      if (authURL) openExternal(authURL);
       // Poll for completion. The plugin rate-limits upstream calls to the
       // provider's interval, so a snappy local poll is safe.
       const pollId = setInterval(() => {
@@ -879,8 +902,12 @@ export function ConnectWizard({
 
         {step === "setup" ? (
           <>
-            {/* Setup docs from the descriptor */}
-            {descriptor.docs.length > 0 && (
+            {/* Setup docs from the descriptor. When one-click sign-in is
+                available these move into the Advanced disclosure below,
+                collapsed alongside the manual fields — a wall of numbered
+                setup steps must never out-compete a working Sign in
+                button for attention. */}
+            {!oauthAvailable && descriptor.docs.length > 0 && (
               <div className="p-4 border-b border-mycel-border">
                 <h3 className="text-[11px] font-medium text-mycel-muted uppercase tracking-[0.08em] mb-2">
                   Setup Steps
@@ -976,46 +1003,62 @@ export function ConnectWizard({
                 {oauthAvailable && (
                   <div data-testid="oauth-panel" className="rounded-md border border-mycel-border bg-mycel-surface p-4">
                     {oauthState === "pending" && oauthSession ? (
-                      <div className="flex flex-col items-center gap-3">
-                        {oauthSession.user_code ? (
-                          <>
-                            <p className="text-xs text-mycel-muted text-center">
-                              Enter this code in your browser to authorize mycel
-                            </p>
-                            <div
-                              data-testid="oauth-user-code"
-                              className="font-mono text-2xl font-semibold tracking-[0.25em] text-mycel-text bg-mycel-surface-2 border border-mycel-border rounded-md px-5 py-2.5 select-all"
-                            >
-                              {oauthSession.user_code}
+                      (() => {
+                        const authURL = oauthSession.verification_url ?? oauthSession.auth_url ?? "";
+                        return (
+                          <div className="flex flex-col items-center gap-3">
+                            {oauthSession.user_code ? (
+                              <>
+                                <p className="text-xs text-mycel-muted text-center">
+                                  Enter this code in your browser to authorize mycel
+                                </p>
+                                <div
+                                  data-testid="oauth-user-code"
+                                  className="font-mono text-2xl font-semibold tracking-[0.25em] text-mycel-text bg-mycel-surface-2 border border-mycel-border rounded-md px-5 py-2.5 select-all"
+                                >
+                                  {oauthSession.user_code}
+                                </div>
+                              </>
+                            ) : (
+                              <p className="text-xs text-mycel-muted text-center">
+                                Continue the sign-in in your browser
+                              </p>
+                            )}
+                            {authURL !== "" && (
+                              <a
+                                href={authURL}
+                                onClick={(e) => { e.preventDefault(); openExternal(authURL); }}
+                                className="inline-flex items-center justify-center h-11 min-w-[44px] px-4 bg-mycel-accent hover:bg-mycel-accent-hover text-mycel-accent-fg rounded-md font-medium text-sm shadow-mycel-sm transition-colors"
+                              >
+                                Open {shortURLLabel(authURL)} &rarr;
+                              </a>
+                            )}
+                            <div role="status" className="flex items-center gap-2 text-xs text-mycel-muted">
+                              <span className="w-2 h-2 bg-mycel-warning rounded-full animate-pulse" aria-hidden />
+                              Waiting for authorization…
+                              {authURL !== "" && (
+                                <>
+                                  <span aria-hidden>·</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => { openExternal(authURL); }}
+                                    className="text-mycel-accent hover:underline font-medium"
+                                  >
+                                    Reopen browser
+                                  </button>
+                                </>
+                              )}
                             </div>
-                          </>
-                        ) : (
-                          <p className="text-xs text-mycel-muted text-center">
-                            Continue the sign-in in your browser
-                          </p>
-                        )}
-                        {(oauthSession.verification_url ?? oauthSession.auth_url) && (
-                          <a
-                            href={oauthSession.verification_url ?? oauthSession.auth_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center h-9 px-4 bg-mycel-accent hover:bg-mycel-accent-hover text-mycel-accent-fg rounded-md font-medium text-sm shadow-mycel-sm transition-colors"
-                          >
-                            Open {humanURL(oauthSession.verification_url ?? oauthSession.auth_url ?? "")} &rarr;
-                          </a>
-                        )}
-                        <div className="flex items-center gap-2 text-xs text-mycel-muted">
-                          <span className="w-2 h-2 bg-mycel-warning rounded-full animate-pulse" />
-                          Waiting for authorization...
-                        </div>
-                      </div>
+                          </div>
+                        );
+                      })()
                     ) : (
                       <div className="flex flex-col items-center gap-2">
                         <button
                           type="button"
                           onClick={() => { void startOAuth(); }}
                           disabled={oauthState === "starting"}
-                          className="inline-flex items-center h-9 px-6 bg-mycel-accent hover:bg-mycel-accent-hover text-mycel-accent-fg rounded-md font-medium text-sm shadow-mycel-sm transition-colors disabled:opacity-50"
+                          className="inline-flex items-center justify-center h-11 min-w-[44px] px-6 bg-mycel-accent hover:bg-mycel-accent-hover text-mycel-accent-fg rounded-md font-medium text-sm shadow-mycel-sm transition-colors disabled:opacity-50"
                         >
                           {oauthState === "starting" ? "Starting sign-in..." : oauthState === "error" ? `Retry sign in with ${descriptor.label}` : `Sign in with ${descriptor.label}`}
                         </button>
@@ -1038,6 +1081,16 @@ export function ConnectWizard({
                       <span className="flex-1 border-t border-mycel-border" />
                     </summary>
                     <div className="space-y-3 pt-3">
+                      {descriptor.docs.length > 0 && (
+                        <ol className="space-y-1.5 mb-1">
+                          {descriptor.docs.map((docStep, i) => (
+                            <li key={i} className="flex gap-2 text-xs text-mycel-text-2">
+                              <span className="text-mycel-accent tabular-nums shrink-0">{i + 1}.</span>
+                              <span>{linkifyDoc(docStep)}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
                       {descriptor.fields.map(renderField)}
                     </div>
                   </details>

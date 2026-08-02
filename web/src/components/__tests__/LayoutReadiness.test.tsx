@@ -68,6 +68,30 @@ describe("Layout readiness surfacing", () => {
     expect(screen.queryByText(/run mycel doctor/i)).not.toBeInTheDocument();
   });
 
+  it("an app's degraded banner routes Check setup to that app's connect modal, not the readiness page", async () => {
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.includes("/api/health")) {
+        return jsonResponse({
+          status: "degraded",
+          degraded: { "app:gmail": "oauth token expired — reconnect required" },
+        });
+      }
+      if (u.includes("/api/system/info")) return jsonResponse({ hostname: "host", os: "darwin", arch: "arm64" });
+      if (u.includes("/api/doctor")) return jsonResponse({ categories: [] });
+      return jsonResponse([]);
+    });
+    renderLayout();
+    const links = await waitFor(() => {
+      const found = screen.getAllByRole("link", { name: "Check setup" });
+      expect(found.length).toBeGreaterThan(0);
+      return found;
+    });
+    for (const link of links) {
+      expect(link.getAttribute("href")).toBe("/apps?connect=gmail");
+    }
+  });
+
   it("no longer exposes a standalone Setup entry in the drawer footer", async () => {
     renderLayout();
     // Setup folded into Settings (the Setup section) + the /welcome wizard;
