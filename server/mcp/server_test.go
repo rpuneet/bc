@@ -108,6 +108,18 @@ func testRepo(t *testing.T) *home.Home {
 	if out, err := exec.CommandContext(t.Context(), "git", "init", dir).CombinedOutput(); err != nil {
 		t.Fatalf("git init: %v: %s", err, out)
 	}
+	// An initial commit so HEAD exists — orchestration tests spawn real
+	// child agents, and `git worktree add` needs a real ref to branch from.
+	for _, args := range [][]string{
+		{"-C", dir, "config", "user.email", "test@test.com"},
+		{"-C", dir, "config", "user.name", "Test"},
+		{"-C", dir, "commit", "--allow-empty", "-m", "init"},
+	} {
+		//nolint:gosec // args are fixed test constants
+		if out, err := exec.CommandContext(t.Context(), "git", args...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
 	h, err := home.Open(dir)
 	if err != nil {
 		t.Fatalf("home.Open: %v", err)
@@ -126,6 +138,8 @@ func TestE2E_ListTools(t *testing.T) {
 		"whoami": false, "list_agents": false, "list_channels": false,
 		"read_channel": false, "send_message": false, "send_file": false,
 		"report_status": false, "query_costs": false,
+		"spawn_agent": false, "send_to_agent": false, "stop_agent": false,
+		"list_children": false,
 	}
 	for _, tool := range res.Tools {
 		if _, ok := want[tool.Name]; !ok {
@@ -263,6 +277,10 @@ func TestE2E_ToolErrorsWhenDependencyMissing(t *testing.T) {
 		{Name: "list_agents"},
 		{Name: "report_status", Arguments: map[string]any{"task": "testing"}},
 		{Name: "query_costs"},
+		{Name: "spawn_agent", Arguments: map[string]any{"role": "engineer"}},
+		{Name: "send_to_agent", Arguments: map[string]any{"agent": "someone", "message": "hi"}},
+		{Name: "stop_agent", Arguments: map[string]any{"agent": "someone"}},
+		{Name: "list_children"},
 	} {
 		res, err := session.CallTool(t.Context(), call)
 		if err != nil {
