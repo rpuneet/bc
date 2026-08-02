@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
+import { ExternalLink } from "../components/ExternalLink";
 import { useHeaderSlot } from "../context/HeaderSlotContext";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -488,15 +489,13 @@ function ItemCard({ item }: { item: MarketplaceItem }) {
             <StarCount stars={item.stars} />
           )}
           {item.url && (
-            <a
+            <ExternalLink
               href={item.url}
-              target="_blank"
-              rel="noopener noreferrer"
               className="text-xs text-mycel-muted hover:text-mycel-accent transition-colors truncate"
               onClick={(e) => e.stopPropagation()}
             >
               {item.url.replace(/^https?:\/\//, "")}
-            </a>
+            </ExternalLink>
           )}
         </div>
       )}

@@ -10,6 +10,7 @@ import type {
 } from "../../api/client";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { MessageContent } from "../MessageContent";
+import { ExternalLink } from "../ExternalLink";
 import { useHeaderSlot } from "../../context/HeaderSlotContext";
 import {
   gatewayPlatform,
@@ -340,15 +341,13 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
       <div style={{ padding: "2px 12px 10px" }}>
         <div style={{ fontSize: 13, fontWeight: 500, color: "var(--mycel-text)", lineHeight: 1.4 }}>
           {card.url ? (
-            <a
+            <ExternalLink
               href={card.url}
-              target="_blank"
-              rel="noopener noreferrer"
               className="hover:underline"
               style={{ color: "var(--mycel-text)", textDecoration: "none" }}
             >
               {card.title}
-            </a>
+            </ExternalLink>
           ) : (
             card.title
           )}
@@ -395,7 +394,7 @@ function RSSCardView({ card }: { card: RSSCard }) {
       </div>
       <div style={{ padding: "4px 12px 10px" }}>
         <div style={{ fontSize: 13, fontWeight: 500, color: "var(--mycel-text)", lineHeight: 1.4 }}>
-          {card.link ? (<a href={card.link} target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: "var(--mycel-text)", textDecoration: "none" }}>{card.title}</a>) : card.title}
+          {card.link ? (<ExternalLink href={card.link} className="hover:underline" style={{ color: "var(--mycel-text)", textDecoration: "none" }}>{card.title}</ExternalLink>) : card.title}
         </div>
         {card.description && <div style={{ fontSize: 12, color: "var(--mycel-text-2)", marginTop: 4, lineHeight: 1.4, maxHeight: 60, overflow: "hidden" }}>{card.description.slice(0, 200)}</div>}
       </div>

@@ -391,6 +391,11 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	// strict input validation, argv-slice exec (no shell), timeouts, result
 	// caps, and a loopback gate. Install streams NDJSON like the deps installer.
 	handlers.NewPackageSearchHandler().Register(mux)
+	// Hand an external link to the host's default browser. The desktop app's
+	// webview lives on the daemon's http:// origin, where Wails never injects
+	// BrowserOpenURL, so window.open is a no-op; the UI posts the URL here
+	// instead. Loopback-only, http/https-only, exec'd as a single argv (no shell).
+	handlers.NewOpenURLHandler().Register(mux)
 	// Per-repo cost rollup. Handler is nil-safe and returns 503 when the
 	// global ledger isn't wired.
 	mux.Handle("/api/global/costs", handlers.NewGlobalCostsHandler(svc.Costs))

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { ExternalLink } from "../components/ExternalLink";
 
 /* ── Types ──────────────────────────────────────────────────────────── */
 
@@ -293,9 +294,9 @@ function ChannelTile({ channel }: { channel: ChannelStatus }) {
   );
   if (channel.href) {
     return (
-      <a href={channel.href} target="_blank" rel="noreferrer" className="block focus:outline-none focus:ring-1 focus:ring-mycel-accent">
+      <ExternalLink href={channel.href} className="block focus:outline-none focus:ring-1 focus:ring-mycel-accent">
         {body}
-      </a>
+      </ExternalLink>
     );
   }
   return body;

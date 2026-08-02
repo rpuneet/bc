@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { ExternalLink } from "./ExternalLink";
 
 /**
  * Renders message content with basic markdown-like formatting:
@@ -78,11 +79,9 @@ function parseContent(text: string, agentNames?: Set<string>): ReactNode[] {
       const fileId = full.slice(6, -1); // strip [file: and ]
       const fileUrl = `/api/files/${encodeURIComponent(fileId)}`;
       nodes.push(
-        <a
+        <ExternalLink
           key={key}
-          href={fileUrl}
-          target="_blank"
-          rel="noopener noreferrer"
+          href={`${location.origin}${fileUrl}`}
           className="inline-block my-1"
         >
           <img
@@ -100,28 +99,26 @@ function parseContent(text: string, agentNames?: Set<string>): ReactNode[] {
               }
             }}
           />
-        </a>,
+        </ExternalLink>,
       );
     } else if (match[2]) {
       // URL — render images inline
       const url = full;
       if (IMAGE_EXT.test(url)) {
         nodes.push(
-          <a key={key} href={url} target="_blank" rel="noopener noreferrer" className="inline-block my-1">
+          <ExternalLink key={key} href={url} className="inline-block my-1">
             <img src={url} alt="" className="max-w-sm max-h-64 rounded-md border border-mycel-border" loading="lazy" />
-          </a>,
+          </ExternalLink>,
         );
       } else {
         nodes.push(
-          <a
+          <ExternalLink
             key={key}
             href={url}
-            target="_blank"
-            rel="noopener noreferrer"
             className="text-mycel-accent underline-offset-2 hover:underline"
           >
             {url}
-          </a>,
+          </ExternalLink>,
         );
       }
     } else if (match[3]) {
