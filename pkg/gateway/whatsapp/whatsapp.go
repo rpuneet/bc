@@ -55,13 +55,50 @@ type Adapter struct { //nolint:govet
 }
 
 func init() {
-	// Fetch latest WA web version and set device identity to match WhatsApp Web.
-	if ver, err := whatsmeow.GetLatestVersion(context.Background(), nil); err == nil {
-		store.SetWAVersion(*ver)
-		log.Info("whatsapp: using WA version", "version", ver.String())
-	}
+	// Local assignments only. This runs on import, and the package is linked into
+	// the CLI, so anything here happens for every `mycel` invocation — including
+	// `--version` and `--help`. The version negotiation that used to live here
+	// makes a network call; see ensureWAVersion.
 	store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_CHROME.Enum()
 	store.SetOSInfo("Chrome", store.GetWAVersion())
+}
+
+// versionOnce guards the one-time WhatsApp Web version negotiation.
+var versionOnce sync.Once
+
+// ensureWAVersion negotiates the WhatsApp Web version whatsmeow presents as,
+// once per process. Called from the paths that actually connect.
+//
+// Deliberately not done in package init: GetLatestVersion performs an HTTP
+// request, so having it there meant every CLI command reached out to WhatsApp's
+// servers before doing anything, and logged a WhatsApp line while doing it.
+// On failure whatsmeow's bundled default applies, which is why no error is
+// returned — a stale version string degrades pairing, it does not stop the
+// adapter from starting.
+func ensureWAVersion(ctx context.Context) {
+	versionOnce.Do(func() {
+		negotiateWAVersion(ctx, whatsmeow.GetLatestVersion)
+	})
+}
+
+// versionFetcher matches whatsmeow.GetLatestVersion. Taken as a parameter so
+// negotiateWAVersion can be tested without reaching the network.
+type versionFetcher func(context.Context, *http.Client) (*store.WAVersionContainer, error)
+
+// negotiateWAVersion applies the fetched version, or leaves whatsmeow's bundled
+// default in place when the lookup fails.
+func negotiateWAVersion(ctx context.Context, fetch versionFetcher) {
+	ver, err := fetch(ctx, nil)
+	if err != nil {
+		log.Debug("whatsapp: version lookup failed, using bundled default", "error", err)
+		return
+	}
+	store.SetWAVersion(*ver)
+	// Re-apply: SetOSInfo also stamps the version into DeviceProps.Version and
+	// the client payload's OsVersion, both of which still carry the bundled
+	// default set during init.
+	store.SetOSInfo("Chrome", store.GetWAVersion())
+	log.Info("whatsapp: using WA version", "version", ver.String())
 }
 
 var _ gateway.NotificationAdapter = (*Adapter)(nil)
@@ -110,6 +147,7 @@ type PairStatus struct {
 // StartPairing initiates a QR code pairing flow. Returns immediately with
 // the QR code as a data URL. Does not require the daemon restart.
 func (a *Adapter) StartPairing(ctx context.Context) (*PairStatus, error) {
+	ensureWAVersion(ctx)
 	if err := os.MkdirAll(a.stateDir, 0o700); err != nil {
 		return nil, fmt.Errorf("whatsapp: create state dir: %w", err)
 	}
@@ -241,6 +279,7 @@ func (a *Adapter) GetPairStatus() *PairStatus {
 func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification)) error {
 	a.handler = handler
 	a.qrChan = make(chan string, 5)
+	ensureWAVersion(ctx)
 
 	if err := os.MkdirAll(a.stateDir, 0o700); err != nil {
 		return fmt.Errorf("whatsapp: create state dir: %w", err)
