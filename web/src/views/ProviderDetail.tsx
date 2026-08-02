@@ -17,7 +17,23 @@ import { StatusBadge } from "../components/StatusBadge";
 import { CopyButton } from "../components/CopyButton";
 import { ConfirmButton } from "../components/shared";
 import { ToastContainer, useToast } from "../components/Toast";
+import { ProviderLogo } from "../components/ProviderLogo";
+import { PROVIDER_LABELS } from "./readiness/readiness";
 import { formatCost, formatTokens } from "../utils/format";
+
+/* Shared section-heading treatment — a quiet, settled label instead of the
+ * tiny shouty all-caps that used to repeat down the page. */
+function SectionHeading({ title, count, children }: { title: string; count?: number; children?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-2 mb-3">
+      <h2 className="flex items-baseline gap-2 text-sm font-semibold text-mycel-text">
+        {title}
+        {count !== undefined && <span className="text-xs font-normal text-mycel-muted tabular-nums">{count}</span>}
+      </h2>
+      {children}
+    </div>
+  );
+}
 
 // Vault key each provider reads for headless (API-key) auth. Only these two
 // providers support a documented env-var API key today; every other
@@ -438,28 +454,29 @@ function ProviderHeader({
   // unless told otherwise — can't be uninstalled (mirrors the server's own
   // isRequiredProvider refusal in server/handlers/providers.go).
   const isDefault = provider.config?.default === "true";
+  const label = PROVIDER_LABELS[provider.name] ?? provider.name;
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-      <div className="flex items-center gap-3">
-        <Link
-          to="/settings"
-          className="text-mycel-muted hover:text-mycel-text text-sm shrink-0"
-        >
-          &larr; Settings
-        </Link>
-        {/* Monogram */}
-        <div className="w-9 h-9 rounded-full bg-mycel-accent-subtle flex items-center justify-center shrink-0">
-          <span className="text-sm font-bold text-mycel-accent">
-            {provider.name.charAt(0).toUpperCase()}
-          </span>
-        </div>
-        <div>
+    <div>
+      <Link
+        to="/settings"
+        className="inline-flex items-center gap-1 text-mycel-muted hover:text-mycel-text text-xs mb-3 transition-colors"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+        </svg>
+        Settings
+      </Link>
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+      <div className="flex items-center gap-3.5 min-w-0">
+        {/* Real provider logo hero */}
+        <ProviderLogo name={provider.name} size={48} className="shadow-mycel-sm" />
+        <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="font-display text-xl font-bold">{provider.name}</h1>
+            <h1 className="font-display text-2xl font-bold leading-none">{label}</h1>
             <StatusBadge status={providerStatus(provider)} />
             <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
                 provider.enabled
                   ? "bg-mycel-success-subtle text-mycel-success"
                   : "bg-mycel-surface-hover text-mycel-text-2"
@@ -471,11 +488,19 @@ function ProviderHeader({
               {provider.enabled ? "Enabled" : "Disabled"}
             </span>
           </div>
-          {provider.version && (
-            <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-xs font-mono bg-mycel-surface border border-mycel-border text-mycel-muted">
-              v{provider.version}
-            </span>
-          )}
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            {label !== provider.name && (
+              <span className="text-xs font-mono text-mycel-muted">{provider.name}</span>
+            )}
+            {provider.version && (
+              <span className="inline-block px-2 py-0.5 rounded-md text-xs font-mono bg-mycel-surface border border-mycel-border text-mycel-text-2 tabular-nums">
+                v{provider.version}
+              </span>
+            )}
+            {provider.description && (
+              <span className="text-xs text-mycel-muted truncate max-w-[40ch]">{provider.description}</span>
+            )}
+          </div>
         </div>
       </div>
       <div className="flex flex-col items-end gap-2 sm:min-w-[16rem]">
@@ -510,6 +535,7 @@ function ProviderHeader({
                 : `Up to date (v${updateResult.current}).`}
           </p>
         )}
+      </div>
       </div>
     </div>
   );
@@ -551,10 +577,8 @@ function ConfigPanel({
 
   return (
     <section>
-      <h2 className="text-xs font-medium text-mycel-muted uppercase tracking-widest mb-3">
-        Configuration
-      </h2>
-      <div className="rounded border border-mycel-border bg-mycel-surface p-4 space-y-4">
+      <SectionHeading title="Configuration" />
+      <div className="rounded-lg border border-mycel-border bg-mycel-surface p-4 space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             {/* Static value, not a form control \u2014 a <span> avoids an orphan <label>. */}
@@ -631,9 +655,7 @@ function ConfigPanel({
 function ModelsSection({ providerName, models }: { providerName: string; models: ModelInfo[] }) {
   return (
     <section>
-      <h2 className="text-xs font-medium text-mycel-muted uppercase tracking-widest mb-3">
-        Models ({models.length})
-      </h2>
+      <SectionHeading title="Models" count={models.length} />
       {models.length === 0 ? (
         <EmptyState
           icon="◇"
@@ -811,10 +833,7 @@ function MCPSection({
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-xs font-medium text-mycel-muted uppercase tracking-widest">
-          MCP Servers ({servers.length})
-        </h2>
+      <SectionHeading title="MCP Servers" count={servers.length}>
         <div className="flex items-center gap-2">
           {servers.length > 0 && (
             <button
@@ -834,7 +853,7 @@ function MCPSection({
             {showAdd ? "Cancel" : "+ Add MCP"}
           </button>
         </div>
-      </div>
+      </SectionHeading>
 
       <MCPHealthSummary servers={servers} healthMap={healthMap} />
 
@@ -1005,9 +1024,7 @@ function CostBars({ provider }: { provider: ProviderDetailResponse }) {
 
   return (
     <section>
-      <h3 className="text-xs font-medium text-mycel-muted uppercase tracking-widest mb-3">
-        Cost by Model
-      </h3>
+      <h3 className="text-sm font-semibold text-mycel-text mb-3">Cost by Model</h3>
       <div className="space-y-2">
         {models.map((m) => {
           const pct = Math.max((m.total_cost_usd / maxCost) * 100, 2);
@@ -1040,8 +1057,8 @@ function AgentsSidebar({
 }) {
   return (
     <section>
-      <h3 className="text-xs font-medium text-mycel-muted uppercase tracking-widest mb-3">
-        Agents ({agents.length})
+      <h3 className="flex items-baseline gap-2 text-sm font-semibold text-mycel-text mb-3">
+        Agents <span className="text-xs font-normal text-mycel-muted tabular-nums">{agents.length}</span>
       </h3>
       {agents.length === 0 ? (
         <p className="text-xs text-mycel-muted">No agents using this provider.</p>
@@ -1209,14 +1226,11 @@ function CommandsSection({ providerName, commands }: { providerName: string; com
   const runnableCount = commands.filter((c) => c.runnable).length;
   return (
     <section>
-      <div className="flex items-baseline gap-2 mb-3">
-        <h2 className="text-xs font-medium text-mycel-muted uppercase tracking-widest">
-          Available Commands ({commands.length})
-        </h2>
+      <SectionHeading title="Available Commands" count={commands.length}>
         {commands.length > 0 && (
-          <span className="text-[10.5px] text-mycel-muted">{runnableCount} runnable · rest open a terminal</span>
+          <span className="text-[11px] text-mycel-muted">{runnableCount} runnable · rest open a terminal</span>
         )}
-      </div>
+      </SectionHeading>
       {commands.length === 0 ? (
         <EmptyState
           icon=">"

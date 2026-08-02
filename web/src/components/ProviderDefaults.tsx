@@ -3,6 +3,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { api } from "../api/client";
 import type { ProviderInfo } from "../api/client";
 import { PROVIDER_LABELS } from "../views/readiness/readiness";
+import { ProviderLogo } from "./ProviderLogo";
 
 /* ── ProviderDefaults ────────────────────────────────────────────────
  *
@@ -196,21 +197,24 @@ export function ProviderDefaults({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="block">
           <span className="block text-[11px] text-mycel-text-2 mb-1">Default provider</span>
-          <select
-            className={SELECT_CLS}
-            value={defaultProvider}
-            disabled={!loaded || providers.length === 0}
-            onChange={(e) => onProviderChange(e.target.value)}
-            aria-label="Default provider"
-          >
-            {providers.length === 0 && <option value="">No providers</option>}
-            {providers.map((p) => (
-              <option key={p.name} value={p.name}>
-                {PROVIDER_LABELS[p.name] ?? p.name}
-                {p.installed ? "" : " (not installed)"}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            <ProviderLogo name={defaultProvider || "?"} size={30} className="shrink-0" />
+            <select
+              className={SELECT_CLS}
+              value={defaultProvider}
+              disabled={!loaded || providers.length === 0}
+              onChange={(e) => onProviderChange(e.target.value)}
+              aria-label="Default provider"
+            >
+              {providers.length === 0 && <option value="">No providers</option>}
+              {providers.map((p) => (
+                <option key={p.name} value={p.name}>
+                  {PROVIDER_LABELS[p.name] ?? p.name}
+                  {p.installed ? "" : " (not installed)"}
+                </option>
+              ))}
+            </select>
+          </div>
         </label>
 
         <label className="block">
