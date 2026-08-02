@@ -382,19 +382,25 @@ type Agent struct {
 	// Model is the provider model identifier the agent runs with (e.g.
 	// "fable" for claude). Empty means the provider default — no model
 	// flag is injected. Restarts reuse the stored value.
-	Model          string     `json:"model,omitempty"`
-	ParentID       string     `json:"parent_id,omitempty"`
-	HookedWork     string     `json:"hooked_work,omitempty"`
-	WorktreeDir    string     `json:"worktree_dir,omitempty"`
-	LogFile        string     `json:"log_file,omitempty"`
-	Team           string     `json:"team,omitempty"`
-	RecoveredFrom  string     `json:"recovered_from,omitempty"`
-	EnvFile        string     `json:"env_file,omitempty"`
-	RuntimeBackend string     `json:"runtime_backend,omitempty"`
-	LastCrashTime  *time.Time `json:"last_crash_time,omitempty"`
-	Role           Role       `json:"role"`
-	State          State      `json:"state"`
-	Children       []string   `json:"children,omitempty"`
+	Model          string `json:"model,omitempty"`
+	ParentID       string `json:"parent_id,omitempty"`
+	HookedWork     string `json:"hooked_work,omitempty"`
+	WorktreeDir    string `json:"worktree_dir,omitempty"`
+	LogFile        string `json:"log_file,omitempty"`
+	Team           string `json:"team,omitempty"`
+	RecoveredFrom  string `json:"recovered_from,omitempty"`
+	EnvFile        string `json:"env_file,omitempty"`
+	RuntimeBackend string `json:"runtime_backend,omitempty"`
+	// Template is the name of the template this agent was spawned from
+	// (empty when spawned without one). Guardrails read the template's
+	// MaxCostUSD / StuckTimeoutMin by this name at check time rather than
+	// copying the limits onto the agent row, so template edits apply to
+	// already-running agents without a respawn.
+	Template      string     `json:"template,omitempty"`
+	LastCrashTime *time.Time `json:"last_crash_time,omitempty"`
+	Role          Role       `json:"role"`
+	State         State      `json:"state"`
+	Children      []string   `json:"children,omitempty"`
 	// CPUs is a per-agent Docker CPU cap (cores, e.g. 1.5). Zero means
 	// inherit the fleet default (prefs runtime.docker.cpus). Enforced only
 	// for the Docker runtime — tmux agents run unconstrained on the host.
@@ -993,6 +999,10 @@ type SpawnOptions struct {
 	Runtime   string // override runtime backend ("tmux" or "docker"); empty uses manager default
 	Team      string // optional team assignment
 	SessionID string // Explicit session ID to resume (overrides stored session_id)
+	// Template is the name of the template this agent is spawned from.
+	// Recorded on the agent row so the guardrail loop can look up
+	// MaxCostUSD / StuckTimeoutMin at check time. Empty disables guardrails.
+	Template string
 }
 
 // SpawnAgent creates and starts a new agent.
@@ -1459,6 +1469,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		RuntimeBackend: agentRuntime,
 		Children:       []string{},
 		IsRoot:         role == RoleRoot,
+		Template:       opts.Template,
 		CreatedAt:      now,
 		StartedAt:      now,
 		UpdatedAt:      now,

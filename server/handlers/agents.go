@@ -407,14 +407,15 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 			role = "base"
 		}
 		a, err := svc.Create(r.Context(), agent.CreateOptions{
-			Name:    req.Name,
-			Role:    agent.Role(role),
-			Tool:    req.Tool,
-			Model:   req.Model,
-			Runtime: req.Runtime,
-			Parent:  req.Parent,
-			Repo:    req.Repo,
-			Env:     req.Env,
+			Name:     req.Name,
+			Role:     agent.Role(role),
+			Tool:     req.Tool,
+			Model:    req.Model,
+			Runtime:  req.Runtime,
+			Parent:   req.Parent,
+			Repo:     req.Repo,
+			Env:      req.Env,
+			Template: req.Template,
 		})
 		if err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)

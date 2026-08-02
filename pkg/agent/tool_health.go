@@ -59,17 +59,21 @@ func (m *Manager) CheckToolHealth(ctx context.Context, agentName string) error {
 	)
 
 	task := fmt.Sprintf("tool unavailable: %s binary not found", toolName)
-	if err := m.updateStateForToolHealth(ctx, agentName, task); err != nil {
+	if err := m.MarkStuck(ctx, agentName, task); err != nil {
 		return fmt.Errorf("failed to mark agent %q as stuck: %w", agentName, err)
 	}
 
 	return nil
 }
 
-// updateStateForToolHealth sets an agent to StateStuck when its tool is
-// unavailable. It validates the transition and notifies state-change
-// listeners.
-func (m *Manager) updateStateForToolHealth(ctx context.Context, name, task string) error {
+// MarkStuck sets an agent to StateStuck with the given reason recorded as
+// its Task, so the UI shows WHY the agent stopped making progress. It
+// validates the transition (a no-op if the agent is already stopped/errored)
+// and notifies state-change listeners exactly once, on the transition into
+// StateStuck. Used by the tool health loop (binary went missing) and the
+// cost/stuck guardrail loop (no activity within the template's
+// StuckTimeoutMin).
+func (m *Manager) MarkStuck(ctx context.Context, name, task string) error {
 	var changed bool
 
 	m.mu.Lock()
@@ -91,7 +95,7 @@ func (m *Manager) updateStateForToolHealth(ctx context.Context, name, task strin
 	changed = prevState != StateStuck
 
 	if err := m.saveState(ctx); err != nil {
-		log.Warn("failed to save agent state after tool health check", "error", err)
+		log.Warn("failed to save agent state after marking stuck", "error", err)
 	}
 	m.mu.Unlock()
 

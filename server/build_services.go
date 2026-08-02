@@ -272,6 +272,17 @@ func buildServicesFromHome(ctx context.Context, globals *Globals, h *home.Home) 
 		agentSvc.SetHookEventStore(eventLog)
 	}
 
+	// Agent guardrail loop: enforces Template.MaxCostUSD (auto-stop) and
+	// Template.StuckTimeoutMin (auto-flag) for every agent spawned from a
+	// template (#3423). Runs regardless of whether the event log is
+	// available — eventLog may be nil (degraded), in which case the stuck
+	// check falls back to the agent's own UpdatedAt.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		runGuardrailLoop(svcCtx, agentSvc, tmplStore, eventLog, DefaultGuardrailInterval)
+	}()
+
 	// Stats collector — only runs if a TSDB stats store is configured
 	// globally. Uses the current agentSvc.
 	if globals != nil && globals.Stats != nil {
