@@ -17,6 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   origin, or from a non-browser client such as the CLI. Reads are unchanged
   (#3470).
 
+### Fixed
+
+- **Agent-spawned children are no longer exempt from guardrails.** `spawn_agent`
+  over MCP had no `template` field, and the guardrail loop skips any agent
+  without one, so every child an agent spawned ran with no cost cap and no stuck
+  detection — the unattended case the guardrails exist for. It now accepts a
+  template and, when none is given, inherits the caller's, so omitting the field
+  cannot silently mean "unguarded" (#3472).
+
 ## [0.4.4] - 2026-08-02
 
 App readiness. The surfaces that looked finished in 0.4.3 became real:
