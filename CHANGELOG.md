@@ -39,6 +39,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   included — made an HTTP request to WhatsApp's servers and printed a WhatsApp log
   line before doing what was asked. The lookup now happens when the adapter
   actually connects, once per process (#3455).
+- **Tool details report real paths and owners.** An expanded CLI tool row
+  showed "Path: git" — the configured command name under a Path label — and a
+  "Version cmd" box that was just the tool name plus `--version`, both styled
+  like inputs waiting to be filled in. The API now separates `path` (resolved,
+  absolute) from `command` (configured) and infers which package manager owns
+  each tool, following the symlink so a Homebrew binary is attributable. With
+  the owner known, the row names the update command that manager would use
+  instead of saying "copy the command above" with no command above it, and it
+  no longer offers to uninstall OS-provided binaries the backend refuses to
+  touch. The Setup card now appears only while setup is unfinished, rather
+  than permanently restating that the re-run icon exists (#3482).
 
 ## [0.4.4] - 2026-08-02
 
