@@ -65,11 +65,19 @@ Naming convention: `make <verb>-<runtime>-<component>` where `verb` = `build` | 
 | `make build-docker-agent-base` | Build the agent base image |
 | `make build-docker-playwright` | Build the Playwright MCP Docker image |
 
+### Optional: embedding the Google OAuth client for Gmail
+
+`make build-local-mycel`, `make release-local-mycel`, and `make build-local-desktop` all read `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` from the environment and inject them into the binary via `-ldflags -X` so that Gmail's "Sign in with Google" works with zero setup. Nothing is hardcoded in source — if the variables are unset the build is unaffected and Gmail falls back to the manual client-id/secret/refresh-token paste, exactly as before.
+
+- **Official releases**: the maintainer sets `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` as repo Actions secrets (used by `release.yml`, `cd-main.yml`, and `.goreleaser.yml`).
+- **Local dev**: `export GOOGLE_OAUTH_CLIENT_ID=... GOOGLE_OAUTH_CLIENT_SECRET=...` before running the build commands above to test one-click sign-in locally.
+
+This is safe to embed because the client is registered as a Google "Desktop app" (installed application) OAuth client — Google's own docs treat the client secret for that client type as non-confidential (it can't be kept secret in a distributed binary), so baking it in at build time is the standard, supported pattern rather than a workaround. See `pkg/gateway/gmail/oauth.go` for the resolution order (env var override → build-injected default → unconfigured).
+
 ### Test
 
 | Command | Description |
 |---------|-------------|
-| `make test` | Run all tests (go + ts) |
 | `make test-go` | Run Go tests with race detector |
 | `make test-go-fast` | Go tests excluding slow packages (tmux, secret, doctor, internal/cmd) |
 | `make test-ts` | Run all TS tests (web + landing) |

@@ -25,6 +25,8 @@ builds:
       - -X main.version={{.Version}}
       - -X main.commit={{.ShortCommit}}
       - -X main.date={{.Date}}
+      - -X 'github.com/rpuneet/mycel/pkg/gateway/gmail.defaultGoogleClientID={{.Env.GOOGLE_OAUTH_CLIENT_ID}}'
+      - -X 'github.com/rpuneet/mycel/pkg/gateway/gmail.defaultGoogleClientSecret={{.Env.GOOGLE_OAUTH_CLIENT_SECRET}}'
     goos:
       - linux
     goarch:
@@ -43,6 +45,8 @@ builds:
       - -X main.version={{.Version}}
       - -X main.commit={{.ShortCommit}}
       - -X main.date={{.Date}}
+      - -X 'github.com/rpuneet/mycel/pkg/gateway/gmail.defaultGoogleClientID={{.Env.GOOGLE_OAUTH_CLIENT_ID}}'
+      - -X 'github.com/rpuneet/mycel/pkg/gateway/gmail.defaultGoogleClientSecret={{.Env.GOOGLE_OAUTH_CLIENT_SECRET}}'
     goos:
       - linux
     goarch:
@@ -59,6 +63,8 @@ builds:
       - -X main.version={{.Version}}
       - -X main.commit={{.ShortCommit}}
       - -X main.date={{.Date}}
+      - -X 'github.com/rpuneet/mycel/pkg/gateway/gmail.defaultGoogleClientID={{.Env.GOOGLE_OAUTH_CLIENT_ID}}'
+      - -X 'github.com/rpuneet/mycel/pkg/gateway/gmail.defaultGoogleClientSecret={{.Env.GOOGLE_OAUTH_CLIENT_SECRET}}'
     goos:
       - windows
     goarch:
