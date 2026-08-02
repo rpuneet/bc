@@ -46,7 +46,7 @@ func realOpenURL(ctx context.Context, rawURL string) error {
 	default:
 		name, args = "xdg-open", []string{rawURL}
 	}
-	// The launch must OUTLIVE the HTTP request: r.Context() is cancelled the
+	// The launch must OUTLIVE the HTTP request: r.Context() is canceled the
 	// instant the handler returns 204, which would kill the opener before it
 	// hands the URL to the browser. Sever cancellation (keep any values) and
 	// give the child a bounded lifetime of its own.
