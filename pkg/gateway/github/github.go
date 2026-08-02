@@ -30,12 +30,21 @@ var commonEventTypes = []string{
 	"workflow_run",
 }
 
-// Adapter implements gateway.NotificationAdapter for GitHub webhooks.
+// apiBaseURL is the default GitHub REST API host. Overridden in tests via
+// Adapter.apiBase so an httptest server can stand in for api.github.com.
+const apiBaseURL = "https://api.github.com"
+
+// Adapter implements gateway.NotificationAdapter for GitHub webhooks, plus
+// outbound REST calls (PR/issue comments, commit statuses) authenticated
+// with the OAuth device-flow api_token.
 type Adapter struct {
-	lastMessageAt time.Time
 	handler       func(gateway.Notification)
+	httpc         *http.Client
+	lastMessageAt time.Time
 	name          string
 	secret        string
+	apiToken      string
+	apiBase       string
 	lastError     string
 	mu            sync.Mutex
 	connected     bool
@@ -45,21 +54,33 @@ type Adapter struct {
 var _ gateway.NotificationAdapter = (*Adapter)(nil)
 
 // New creates a new GitHub webhook adapter with the given HMAC secret.
-// If secret is empty, signature validation is skipped.
+// If secret is empty, signature validation is skipped. It has no api_token,
+// so outbound calls (Comment, SetStatus) fail with a clear sign-in error.
 func New(secret string) *Adapter {
-	return &Adapter{
-		name:   "github",
-		secret: secret,
-	}
+	return NewNamed("github", secret, "")
 }
 
 // NewNamed creates a named GitHub adapter for multi-repo setups
-// (e.g. "github:mycel", "github:trade").
-func NewNamed(name, secret string) *Adapter {
+// (e.g. "github:mycel", "github:trade"). apiToken is the OAuth device-flow
+// token (scope "repo") used for outbound REST calls; pass "" if the app
+// instance hasn't signed in yet.
+func NewNamed(name, secret, apiToken string) *Adapter {
 	return &Adapter{
-		name:   name,
-		secret: secret,
+		name:     name,
+		secret:   secret,
+		apiToken: apiToken,
+		httpc:    &http.Client{Timeout: 15 * time.Second},
+		apiBase:  apiBaseURL,
 	}
+}
+
+// SetAPIBaseForTest overrides the GitHub REST API host, e.g. pointing it at
+// an httptest server. Exported for use by other packages' tests (server
+// handlers); production code never calls this.
+func (a *Adapter) SetAPIBaseForTest(base string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.apiBase = base
 }
 
 func (a *Adapter) Name() string { return a.name }

@@ -183,7 +183,7 @@ func TestAdapterInterface(t *testing.T) {
 }
 
 func TestNamedAdapter(t *testing.T) {
-	a := NewNamed("github:mycel", "secret")
+	a := NewNamed("github:mycel", "secret", "")
 	if a.Name() != "github:mycel" {
 		t.Errorf("Name() = %q, want %q", a.Name(), "github:mycel")
 	}

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -73,6 +74,8 @@ func (h *GatewayHandler) appScopedRoute(w http.ResponseWriter, r *http.Request, 
 		h.gatewayAPIProxy(w, r, platform, strings.TrimPrefix(rest, "api"))
 	case rest == "react":
 		h.gatewayReact(w, r, platform)
+	case rest == "status":
+		h.gatewayCommitStatus(w, r, platform)
 	default:
 		httpError(w, "not found", http.StatusNotFound)
 	}
@@ -656,4 +659,72 @@ func (h *GatewayHandler) gatewayReact(w http.ResponseWriter, r *http.Request, pl
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "channel": req.Channel})
+}
+
+// commitStatusSetter is checked at runtime for adapters that can set a
+// commit status/check (currently only the GitHub adapter). It doesn't fit
+// the generic channel-Send model — a status targets a repo+sha, not a
+// mycel channel — so it's a focused capability behind its own route
+// instead of being routed through gateway.Manager.
+type commitStatusSetter interface {
+	SetStatus(ctx context.Context, owner, repo, sha, state, description, targetURL, statusContext string) error
+}
+
+// gatewayCommitStatus handles POST /api/apps/{name}/status — sets a commit
+// status (e.g. GitHub's POST /repos/{owner}/{repo}/statuses/{sha}) via the
+// gateway adapter's outbound capability.
+//
+// Request body:
+//
+//	{
+//	  "owner":       "rpuneet",
+//	  "repo":        "mycel",
+//	  "sha":         "abc123",
+//	  "state":       "success",           // error | failure | pending | success
+//	  "description": "all checks passed", // optional
+//	  "target_url":  "https://...",       // optional
+//	  "context":     "mycel-ci"           // optional
+//	}
+func (h *GatewayHandler) gatewayCommitStatus(w http.ResponseWriter, r *http.Request, platform string) {
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+	if h.gw == nil {
+		serviceUnavailable(w, r, "gateway", "gateway manager not available")
+		return
+	}
+	adapter := h.gw.GetAdapter(platform)
+	if adapter == nil {
+		httpError(w, "adapter not found: "+platform, http.StatusNotFound)
+		return
+	}
+	setter, ok := adapter.(commitStatusSetter)
+	if !ok {
+		httpError(w, "adapter "+platform+" does not support commit statuses", http.StatusNotImplemented)
+		return
+	}
+
+	var req struct {
+		Owner       string `json:"owner"`
+		Repo        string `json:"repo"`
+		SHA         string `json:"sha"`
+		State       string `json:"state"`
+		Description string `json:"description"`
+		TargetURL   string `json:"target_url"`
+		Context     string `json:"context"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+	if req.Owner == "" || req.Repo == "" || req.SHA == "" || req.State == "" {
+		httpError(w, "owner, repo, sha, and state are required", http.StatusBadRequest)
+		return
+	}
+
+	if err := setter.SetStatus(r.Context(), req.Owner, req.Repo, req.SHA, req.State, req.Description, req.TargetURL, req.Context); err != nil {
+		httpInternalError(w, "set commit status", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

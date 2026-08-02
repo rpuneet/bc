@@ -49,7 +49,7 @@ func (*plugin) Describe() app.Descriptor {
 }
 
 func (*plugin) Build(inst app.Instance, _ app.Env) (gateway.NotificationAdapter, error) {
-	return NewNamed(inst.Name, inst.OptionalSecret("secret")), nil
+	return NewNamed(inst.Name, inst.OptionalSecret("secret"), inst.OptionalSecret("api_token")), nil
 }
 
 // BeginAuth starts the GitHub device flow for this instance.
