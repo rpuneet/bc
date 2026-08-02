@@ -33,6 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Tools → Optional Services. The code-server URL also derives its host from the
   page instead of hardcoding `localhost`, which broke whenever the UI was opened
   from another machine (#3473).
+- **The CLI no longer contacts WhatsApp on every command.** The WhatsApp adapter
+  negotiated its protocol version in package `init`, and the package is linked
+  into the CLI, so every invocation — `mycel --version` and `mycel --help`
+  included — made an HTTP request to WhatsApp's servers and printed a WhatsApp log
+  line before doing what was asked. The lookup now happens when the adapter
+  actually connects, once per process (#3455).
 
 ## [0.4.4] - 2026-08-02
 
