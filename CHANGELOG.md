@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A blank MCP command no longer takes the daemon down.** The tool health
+  check indexed the first field of a stored command without checking there was
+  one, so a whitespace-only entry panicked — on a background goroutine, where
+  no HTTP recovery middleware can help, and again on every 30-second tick
+  because the offending row was still there. The check now reports the tool as
+  misconfigured, and the health pass recovers rather than propagating (#3471).
 - **Agent-spawned children are no longer exempt from guardrails.** `spawn_agent`
   over MCP had no `template` field, and the guardrail loop skips any agent
   without one, so every child an agent spawned ran with no cost cap and no stuck
