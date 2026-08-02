@@ -70,6 +70,32 @@ function renderSection() {
   );
 }
 
+describe("ProvidersToolsSection CLI tools table", () => {
+  it("shows the status in Status and the version in Version, not the version twice", async () => {
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u === "/api/providers") return jsonResponse([]);
+      if (u === "/api/tools/unified") {
+        return jsonResponse([{ name: "git", type: "cli", status: "installed", version: "2.50.1", required: false }]);
+      }
+      if (u === "/api/system/package-managers") return jsonResponse({ os: "darwin", arch: "arm64", managers: [] });
+      return jsonResponse({});
+    });
+
+    render(
+      <MemoryRouter>
+        <ProvidersToolsSection />
+      </MemoryRouter>,
+    );
+
+    const nameCell = await screen.findByText("git");
+    const cells = Array.from(nameCell.closest("tr")!.querySelectorAll("td")).map((td) => td.textContent?.trim());
+    // Tool | Status | Version | Required | Actions
+    expect(cells[1]).toBe("Installed");
+    expect(cells[2]).toBe("2.50.1");
+  });
+});
+
 describe("ProvidersToolsSection providers list", () => {
   it("renders providers as a list/table with no card/grid view toggle", async () => {
     fetchMock.mockImplementation((url: RequestInfo | URL) => {
