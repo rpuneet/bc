@@ -385,16 +385,31 @@ export function AppsHome() {
   const [chooserOpen, setChooserOpen] = useState(false);
   const [connectAppId, setConnectAppId] = useState<string | null>(null);
 
-  // Deep links: /apps?action=connect opens the catalog; /apps#custom-keys
-  // (the old /secrets bookmark) scrolls to the Custom Keys section.
+  // Deep links: /apps?action=connect opens the catalog; /apps?connect=<id>
+  // jumps straight to that app's connect modal (used by the degraded-
+  // services banner's "Check setup" so a broken app links to its own fix,
+  // not a generic readiness page); /apps#custom-keys (the old /secrets
+  // bookmark) scrolls to the Custom Keys section.
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
-    if (searchParams.get("action") === "connect") {
+    const action = searchParams.get("action");
+    const connect = searchParams.get("connect");
+    // Mutually exclusive: a named ?connect=<id> jumps straight to that
+    // app's connect modal and wins over ?action=connect (the catalog
+    // chooser) — opening both would leave the chooser stuck open behind
+    // the wizard after it closes.
+    if (connect) {
+      setChooserOpen(false);
+      setConnectAppId(connect);
+    } else if (action === "connect") {
       setChooserOpen(true);
+    }
+    if (action === "connect" || connect) {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.delete("action");
+        next.delete("connect");
         return next;
       }, { replace: true });
     }

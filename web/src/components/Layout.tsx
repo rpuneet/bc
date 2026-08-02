@@ -954,10 +954,17 @@ export function DegradedBanner() {
   }, []);
 
   if (!degraded || dismissed) return null;
-  const names = Object.keys(degraded).sort().join(", ");
+  const keys = Object.keys(degraded).sort();
+  const names = keys.join(", ");
   const detail = Object.entries(degraded)
     .map(([name, reason]) => `${name}: ${reason}`)
     .join("\n");
+  // Degraded apps ("app:<name>") get a "Check setup" that reopens that
+  // app's own connect modal so the fix is one click away, instead of the
+  // generic readiness page — this is the thing that's actually broken.
+  // Non-app degradation (deps, runtime, …) keeps routing to /readiness.
+  const degradedAppKey = keys.find((k) => k.startsWith("app:"));
+  const checkSetupTo = degradedAppKey ? `/apps?connect=${encodeURIComponent(degradedAppKey.slice(4))}` : "/readiness";
   return (
     <div
       role="status"
@@ -972,7 +979,7 @@ export function DegradedBanner() {
         Degraded services: <span className="font-medium">{names}</span> — some features are unavailable.
       </span>
       <Link
-        to="/readiness"
+        to={checkSetupTo}
         className="ml-auto shrink-0 underline decoration-dotted underline-offset-2 font-medium hover:opacity-80"
       >
         Check setup

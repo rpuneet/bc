@@ -415,4 +415,57 @@ describe("AppsHome", () => {
     const viewAll = screen.getByRole("link", { name: /View all/i });
     expect(viewAll).toHaveAttribute("href", "/apps/activity");
   });
+
+  /** Catalog with Gmail added so ?connect=gmail resolves a descriptor. */
+  function mockCatalogWithGmail() {
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.includes("/api/notifications/overview")) return errorResponse(404);
+      if (u.includes("/history")) return jsonResponse([]);
+      if (u.includes("/api/apps/channels")) return jsonResponse(sources);
+      if (u.includes("/api/apps")) {
+        return jsonResponse({
+          catalog: [
+            ...appsCatalog.catalog,
+            { id: "gmail", label: "Gmail", auth: "token", multi: false, oauth_available: true, fields: [], docs: [] },
+          ],
+          instances: appsCatalog.instances,
+        });
+      }
+      return jsonResponse([]);
+    });
+  }
+
+  function renderAt(entry: string) {
+    return render(
+      <MemoryRouter initialEntries={[entry]}>
+        <HeaderSlotProvider>
+          <HeaderHost />
+          <AppsHome />
+        </HeaderSlotProvider>
+      </MemoryRouter>,
+    );
+  }
+
+  it("?connect=<app> deep-links straight into that app's connect modal (the degraded banner's Check setup target)", async () => {
+    mockCatalogWithGmail();
+    renderAt("/apps?connect=gmail");
+    // The connect modal for the named app opens directly — no detour
+    // through a generic readiness page or the app-picker catalog.
+    await waitFor(() => {
+      expect(screen.getByText("Connect Gmail")).toBeInTheDocument();
+    });
+  });
+
+  it("?connect wins over ?action=connect — only the app modal opens, the chooser stays closed", async () => {
+    mockCatalogWithGmail();
+    renderAt("/apps?connect=gmail&action=connect");
+    await waitFor(() => {
+      expect(screen.getByText("Connect Gmail")).toBeInTheDocument();
+    });
+    // The catalog chooser (AppChooser) must NOT also be open — otherwise it
+    // sits stuck behind the wizard and reappears when the wizard closes.
+    expect(screen.queryByText("Connect an app")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Search apps...")).not.toBeInTheDocument();
+  });
 });
