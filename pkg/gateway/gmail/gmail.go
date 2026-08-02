@@ -60,6 +60,11 @@ type mailEntry struct {
 	Subject  string `json:"subject,omitempty"`
 	Snippet  string `json:"snippet,omitempty"`
 	Date     string `json:"date,omitempty"`
+	// Automated marks machine-generated mail (notifications, newsletters,
+	// bounces). Such mail is ingested into the channel feed but does not
+	// prompt subscribed agents. AutomatedReason names the signal that fired.
+	AutomatedReason string `json:"automated_reason,omitempty"`
+	Automated       bool   `json:"automated,omitempty"`
 }
 
 // Adapter implements gateway.NotificationAdapter for Gmail.
@@ -242,7 +247,7 @@ func (a *Adapter) poll(ctx context.Context) {
 
 		msg, gerr := a.svc.Users.Messages.Get("me", ref.Id).
 			Format("metadata").
-			MetadataHeaders("From", "Subject", "Date").
+			MetadataHeaders(append([]string{"From", "Subject", "Date"}, automatedHeaders...)...).
 			Context(ctx).
 			Do()
 		if gerr != nil {
@@ -293,6 +298,11 @@ func (a *Adapter) dispatch(e mailEntry) {
 		channelName = a.label
 	}
 
+	if e.Automated {
+		log.Debug("gmail: automated mail — feed only, no agent delivery",
+			"adapter", a.name, "from", addr, "reason", e.AutomatedReason)
+	}
+
 	a.handler(gateway.Notification{
 		Timestamp: time.Now(),
 		Raw:       raw,
@@ -303,6 +313,7 @@ func (a *Adapter) dispatch(e mailEntry) {
 		SenderID:  addr,
 		Content:   content,
 		MessageID: e.ID,
+		Automated: e.Automated,
 	})
 }
 
@@ -339,11 +350,14 @@ func (a *Adapter) Send(ctx context.Context, channelID, _, content string) error 
 
 // --- pure helpers (unit-tested) ---
 
-// parseMessage converts a Gmail API message into a normalized mailEntry.
+// parseMessage converts a Gmail API message into a normalized mailEntry,
+// classifying machine-generated mail from its headers.
 func parseMessage(m *gmail.Message) mailEntry {
 	e := mailEntry{ID: m.Id, ThreadID: m.ThreadId, Snippet: m.Snippet}
+	headers := make(map[string]string)
 	if m.Payload != nil {
 		for _, h := range m.Payload.Headers {
+			headers[h.Name] = h.Value
 			switch strings.ToLower(h.Name) {
 			case "from":
 				e.From = h.Value
@@ -354,6 +368,7 @@ func parseMessage(m *gmail.Message) mailEntry {
 			}
 		}
 	}
+	e.Automated, e.AutomatedReason = classifyAutomated(e.From, headers)
 	return e
 }
 

@@ -273,7 +273,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	// Wire gateway inbound callback for notify dispatch and SSE publish.
 	if svc.Gateway != nil {
-		svc.Gateway.SetInboundHandler(func(ch, sender, senderID, senderAvatar, content, messageID string, mentions []string, raw json.RawMessage) {
+		svc.Gateway.SetInboundHandler(func(ch, sender, senderID, senderAvatar, content, messageID string, mentions []string, raw json.RawMessage, automated bool) {
 			// Publish SSE event for web UI (non-blocking)
 			if hub != nil {
 				hub.Publish("channel.message", map[string]any{
@@ -293,7 +293,11 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 				if idx := strings.Index(ch, ":"); idx > 0 {
 					platform = ch[:idx]
 				}
-				svc.Notify.Dispatch(ch, platform, sender, senderID, senderAvatar, content, messageID, mentions, nil, raw)
+				var opts []notify.DispatchOption
+				if automated {
+					opts = append(opts, notify.Automated())
+				}
+				svc.Notify.Dispatch(ch, platform, sender, senderID, senderAvatar, content, messageID, mentions, nil, raw, opts...)
 			}
 		})
 	}

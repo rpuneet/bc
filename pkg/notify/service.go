@@ -101,12 +101,32 @@ func extractMentions(content string) []string {
 	return mentions
 }
 
+// DispatchOption adjusts how a single inbound message is handled.
+type DispatchOption func(*dispatchOpts)
+
+type dispatchOpts struct {
+	automated bool
+}
+
+// Automated marks the message as machine-generated (notification mail,
+// newsletters, bounces). Such messages are still recorded in the channel feed
+// and published to the web UI, but no subscribed agent is woken for them:
+// nobody is waiting on a reply, and prompting every subscriber costs real
+// tokens. Adapters decide what counts as automated.
+func Automated() DispatchOption {
+	return func(o *dispatchOpts) { o.automated = true }
+}
+
 // Dispatch receives a normalized inbound message and delivers it to
 // subscribed agents only. Runs in its own goroutine — never blocks the adapter.
 // extraMentions carries pre-extracted platform mentions (e.g. WhatsApp JID user
 // parts) that the text-based mention regex cannot capture; they are merged with
 // the standard @name extraction from content.
-func (s *Service) Dispatch(channel, platform, sender, senderID, senderAvatar, content, messageID string, extraMentions []string, attachments []Attachment, raw json.RawMessage) {
+func (s *Service) Dispatch(channel, platform, sender, senderID, senderAvatar, content, messageID string, extraMentions []string, attachments []Attachment, raw json.RawMessage, opts ...DispatchOption) {
+	var o dispatchOpts
+	for _, opt := range opts {
+		opt(&o)
+	}
 	s.dispatches.Add(1)
 	go func() {
 		defer s.dispatches.Done()
@@ -143,99 +163,24 @@ func (s *Service) Dispatch(channel, platform, sender, senderID, senderAvatar, co
 			}
 			mentions = merged
 		}
-		n := Notification{
-			Raw:         raw,
-			Timestamp:   time.Now().UTC().Format(time.RFC3339),
-			Channel:     channel,
-			Platform:    platform,
-			Sender:      sender,
-			Content:     content,
-			MessageID:   messageID,
-			Mentions:    mentions,
-			Attachments: attachments,
-		}
-		payload, err := json.Marshal(n)
-		if err != nil {
-			log.Error("notify: marshal notification", "error", err)
-			return
-		}
-
-		// Get subscribers for this channel
-		subs, subErr := s.store.Subscribers(ctx, channel)
-		if subErr != nil {
-			log.Warn("notify: failed to get subscribers", "channel", channel, "error", subErr)
-			return
-		}
-
-		// Setup wizard historically subscribed agents to "{platform}:general"
-		// even when no such channel exists (Telegram DMs arrive as
-		// telegram:<username|chat_id>). Copy placeholder subscriptions onto
-		// the first real channel so legacy installs self-heal.
-		if len(subs) == 0 && platform != "" {
-			if n, mErr := s.migratePlaceholderSubs(ctx, platform, channel); mErr != nil {
-				log.Warn("notify: placeholder migration failed", "platform", platform, "channel", channel, "error", mErr)
-			} else if n > 0 {
-				subs, subErr = s.store.Subscribers(ctx, channel)
-				if subErr != nil {
-					log.Warn("notify: failed to get subscribers after migration", "channel", channel, "error", subErr)
-					return
-				}
-			}
-		}
-
-		log.Info("notify: dispatch", "channel", channel, "sender", sender, "subscribers", len(subs))
-
-		mentionSet := make(map[string]bool, len(mentions))
-		for _, m := range mentions {
-			mentionSet[m] = true
-		}
-
-		// Strip platform prefix from sender for self-skip comparison.
-		// Gateway messages arrive as "[slack] agent-name" but subscriptions
-		// store bare agent names.
-		rawSender := platformPrefixRe.ReplaceAllString(sender, "")
-
-		// Deliver to each subscribed agent
-		for _, sub := range subs {
-			// Self-skip: don't echo agent's own message back
-			if strings.EqualFold(sub.Agent, rawSender) {
-				continue
-			}
-
-			// @mention filter: if mention_only, skip unless agent is mentioned
-			if sub.MentionOnly && !mentionSet[strings.ToLower(sub.Agent)] {
-				continue
-			}
-
-			sendErr := s.agents.Send(ctx, sub.Agent, string(payload))
-			status := StatusDelivered
-			errStr := ""
-			switch {
-			case sendErr == nil:
-				log.Info("notify: delivered", "agent", sub.Agent, "channel", channel)
-			case agentOfflineRe.MatchString(sendErr.Error()):
-				// Subscribed agent was offline when the message arrived
-				// — the routing decision was correct, delivery just
-				// wasn't attempted. Skip the delivery-log write entirely
-				// so the failed-delivery count only reflects genuine
-				// send errors, not routine offline-agent skips.
-				log.Debug("notify: delivery skipped (agent offline)", "agent", sub.Agent, "channel", channel)
-				continue
-			default:
-				status = StatusFailed
-				errStr = sendErr.Error()
-				log.Warn("notify: delivery failed", "agent", sub.Agent, "channel", channel, "error", sendErr)
-			}
-
-			if logErr := s.store.LogDelivery(ctx, DeliveryEntry{
-				Channel: channel,
-				Agent:   sub.Agent,
-				Status:  status,
-				Error:   errStr,
-				Preview: truncate(content, 120),
-			}); logErr != nil {
-				log.Warn("notify: log delivery failed", "error", logErr)
-			}
+		// Machine-generated mail earns a place in the channel feed and the web
+		// UI, but not an agent's attention: nobody is waiting on a reply to a
+		// GitHub notification or a newsletter, and waking every subscriber for
+		// one costs real tokens.
+		if o.automated {
+			log.Info("notify: automated message — feed only, agents not woken",
+				"channel", channel, "sender", sender)
+		} else {
+			s.deliverToSubscribers(ctx, deliverable{
+				Channel:     channel,
+				Platform:    platform,
+				Sender:      sender,
+				Content:     content,
+				MessageID:   messageID,
+				Mentions:    mentions,
+				Attachments: attachments,
+				Raw:         raw,
+			})
 		}
 
 		// Publish to web UI
@@ -254,6 +199,119 @@ func (s *Service) Dispatch(channel, platform, sender, senderID, senderAvatar, co
 			log.Warn("notify: prune failed", "channel", channel, "error", err)
 		}
 	}()
+}
+
+// deliverable is one inbound message resolved far enough to be delivered:
+// mentions are merged and the content is final.
+type deliverable struct {
+	Raw         json.RawMessage
+	Channel     string
+	Platform    string
+	Sender      string
+	Content     string
+	MessageID   string
+	Mentions    []string
+	Attachments []Attachment
+}
+
+// deliverToSubscribers sends the message to every subscribed agent that
+// passes the self-skip and @mention filters, logging each attempt.
+func (s *Service) deliverToSubscribers(ctx context.Context, d deliverable) {
+	channel, platform, sender, content := d.Channel, d.Platform, d.Sender, d.Content
+
+	payload, err := json.Marshal(Notification{
+		Raw:         d.Raw,
+		Timestamp:   time.Now().UTC().Format(time.RFC3339),
+		Channel:     channel,
+		Platform:    platform,
+		Sender:      sender,
+		Content:     content,
+		MessageID:   d.MessageID,
+		Mentions:    d.Mentions,
+		Attachments: d.Attachments,
+	})
+	if err != nil {
+		log.Error("notify: marshal notification", "error", err)
+		return
+	}
+
+	// Get subscribers for this channel
+	subs, subErr := s.store.Subscribers(ctx, channel)
+	if subErr != nil {
+		log.Warn("notify: failed to get subscribers", "channel", channel, "error", subErr)
+		return
+	}
+
+	// Setup wizard historically subscribed agents to "{platform}:general"
+	// even when no such channel exists (Telegram DMs arrive as
+	// telegram:<username|chat_id>). Copy placeholder subscriptions onto
+	// the first real channel so legacy installs self-heal.
+	if len(subs) == 0 && platform != "" {
+		if n, mErr := s.migratePlaceholderSubs(ctx, platform, channel); mErr != nil {
+			log.Warn("notify: placeholder migration failed", "platform", platform, "channel", channel, "error", mErr)
+		} else if n > 0 {
+			subs, subErr = s.store.Subscribers(ctx, channel)
+			if subErr != nil {
+				log.Warn("notify: failed to get subscribers after migration", "channel", channel, "error", subErr)
+				return
+			}
+		}
+	}
+
+	log.Info("notify: dispatch", "channel", channel, "sender", sender, "subscribers", len(subs))
+
+	mentionSet := make(map[string]bool, len(d.Mentions))
+	for _, m := range d.Mentions {
+		mentionSet[m] = true
+	}
+
+	// Strip platform prefix from sender for self-skip comparison.
+	// Gateway messages arrive as "[slack] agent-name" but subscriptions
+	// store bare agent names.
+	rawSender := platformPrefixRe.ReplaceAllString(sender, "")
+
+	// Deliver to each subscribed agent
+	for _, sub := range subs {
+		// Self-skip: don't echo agent's own message back
+		if strings.EqualFold(sub.Agent, rawSender) {
+			continue
+		}
+
+		// @mention filter: if mention_only, skip unless agent is mentioned
+		if sub.MentionOnly && !mentionSet[strings.ToLower(sub.Agent)] {
+			continue
+		}
+
+		sendErr := s.agents.Send(ctx, sub.Agent, string(payload))
+		status := StatusDelivered
+		errStr := ""
+		switch {
+		case sendErr == nil:
+			log.Info("notify: delivered", "agent", sub.Agent, "channel", channel)
+		case agentOfflineRe.MatchString(sendErr.Error()):
+			// Subscribed agent was offline when the message arrived
+			// — the routing decision was correct, delivery just
+			// wasn't attempted. Skip the delivery-log write entirely
+			// so the failed-delivery count only reflects genuine
+			// send errors, not routine offline-agent skips.
+			log.Debug("notify: delivery skipped (agent offline)", "agent", sub.Agent, "channel", channel)
+			continue
+		default:
+			status = StatusFailed
+			errStr = sendErr.Error()
+			log.Warn("notify: delivery failed", "agent", sub.Agent, "channel", channel, "error", sendErr)
+		}
+
+		if logErr := s.store.LogDelivery(ctx, DeliveryEntry{
+			Channel: channel,
+			Agent:   sub.Agent,
+			Status:  status,
+			Error:   errStr,
+			Preview: truncate(content, 120),
+		}); logErr != nil {
+			log.Warn("notify: log delivery failed", "error", logErr)
+		}
+	}
 }
 
 // migratePlaceholderSubs copies subscriptions from "{platform}:general" onto
