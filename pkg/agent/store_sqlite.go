@@ -70,6 +70,7 @@ func createAgentsTable(d *db.DB) error {
 			cpus          REAL    NOT NULL DEFAULT 0,
 			memory_mb     INTEGER NOT NULL DEFAULT 0,
 			ttl           INTEGER NOT NULL DEFAULT 0,
+			template      TEXT,
 			created_at    TEXT,
 			stopped_at    TEXT,
 			deleted_at    TEXT,
@@ -145,6 +146,7 @@ func ensureAgentColumns(ctx context.Context, d *db.DB) error {
 	for _, add := range []struct{ col, ddl string }{
 		{"cpus", "ALTER TABLE agents ADD COLUMN cpus REAL NOT NULL DEFAULT 0"},
 		{"memory_mb", "ALTER TABLE agents ADD COLUMN memory_mb INTEGER NOT NULL DEFAULT 0"},
+		{"template", "ALTER TABLE agents ADD COLUMN template TEXT"},
 	} {
 		if have[add.col] {
 			continue
@@ -178,8 +180,8 @@ func (s *SQLiteStore) Save(ctx context.Context, a *Agent) error {
 		 worktree_dir, log_file, env_file, env_vars, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
 		 runtime_backend, session_id, created_at, stopped_at, deleted_at,
-		 started_at, updated_at, repo, model, cpus, memory_mb)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 started_at, updated_at, repo, model, cpus, memory_mb, template)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		a.Name, string(a.Role), string(a.State),
 		nullStr(a.Tool), nullStr(a.ParentID), nullStr(a.Team), nullStr(a.Task),
 		nullStr(a.Session), a.Workspace,
@@ -190,6 +192,7 @@ func (s *SQLiteStore) Save(ctx context.Context, a *Agent) error {
 		nullStr(a.RuntimeBackend), nullStr(a.SessionID),
 		formatTime(createdAt), nullTime(a.StoppedAt), nullTime(a.DeletedAt),
 		formatTime(a.StartedAt), formatTime(now), a.Repo, a.Model, a.CPUs, a.MemoryMB,
+		nullStr(a.Template),
 	)
 	return err
 }
@@ -315,8 +318,8 @@ func (s *SQLiteStore) SaveAll(ctx context.Context, agents map[string]*Agent) err
 		 worktree_dir, log_file, env_file, env_vars, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
 		 runtime_backend, session_id, created_at, stopped_at, deleted_at,
-		 started_at, updated_at, repo, model, cpus, memory_mb)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		 started_at, updated_at, repo, model, cpus, memory_mb, template)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
@@ -347,6 +350,7 @@ func (s *SQLiteStore) SaveAll(ctx context.Context, agents map[string]*Agent) err
 			nullStr(a.RuntimeBackend), nullStr(a.SessionID),
 			formatTime(createdAt), nullTime(a.StoppedAt), nullTime(a.DeletedAt),
 			formatTime(a.StartedAt), formatTime(now), a.Repo, a.Model, a.CPUs, a.MemoryMB,
+			nullStr(a.Template),
 		)
 		if err != nil {
 			return fmt.Errorf("save agent %s: %w", a.Name, err)
@@ -408,13 +412,13 @@ const agentSelectCols = `SELECT name, role, state, tool, parent_id, team, task, 
 	       worktree_dir, log_file, env_file, env_vars, hooked_work, children,
 	       is_root, crash_count, last_crash_time, recovered_from,
 	       runtime_backend, session_id, created_at, stopped_at, deleted_at,
-	       started_at, updated_at, repo, model, cpus, memory_mb`
+	       started_at, updated_at, repo, model, cpus, memory_mb, template`
 
 func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	var a Agent
 	var role, state string
 	var tool, parentID, team, task, session, worktreeDir, logFile, envFile, hookedWork, childrenJSON *string
-	var lastCrashTime, recoveredFrom, runtimeBackend, sessionID *string
+	var lastCrashTime, recoveredFrom, runtimeBackend, sessionID, template *string
 	var repo, model, envVars string
 	var createdAt, stoppedAt, deletedAt *string
 	var startedAt, updatedAt string
@@ -428,7 +432,7 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 		&worktreeDir, &logFile, &envFile, &envVars, &hookedWork, &childrenJSON,
 		&isRoot, &crashCount, &lastCrashTime, &recoveredFrom,
 		&runtimeBackend, &sessionID, &createdAt, &stoppedAt, &deletedAt,
-		&startedAt, &updatedAt, &repo, &model, &cpus, &memoryMB,
+		&startedAt, &updatedAt, &repo, &model, &cpus, &memoryMB, &template,
 	)
 	if err != nil {
 		return nil, err
@@ -458,6 +462,7 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	a.Model = model
 	a.CPUs = cpus
 	a.MemoryMB = memoryMB
+	a.Template = deref(template)
 
 	if childrenJSON != nil && *childrenJSON != "" {
 		_ = json.Unmarshal([]byte(*childrenJSON), &a.Children) //nolint:errcheck // best-effort

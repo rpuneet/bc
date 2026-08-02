@@ -104,6 +104,48 @@ func TestAgentService_StopNonexistent(t *testing.T) {
 	}
 }
 
+// TestAgentService_StopForGuardrail verifies the guardrail-specific stop
+// path: the agent is stopped, the reason is recorded as its Task (visible
+// in the UI even after the agent is gone), and the published event tags
+// the reason as "guardrail" rather than "user_request" so the two are
+// distinguishable in the activity timeline.
+func TestAgentService_StopForGuardrail(t *testing.T) {
+	mgr := newTestManager(t)
+	mgr.agents["eng-1"] = &Agent{Name: "eng-1", Role: Role("engineer"), State: StateWorking, Children: []string{}}
+
+	pub := &mockEventPublisher{}
+	svc := NewAgentService(mgr, pub, nil)
+
+	const reason = "guardrail: cost limit $2.50 reached ($5.00 spent), stopped"
+	if err := svc.StopForGuardrail(context.Background(), "eng-1", reason); err != nil {
+		t.Fatalf("StopForGuardrail: %v", err)
+	}
+
+	if mgr.agents["eng-1"].State != StateStopped {
+		t.Fatalf("state = %s, want stopped", mgr.agents["eng-1"].State)
+	}
+	if mgr.agents["eng-1"].Task != reason {
+		t.Fatalf("task = %q, want %q", mgr.agents["eng-1"].Task, reason)
+	}
+
+	var found bool
+	for _, e := range pub.events {
+		if e.eventType != "agent.stopped" {
+			continue
+		}
+		found = true
+		if e.data["reason"] != "guardrail" {
+			t.Errorf("published reason = %v, want %q", e.data["reason"], "guardrail")
+		}
+		if e.data["detail"] != reason {
+			t.Errorf("published detail = %v, want %q", e.data["detail"], reason)
+		}
+	}
+	if !found {
+		t.Fatal("expected an agent.stopped event to be published")
+	}
+}
+
 func TestAgentService_DeleteReconcilesDead(t *testing.T) {
 	// An agent with StateIdle but no actual session should be reconciled
 	// to StateStopped and deleted successfully (not stuck in catch-22).

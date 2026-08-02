@@ -59,6 +59,10 @@ type CreateOptions struct {
 	// Repo is the absolute path of the git repo the agent is bound to.
 	// Empty means "the repo the daemon was booted against" (the default repo).
 	Repo string
+	// Template is the name of the template this agent is spawned from.
+	// Recorded on the agent row so the guardrail loop can enforce the
+	// template's MaxCostUSD / StuckTimeoutMin. Empty disables guardrails.
+	Template string
 }
 
 // StartOptions configures agent start behavior.
@@ -221,6 +225,7 @@ func (s *AgentService) Create(ctx context.Context, opts CreateOptions) (*Agent, 
 		Env:       opts.Env,
 		Runtime:   opts.Runtime,
 		Team:      opts.Team,
+		Template:  opts.Template,
 	})
 	if err != nil {
 		return nil, err
@@ -291,6 +296,28 @@ func (s *AgentService) Stop(ctx context.Context, name string) error {
 	s.publishEvent("agent.stopped", map[string]any{
 		"name":   name,
 		"reason": "user_request",
+	})
+
+	return nil
+}
+
+// StopForGuardrail stops a running agent on behalf of an automated
+// guardrail (e.g. a template's MaxCostUSD limit) rather than a direct user
+// request. reason is a short human-readable string surfaced in the
+// published event and stored as the agent's Task so the UI shows WHY the
+// agent was stopped.
+func (s *AgentService) StopForGuardrail(ctx context.Context, name, reason string) error {
+	if err := s.manager.SetAgentTask(ctx, name, reason); err != nil {
+		log.Warn("guardrail: failed to record stop reason before stopping", "agent", name, "error", err)
+	}
+	if err := s.manager.StopAgent(ctx, name); err != nil {
+		return err
+	}
+
+	s.publishEvent("agent.stopped", map[string]any{
+		"name":   name,
+		"reason": "guardrail",
+		"detail": reason,
 	})
 
 	return nil
