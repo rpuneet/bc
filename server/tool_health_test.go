@@ -7,7 +7,9 @@ package server
 import (
 	"context"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	dbpkg "github.com/rpuneet/mycel/pkg/db"
 	toolpkg "github.com/rpuneet/mycel/pkg/tool"
@@ -95,11 +97,26 @@ func TestRunToolHealthLoop_StopsOnContextCanceled(t *testing.T) {
 }
 
 // panickingChecker stands in for a store whose check blows up, the way indexing
-// a blank command's fields used to.
-type panickingChecker struct{ calls int }
+// a blank command's fields used to. calls is atomic because the loop test reads
+// it while the loop's goroutine is still running.
+type panickingChecker struct {
+	// called reports the first CheckAll, letting a test wait for the pass to
+	// have happened instead of racing the goroutine that runs it. Buffered and
+	// sent non-blockingly, so later passes never stall on an unread channel.
+	called chan struct{}
+	calls  atomic.Int32
+}
+
+func newPanickingChecker() *panickingChecker {
+	return &panickingChecker{called: make(chan struct{}, 1)}
+}
 
 func (p *panickingChecker) CheckAll(context.Context) ([]toolpkg.HealthResult, error) {
-	p.calls++
+	p.calls.Add(1)
+	select {
+	case p.called <- struct{}{}:
+	default:
+	}
 	panic("health check exploded")
 }
 
@@ -109,12 +126,12 @@ func (p *panickingChecker) CheckAll(context.Context) ([]toolpkg.HealthResult, er
 // refresh. The test fails by crashing the whole test binary rather than by
 // reporting, which is precisely the production symptom.
 func TestCheckToolsOnce_RecoversFromPanic(t *testing.T) {
-	checker := &panickingChecker{}
+	checker := newPanickingChecker()
 
 	checkToolsOnce(context.Background(), checker)
 
-	if checker.calls != 1 {
-		t.Fatalf("CheckAll called %d times, want 1", checker.calls)
+	if got := checker.calls.Load(); got != 1 {
+		t.Fatalf("CheckAll called %d times, want 1", got)
 	}
 }
 
@@ -123,8 +140,9 @@ func TestCheckToolsOnce_RecoversFromPanic(t *testing.T) {
 // through the loop would leave tool status frozen for the daemon's lifetime,
 // even once the daemon itself stopped dying.
 func TestRunToolHealthLoop_SurvivesPanickingCheck(t *testing.T) {
-	checker := &panickingChecker{}
+	checker := newPanickingChecker()
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	done := make(chan struct{})
 
 	go func() {
@@ -132,13 +150,35 @@ func TestRunToolHealthLoop_SurvivesPanickingCheck(t *testing.T) {
 		close(done)
 	}()
 
-	// Reaching the select after a panicking first pass is what proves the loop
-	// survived: a propagated panic would take the goroutine, and the process,
-	// down before this cancel could be observed.
-	cancel()
-	<-done
+	// Wait for the boot-time pass to have actually panicked. Cancelling without
+	// this could win the race and end the loop before it ever ran a check, so
+	// the test would report success having exercised nothing.
+	select {
+	case <-checker.called:
+	case <-time.After(5 * time.Second):
+		t.Fatal("boot-time health pass never ran")
+	}
 
-	if checker.calls != 1 {
-		t.Errorf("CheckAll called %d times, want 1 boot-time pass", checker.calls)
+	// Still sitting in its select, waiting on the ticker. This is the assertion
+	// that distinguishes a recovered panic from one that unwound the loop: if
+	// the panic had escaped checkToolsOnce, runToolHealthLoop would have
+	// returned and closed done without the context ever being canceled.
+	select {
+	case <-done:
+		t.Fatal("loop returned after a panicking pass instead of continuing")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("loop did not return after its context was canceled")
+	}
+
+	// One boot-time pass: the interval is far longer than this test runs, so a
+	// second call would mean the loop is ticking faster than configured.
+	if got := checker.calls.Load(); got != 1 {
+		t.Errorf("CheckAll called %d times, want 1 boot-time pass", got)
 	}
 }
