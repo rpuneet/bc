@@ -196,6 +196,76 @@ func TestInjectVaultSecretsAppCredentials(t *testing.T) {
 	}
 }
 
+// TestInjectVaultSecrets_GitHubAppToken proves a connected GitHub app
+// instance's api_token (as populated by the device-flow "Sign in with
+// GitHub", or pasted manually) is made available to agents as both
+// GH_TOKEN and GITHUB_TOKEN — so `gh` and git's credential helper
+// authenticate with zero per-agent setup — while an agent with no
+// connected GitHub app instance gets neither key.
+func TestInjectVaultSecrets_GitHubAppToken(t *testing.T) {
+	mycelHome := t.TempDir()
+	t.Setenv("MYCEL_HOME", mycelHome)
+	t.Setenv(secret.PassphraseEnvVar, "test-passphrase")
+
+	repoPath := t.TempDir()
+	seedRepoVault(t, repoPath, "app:github:api_token", "gho_devflow_token")
+
+	t.Run("connected instance yields GH_TOKEN and GITHUB_TOKEN", func(t *testing.T) {
+		apps := map[string]app.InstanceConfig{
+			"github": {App: "github", Enabled: true},
+		}
+		env := map[string]string{}
+		injected := injectVaultSecrets(env, repoPath, nil, apps)
+
+		if env["GH_TOKEN"] != "gho_devflow_token" {
+			t.Errorf("GH_TOKEN = %q, want gho_devflow_token", env["GH_TOKEN"])
+		}
+		if env["GITHUB_TOKEN"] != "gho_devflow_token" {
+			t.Errorf("GITHUB_TOKEN = %q, want gho_devflow_token", env["GITHUB_TOKEN"])
+		}
+		// The generic connected-app env name is still populated too.
+		if env["GITHUB_API_TOKEN"] != "gho_devflow_token" {
+			t.Errorf("GITHUB_API_TOKEN = %q, want gho_devflow_token", env["GITHUB_API_TOKEN"])
+		}
+		found := false
+		for _, k := range injected {
+			if k == "GH_TOKEN" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("GH_TOKEN should be reported in the injected key names")
+		}
+	})
+
+	t.Run("disabled instance yields neither key", func(t *testing.T) {
+		apps := map[string]app.InstanceConfig{
+			"github": {App: "github", Enabled: false},
+		}
+		env := map[string]string{}
+		injectVaultSecrets(env, repoPath, nil, apps)
+
+		if _, ok := env["GH_TOKEN"]; ok {
+			t.Error("GH_TOKEN should be absent when no github app instance is enabled")
+		}
+		if _, ok := env["GITHUB_TOKEN"]; ok {
+			t.Error("GITHUB_TOKEN should be absent when no github app instance is enabled")
+		}
+	})
+
+	t.Run("no github app configured yields neither key", func(t *testing.T) {
+		env := map[string]string{}
+		injectVaultSecrets(env, repoPath, nil, nil)
+
+		if _, ok := env["GH_TOKEN"]; ok {
+			t.Error("GH_TOKEN should be absent with no apps configured")
+		}
+		if _, ok := env["GITHUB_TOKEN"]; ok {
+			t.Error("GITHUB_TOKEN should be absent with no apps configured")
+		}
+	})
+}
+
 // TestAppEnvAndPromptInstructions covers plain-field env injection and the
 // descriptor-driven prompt documentation.
 func TestAppEnvAndPromptInstructions(t *testing.T) {
