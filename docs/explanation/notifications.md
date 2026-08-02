@@ -614,6 +614,18 @@ misclassification hides nothing -- it only means no agent was woken.
 
 Settings are per-agent, per-channel.
 
+**Catch-all subscriptions** cover platforms where the real channel isn't known
+until a message arrives: Telegram DMs land on `telegram:<username|chat_id>`, mail
+on `gmail:<sender-address>`. Connecting such an app subscribes the chosen agents
+to `{platform}:general`, and a message on a channel with no subscribers of its
+own is delivered to the catch-all's subscribers instead.
+
+The catch-all is only ever *read*. Earlier versions copied it onto each new
+channel, which left a permanent subscription behind per correspondent -- on
+platforms that mint a channel per sender or per chat, one catch-all row silently
+became dozens. An explicit subscription on the real channel always takes
+precedence, so per-channel settings such as mention-only still work.
+
 ## Web UI
 
 ### Notifications Settings Page

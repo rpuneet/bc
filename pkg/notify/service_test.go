@@ -430,13 +430,16 @@ func TestDrainDispatches(t *testing.T) {
 	}
 }
 
-func TestMigratePlaceholderSubsOnDispatch(t *testing.T) {
+// TestCatchAllDeliversWithoutCreatingSubscriptions covers the connect-app
+// flow: agents are subscribed to "{platform}:general" because the real
+// per-conversation channel isn't known until a message arrives. Delivery must
+// work — and must not leave a subscription behind on the real channel.
+func TestCatchAllDeliversWithoutCreatingSubscriptions(t *testing.T) {
 	store := setupTestStore(t)
 	sender := &mockSender{}
 	svc := NewService(store, sender, &mockHub{})
 	ctx := context.Background()
 
-	// Legacy wizard subscription on telegram:general only.
 	if err := store.Subscribe(ctx, "telegram:general", "mdrndr-manager", false); err != nil {
 		t.Fatal(err)
 	}
@@ -450,25 +453,115 @@ func TestMigratePlaceholderSubsOnDispatch(t *testing.T) {
 		t.Fatal("dispatch did not finish")
 	}
 
+	if calls := sender.getCalls(); len(calls) != 2 {
+		t.Fatalf("expected 2 deliveries via the catch-all, got %d: %+v", len(calls), calls)
+	}
+
+	// The real channel must stay clean: the catch-all is read, never copied.
 	subs, err := store.Subscribers(ctx, "telegram:ab010300")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(subs) != 2 {
-		t.Fatalf("expected 2 migrated subscribers, got %d", len(subs))
+	if len(subs) != 0 {
+		t.Errorf("catch-all delivery created %d subscription(s) on the real channel: %+v", len(subs), subs)
 	}
-	// Placeholder remains (copy, not rewrite).
-	legacy, err := store.Subscribers(ctx, "telegram:general")
+
+	// And the catch-all itself is untouched.
+	catchAll, err := store.Subscribers(ctx, "telegram:general")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(legacy) != 2 {
-		t.Fatalf("expected placeholder to remain, got %d", len(legacy))
+	if len(catchAll) != 2 {
+		t.Errorf("expected the catch-all to remain with 2 agents, got %d", len(catchAll))
+	}
+}
+
+// TestCatchAllDoesNotFanOutAcrossChannels is the #3463 regression test.
+// Platforms that mint a channel per correspondent (Gmail per sender address,
+// WhatsApp per chat) used to turn one catch-all row into one permanent
+// subscription per correspondent — a live workspace had accumulated 7 Gmail and
+// 53 WhatsApp subscriptions nobody created, each of them prompting an agent.
+func TestCatchAllDoesNotFanOutAcrossChannels(t *testing.T) {
+	store := setupTestStore(t)
+	sender := &mockSender{}
+	svc := NewService(store, sender, &mockHub{})
+	ctx := context.Background()
+
+	if err := store.Subscribe(ctx, "gmail:general", "fast-crane", false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Mail from five different senders — five channels, as Gmail names a
+	// channel after the sender address.
+	senders := []string{
+		"gmail:alertshdfcbankbankin",
+		"gmail:hellonewsexpressvpncom",
+		"gmail:newslettereconomictimesnewscom",
+		"gmail:supportnpmjscom",
+		"gmail:puneetexamplecom",
+	}
+	for i, ch := range senders {
+		svc.Dispatch(ch, "gmail", "someone", "", "", "message", string(rune('a'+i)), nil, nil, nil)
+	}
+	if !svc.DrainDispatches(3 * time.Second) {
+		t.Fatal("dispatches did not finish")
+	}
+
+	all, err := store.AllSubscriptions(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 1 {
+		t.Fatalf("expected the single gmail:general subscription to remain the only one, got %d: %+v",
+			len(all), all)
+	}
+	if all[0].Channel != "gmail:general" {
+		t.Errorf("surviving subscription is %q, want gmail:general", all[0].Channel)
+	}
+
+	// Delivery still reached the agent for every sender.
+	if calls := sender.getCalls(); len(calls) != len(senders) {
+		t.Errorf("expected %d deliveries via the catch-all, got %d", len(senders), len(calls))
+	}
+}
+
+// TestExplicitChannelSubscriptionWinsOverCatchAll proves the fallback is only
+// a fallback: a per-channel subscription with its own settings still governs
+// that channel, so mention-only on one noisy chat keeps working.
+func TestExplicitChannelSubscriptionWinsOverCatchAll(t *testing.T) {
+	store := setupTestStore(t)
+	sender := &mockSender{}
+	svc := NewService(store, sender, &mockHub{})
+	ctx := context.Background()
+
+	// Catch-all would deliver everything to broad-agent...
+	if err := store.Subscribe(ctx, "gmail:general", "broad-agent", false); err != nil {
+		t.Fatal(err)
+	}
+	// ...but this channel has its own explicit, mention-only subscription.
+	if err := store.Subscribe(ctx, "gmail:noisysendercom", "focused-agent", true); err != nil {
+		t.Fatal(err)
+	}
+
+	svc.Dispatch("gmail:noisysendercom", "gmail", "someone", "", "", "no mention here", "m1", nil, nil, nil)
+	if !svc.DrainDispatches(2 * time.Second) {
+		t.Fatal("dispatch did not finish")
+	}
+
+	// focused-agent is mention-only and wasn't mentioned; broad-agent must not
+	// be pulled in by the catch-all, because the channel has a subscriber.
+	if calls := sender.getCalls(); len(calls) != 0 {
+		t.Fatalf("expected no deliveries, got %+v", calls)
+	}
+
+	svc.Dispatch("gmail:noisysendercom", "gmail", "someone", "", "", "hey @focused-agent look", "m2", nil, nil, nil)
+	if !svc.DrainDispatches(2 * time.Second) {
+		t.Fatal("dispatch did not finish")
 	}
 
 	calls := sender.getCalls()
-	if len(calls) != 2 {
-		t.Fatalf("expected 2 deliveries, got %d: %+v", len(calls), calls)
+	if len(calls) != 1 || calls[0].Name != "focused-agent" {
+		t.Fatalf("expected one delivery to focused-agent, got %+v", calls)
 	}
 }
 
