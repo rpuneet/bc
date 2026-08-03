@@ -39,23 +39,6 @@ updates:
       actions:
         patterns: ["*"]
 
-  # npm — TUI
-  - package-ecosystem: npm
-    directory: /tui
-    schedule:
-      interval: weekly
-      day: monday
-    labels:
-      - dependencies
-    commit-message:
-      prefix: "deps(tui):"
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
-    groups:
-      tui-deps:
-        update-types: [minor, patch]
-
   # npm — Web UI
   - package-ecosystem: npm
     directory: /web
