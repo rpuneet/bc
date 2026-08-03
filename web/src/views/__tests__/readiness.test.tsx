@@ -69,6 +69,47 @@ describe("deriveReadiness", () => {
     expect(r.groups.find((g) => g.id === "git")!.status).toBe("fail");
   });
 
+  // jq is how an agent's hooks attach tool names, inputs and results to an
+  // event. Without it the reporters post the bare event, so the Live feed keeps
+  // moving while showing only that something happened — a silent partial
+  // failure in the view used to judge whether anything works (#3493).
+  it("warns, with the consequence spelled out, when jq is missing", () => {
+    const r = deriveReadiness(DOCTOR, HEALTH);
+    const reporting = r.groups.find((g) => g.id === "reporting")!;
+    const jq = reporting.items[0]!;
+
+    expect(reporting.status).toBe("warn");
+    expect(jq.status).toBe("warn");
+    // A warning that does not say what breaks is a warning people scroll past.
+    expect(jq.note).toMatch(/live feed/i);
+    expect(jq.fix).toMatch(/install jq/i);
+  });
+
+  it("recognizes jq under the prefix the doctor actually reports", () => {
+    // Tool-store CLIs come back as "cli:jq" while runtime and provider checks
+    // use bare names. Reading only the bare form warned every machine that had
+    // jq installed the whole time.
+    const withJq: DoctorReport = {
+      categories: [
+        {
+          name: "Tools",
+          items: [
+            { name: "tmux", message: "ok", severity: "ok" },
+            { name: "git", message: "ok", severity: "ok" },
+            { name: "claude", message: "ok", severity: "ok" },
+            { name: "cli:jq", message: "/usr/bin/jq", severity: "ok" },
+          ],
+        },
+      ],
+    };
+    const r = deriveReadiness(withJq, { status: "ok" });
+    const reporting = r.groups.find((g) => g.id === "reporting")!;
+
+    expect(reporting.status).toBe("ok");
+    expect(reporting.items[0]!.detail).toBe("/usr/bin/jq");
+    expect(reporting.items[0]!.note).toBeUndefined();
+  });
+
   it("reports installed vs missing providers", () => {
     const r = deriveReadiness(DOCTOR, HEALTH);
     expect(r.providers.claude).toBe(true);

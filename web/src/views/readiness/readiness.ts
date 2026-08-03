@@ -30,7 +30,7 @@ export interface ReadinessItem {
 }
 
 export interface ReadinessGroup {
-  id: "runtime" | "git" | "providers";
+  id: "runtime" | "git" | "reporting" | "providers";
   title: string;
   status: RStatus;
   summary: string;
@@ -169,6 +169,39 @@ export function deriveReadiness(
     ],
   };
 
+  // ── Reporting ────────────────────────────────────────────────────
+  // jq is how an agent's hooks turn a provider's event into a payload carrying
+  // the tool's name, input and result. Without it the reporters fall back to
+  // posting the bare event, so agents keep working and the Live feed keeps
+  // moving — while showing only that *something* happened, never what. That is
+  // a silent partial failure in the one view used to judge whether anything is
+  // working, and nothing anywhere said a word about it (#3493).
+  // The doctor lists tool-store CLIs under a "cli:" prefix while the runtime
+  // and provider checks report bare names; accepting both means this reads the
+  // report as it is rather than as one half of it looks.
+  const jqItem = byName("cli:jq") ?? byName("jq");
+  const jqOk = jqItem?.severity === "ok";
+  const reporting: ReadinessGroup = {
+    id: "reporting",
+    title: "Activity reporting",
+    status: jqOk ? "ok" : "warn",
+    summary: jqOk
+      ? "jq is installed — agents report full tool detail."
+      : "Without jq, agents report that events happened but not what they were.",
+    items: [
+      {
+        key: "jq",
+        label: "jq",
+        detail: jqOk ? (jqItem?.message ?? "installed") : "not found",
+        status: jqOk ? "ok" : "warn",
+        fix: jqOk ? undefined : (jqItem?.fix ?? "brew install jq   OR  apt install jq"),
+        note: jqOk
+          ? undefined
+          : "Agents still run. Their hooks fall back to posting the bare event, so the Live feed loses tool names, inputs and results.",
+      },
+    ],
+  };
+
   // ── Providers ────────────────────────────────────────────────────
   const providers: Record<string, boolean> = {};
   const providerItems: ReadinessItem[] = PROVIDER_NAMES.map((name) => {
@@ -221,7 +254,7 @@ export function deriveReadiness(
     headline = "Ready to run agents";
     // Honest subline: reflect the worst *item* below, not just group rollups —
     // an optional missing tool (amber row) shouldn't read as "all clear".
-    const allItems = [runtime, git, providerGroup].flatMap((g) => g.items.map((i) => i.status));
+    const allItems = [runtime, git, reporting, providerGroup].flatMap((g) => g.items.map((i) => i.status));
     subline = worst(...allItems) === "ok"
       ? "Everything checks out."
       : "Essentials are in place. A few optional extras below could smooth things out.";
@@ -233,7 +266,7 @@ export function deriveReadiness(
     overall,
     headline,
     subline,
-    groups: [runtime, git, providerGroup],
+    groups: [runtime, git, reporting, providerGroup],
     providers,
     tmuxOk,
     dockerOk,
