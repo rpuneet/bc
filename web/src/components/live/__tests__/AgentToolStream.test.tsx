@@ -31,17 +31,22 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 /** Route the calls this component's hooks make; providers is the one under test. */
-function mockApi(providers: unknown, opts: { providersFail?: boolean } = {}) {
+function mockApi(
+  providers: unknown,
+  opts: { providersFail?: boolean; agents?: unknown[] } = {},
+) {
   fetchMock.mockImplementation((input: RequestInfo | URL) => {
     const url = String(input);
     if (url.includes("/api/providers")) {
       if (opts.providersFail) return Promise.reject(new Error("offline"));
       return jsonResponse(providers);
     }
-    // No agents and no recorded activity: the component renders its empty state,
-    // which is exactly what these tests are about.
+    // No recorded activity: the component renders an empty state, which is what
+    // these tests are about. `agents` decides which empty state — an agent in
+    // the list gets an activity entry with no tool nodes, which is the shape a
+    // running-but-broken agent has.
     if (url.includes("/activity")) return jsonResponse([]);
-    if (url.includes("/api/agents")) return jsonResponse([]);
+    if (url.includes("/api/agents")) return jsonResponse(opts.agents ?? []);
     return jsonResponse([]);
   });
 }
@@ -179,5 +184,18 @@ describe("AgentToolStream empty-feed diagnosis", () => {
     mockApi([{ name: "cursor", activity_mode: "hooks" }]);
     renderStream("cursor", { agentState: "error", startedAt: HOURS_AGO });
     await waitFor(() => expect(screen.getByText(NOT_RUNNING)).toBeTruthy());
+  });
+
+  it("explains the silence when only lifecycle events arrived", async () => {
+    // The reported symptom, exactly: "I only see state changed events". The
+    // agent is in the list so it has an activity entry, but no tool events ever
+    // landed, and the stream used to describe that as "No tool events yet for
+    // this agent" — true, unhelpful, and indistinguishable from a slow start.
+    mockApi([{ name: "pi", activity_mode: "transcript" }], {
+      agents: [{ name: "eng-01", state: "working", tool: "pi" }],
+    });
+    renderStream("pi", { agentState: "working", startedAt: HOURS_AGO });
+    await waitFor(() => expect(screen.getByText(SILENT)).toBeTruthy());
+    expect(screen.queryByText(/No tool events yet/i)).toBeNull();
   });
 });
