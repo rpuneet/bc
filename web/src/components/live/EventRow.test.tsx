@@ -105,6 +105,35 @@ describe("EventRow", () => {
     expect(screen.getByText("fix the login bug")).toBeTruthy();
   });
 
+  it("puts how long it took before when it happened, in columns that hold their place", () => {
+    // A row with a duration and one without have to agree on where the
+    // timestamp sits, or the column of times moves from row to row and stops
+    // being readable as a column.
+    const timed = render(<EventRow node={node({ startTime: Date.now() - 5000, endTime: Date.now() - 1000 })} />);
+    const timedMeta = timed.container.querySelector("button > span:last-child");
+    const untimed = render(<EventRow node={node({ toolName: "state_changed", endTime: undefined })} />);
+    const untimedMeta = untimed.container.querySelector("button > span:last-child");
+
+    const cells = (meta: Element | null) => Array.from(meta?.children ?? []);
+    expect(cells(timedMeta)).toHaveLength(2);
+    expect(cells(untimedMeta)).toHaveLength(2);
+
+    // Duration first, and it keeps its width when there is nothing to show.
+    const [timedDuration, timedAgo] = cells(timedMeta);
+    const [untimedDuration, untimedAgo] = cells(untimedMeta);
+    if (!timedDuration || !timedAgo || !untimedDuration || !untimedAgo) {
+      throw new Error("a row is missing its duration or timestamp column");
+    }
+    expect(timedDuration.textContent).toMatch(/\d/);
+    expect(untimedDuration.textContent).toBe("");
+    expect(untimedDuration.className).toBe(timedDuration.className);
+
+    // The timestamp is last, and identically sized in both rows.
+    expect(timedAgo.textContent).toMatch(/ago|now/);
+    expect(untimedAgo.textContent).toMatch(/ago|now/);
+    expect(untimedAgo.className).toBe(timedAgo.className);
+  });
+
   it("shows the MCP server chip and function name", () => {
     render(<EventRow node={node({ toolName: "mcp__github__create_pr", args: "open PR" })} />);
     expect(screen.getByText("github")).toBeTruthy();
