@@ -6,9 +6,16 @@
 version: 2
 
 updates:
-  # Go modules
+  # Go modules. Both are listed because desktop/go.mod carries
+  # `replace github.com/rpuneet/mycel => ../`, so its indirect requirements are
+  # derived from the root module's and go stale the moment a root dependency
+  # moves — which CI now fails on (`go mod tidy -diff`, #3497). Grouping the two
+  # directories keeps a bump in one PR that updates both, instead of a root-only
+  # PR that cannot pass.
   - package-ecosystem: gomod
-    directory: /
+    directories:
+      - /
+      - /desktop
     schedule:
       interval: weekly
       day: monday
@@ -38,23 +45,6 @@ updates:
     groups:
       actions:
         patterns: ["*"]
-
-  # npm — TUI
-  - package-ecosystem: npm
-    directory: /tui
-    schedule:
-      interval: weekly
-      day: monday
-    labels:
-      - dependencies
-    commit-message:
-      prefix: "deps(tui):"
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
-    groups:
-      tui-deps:
-        update-types: [minor, patch]
 
   # npm — Web UI
   - package-ecosystem: npm
