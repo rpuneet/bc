@@ -51,6 +51,24 @@ func SetupAgentFromRole(ctx context.Context, repoPath, agentName, roleName, targ
 }
 
 func setupAgentFromRole(ctx context.Context, repoPath, agentName, roleName, targetDir, runtimeBackend, toolName string) error {
+	resolved := resolveRoleOrNil(roleName)
+	if resolved == nil {
+		return nil
+	}
+
+	if setupErr := provisionResolved(ctx, repoPath, agentName, targetDir, runtimeBackend, toolName, resolved); setupErr != nil {
+		return setupErr
+	}
+
+	log.Debug("agent role setup complete", "agent", agentName, "role", roleName)
+	return nil
+}
+
+// resolveRoleOrNil resolves a role's inheritance chain, or returns nil when the
+// role store or the role itself is unavailable. Absent configuration has never
+// been fatal to creating an agent — an agent with no role files still runs — so
+// this warns and yields nothing rather than failing the caller.
+func resolveRoleOrNil(roleName string) *home.ResolvedRole {
 	rm, err := home.NewGlobalRoleManager(mycelHomeOrEmpty())
 	if err != nil {
 		log.Warn("failed to open global role store, skipping setup", "role", roleName, "error", err)
@@ -62,7 +80,20 @@ func setupAgentFromRole(ctx context.Context, repoPath, agentName, roleName, targ
 		log.Warn("failed to resolve role, skipping setup", "role", roleName, "error", err)
 		return nil
 	}
+	return resolved
+}
 
+// provisionResolved writes everything a resolved configuration asks for into an
+// agent's worktree: the prompt, MCP servers, provider settings, plugins, and the
+// markdown trees for commands, skills, subagents and rules.
+//
+// Templates provision through here too (see SetupAgentFromTemplate). They used to
+// have their own writer in the HTTP handler, which knew about neither the
+// ConfigAdapter — so a template's prompt went to CLAUDE.md whatever the provider,
+// and a Cursor agent never read it — nor the tool store, so its MCP servers were
+// written as empty objects that configure nothing. Anything learned here about
+// provisioning an agent now reaches both callers.
+func provisionResolved(ctx context.Context, repoPath, agentName, targetDir, runtimeBackend, toolName string, resolved *home.ResolvedRole) error {
 	// Resolve the ConfigAdapter for this provider.
 	adapter := resolveConfigAdapter(toolName)
 
@@ -78,7 +109,7 @@ func setupAgentFromRole(ctx context.Context, repoPath, agentName, roleName, targ
 	}
 
 	// MCP config via adapter (claude mcp add, .mcp.json, .cursor/mcp.json, etc.)
-	if e := writeMCPJSON(ctx, repoPath, agentName, resolved, secrets, targetDir, runtimeBackend); e != nil {
+	if e := writeMCPJSON(ctx, repoPath, agentName, resolved, secrets, targetDir, runtimeBackend, toolName); e != nil {
 		errs = append(errs, e.Error())
 	}
 
@@ -135,11 +166,10 @@ func setupAgentFromRole(ctx context.Context, repoPath, agentName, roleName, targ
 	}
 
 	if len(errs) > 0 {
-		log.Warn("some role files failed to write", "agent", agentName, "errors", len(errs))
-		return fmt.Errorf("role setup: %s", strings.Join(errs, "; "))
+		log.Warn("some agent config files failed to write", "agent", agentName, "errors", len(errs))
+		return fmt.Errorf("agent setup: %s", strings.Join(errs, "; "))
 	}
 
-	log.Debug("agent role setup complete", "agent", agentName, "role", roleName)
 	return nil
 }
 
@@ -159,7 +189,7 @@ type mcpServerEntry struct {
 
 var secretRefPattern = regexp.MustCompile(`\$\{secret:([^}]+)\}`)
 
-func writeMCPJSON(ctx context.Context, repoPath, agentName string, resolved *home.ResolvedRole, secrets map[string]string, targetDir, runtimeBackend string) error {
+func writeMCPJSON(ctx context.Context, repoPath, agentName string, resolved *home.ResolvedRole, secrets map[string]string, targetDir, runtimeBackend, toolName string) error {
 	isDocker := runtimeBackend == "docker"
 	cfg := mcpConfig{MCPServers: make(map[string]mcpServerEntry)}
 
@@ -184,7 +214,11 @@ func writeMCPJSON(ctx context.Context, repoPath, agentName string, resolved *hom
 		mcpStore, mcpErr = pkgmcp.NewStore(wsDB, wsDriver)
 	}
 	if mcpErr != nil && !toolStoreOpen {
+		// Still give the agent the one server that needs no store: without it an
+		// agent cannot message anyone or report a cost, which is a strange way to
+		// come out of a database hiccup.
 		log.Debug("both tool and MCP stores unavailable", "error", mcpErr)
+		cfg.MCPServers["mycel"] = mcpServerEntry{URL: selfMCPURL(runtimeBackend, agentName), Type: "http"}
 		return writeJSONFile(targetDir, ".mcp.json", cfg)
 	}
 	if mcpErr == nil {
@@ -274,8 +308,11 @@ func writeMCPJSON(ctx context.Context, repoPath, agentName string, resolved *hom
 		cfg.MCPServers["mycel"] = mcpServerEntry{URL: selfMCPURL(runtimeBackend, agentName), Type: "http"}
 	}
 
-	// Prefer claude CLI for MCP setup; fall back to .mcp.json file write.
-	if len(cfg.MCPServers) > 0 && setupMCPViaCLI(ctx, targetDir, agentName, cfg.MCPServers) {
+	// Prefer the claude CLI for MCP setup — but only for a claude agent. It was
+	// run for every provider, so a Cursor or agy agent had its servers registered
+	// with a CLI it does not use, in a config it does not read, and the .mcp.json
+	// that it does read was skipped as redundant.
+	if isClaudeTool(toolName) && len(cfg.MCPServers) > 0 && setupMCPViaCLI(ctx, targetDir, agentName, cfg.MCPServers) {
 		log.Debug("MCP servers configured via claude CLI", "agent", agentName, "count", len(cfg.MCPServers))
 		return nil
 	}
@@ -673,6 +710,12 @@ func setupMCPViaCLI(ctx context.Context, targetDir, agentName string, servers ma
 	}
 
 	return allOK
+}
+
+// isClaudeTool reports whether an agent runs Claude Code, which is also the
+// default when no tool was recorded (see resolveConfigAdapter).
+func isClaudeTool(toolName string) bool {
+	return toolName == "" || toolName == "claude"
 }
 
 // resolveConfigAdapter returns the ConfigAdapter for the given tool name.

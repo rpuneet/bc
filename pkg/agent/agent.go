@@ -1410,8 +1410,11 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	if err := m.writeActivityConfig(toolName, wtDir, name); err != nil {
 		log.Error("failed to write hook settings", "dir", wtDir, "error", err)
 	}
-	if setupErr := SetupAgentFromRoleWithRuntime(ctx, repoPath, name, string(existing.Role), wtDir, agentRuntime, existing.Tool); setupErr != nil {
-		log.Warn("role setup failed on restart", "agent", name, "error", setupErr)
+	// The template goes in too: regenerating from the role alone would overwrite
+	// the prompt file with the role's prompt, so an agent lost the persona it was
+	// created with the first time it was restarted.
+	if setupErr := SetupAgentFromRoleAndTemplate(ctx, repoPath, name, string(existing.Role), wtDir, agentRuntime, existing.Tool, existing.Template); setupErr != nil {
+		log.Warn("agent setup failed on restart", "agent", name, "error", setupErr)
 	}
 	appendAppPrompt(wtDir, existing.Tool, m.appsConfig)
 	if err := appendInjectedInstructions(ctx, injectedPromptFile(wtDir, existing.Tool), m.wsConfig,
@@ -1633,10 +1636,13 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		log.Warn("failed to write hook settings", "dir", wtDir, "error", err)
 	}
 
-	// Write role files (prompt, MCP, rules, etc.) to the worktree using provider adapter
-	if setupErr := SetupAgentFromRoleWithRuntime(ctx, repoPath, name, string(role), wtDir, agentRuntime, effectiveTool); setupErr != nil {
-		log.Warn("role setup failed", "agent", name, "error", setupErr)
-		agent.Task = fmt.Sprintf("role setup failed: %v", setupErr)
+	// Write role and template files (prompt, MCP, rules, etc.) to the worktree
+	// using the provider adapter. The template is provisioned here rather than by
+	// the caller so that every way of creating an agent gets it — the HTTP handler
+	// had its own writer and spawn_agent had none (#3479).
+	if setupErr := SetupAgentFromRoleAndTemplate(ctx, repoPath, name, string(role), wtDir, agentRuntime, effectiveTool, opts.Template); setupErr != nil {
+		log.Warn("agent setup failed", "agent", name, "error", setupErr)
+		agent.Task = fmt.Sprintf("agent setup failed: %v", setupErr)
 	}
 
 	// Append platform credential instructions to the agent's prompt file
@@ -2272,14 +2278,15 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 		newWorktreeDir = newPath
 	}
 
-	// Regenerate role files (CLAUDE.md, .mcp.json) with the new agent name.
+	// Regenerate the agent's config files with the new name, template included so
+	// a rename does not quietly revert the agent to its bare role.
 	if newWorktreeDir != "" && agent.Role != "" {
 		agentRuntime := agent.RuntimeBackend
 		if agentRuntime == "" {
 			agentRuntime = "tmux"
 		}
-		if setupErr := SetupAgentFromRoleWithRuntime(ctx, repoPath, newName, string(agent.Role), newWorktreeDir, agentRuntime, agent.Tool); setupErr != nil {
-			log.Warn("rename: failed to regenerate role files", "agent", newName, "error", setupErr)
+		if setupErr := SetupAgentFromRoleAndTemplate(ctx, repoPath, newName, string(agent.Role), newWorktreeDir, agentRuntime, agent.Tool, agent.Template); setupErr != nil {
+			log.Warn("rename: failed to regenerate agent config files", "agent", newName, "error", setupErr)
 		}
 	}
 
