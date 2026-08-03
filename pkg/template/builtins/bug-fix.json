@@ -1,0 +1,8 @@
+{
+  "description": "Reproduce, fix, and leave a regression test behind",
+  "mcps": [
+    "mycel",
+    "github"
+  ],
+  "stuck_timeout_min": 30
+}

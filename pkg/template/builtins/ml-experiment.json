@@ -1,0 +1,7 @@
+{
+  "description": "Run an experiment you could defend",
+  "mcps": [
+    "mycel"
+  ],
+  "stuck_timeout_min": 45
+}

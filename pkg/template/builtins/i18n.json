@@ -1,0 +1,8 @@
+{
+  "description": "Prepare an interface for languages you did not write it in",
+  "max_cost_usd": 12,
+  "mcps": [
+    "mycel"
+  ],
+  "stuck_timeout_min": 30
+}

@@ -8,6 +8,7 @@ Task-oriented guides for common operations.
 | [Set up apps](set-up-apps.md) | Connect external platforms and subscribe agents |
 | [Manage secrets](manage-secrets.md) | The encrypted vault, `${secret:NAME}` references, repo overrides |
 | [Inject instructions](inject-instructions.md) | Add a global instruction block to every agent's prompt |
+| [Use agent templates](use-templates.md) | The 36 built-in templates, guardrails, and writing your own |
 | [Browse the marketplace](browse-the-marketplace.md) | Discover and install agent templates |
 | [Read insights](read-insights.md) | Costs, stats, and activity surfaces |
 | [Troubleshoot issues](troubleshoot.md) | Common errors and solutions for installation, agents, notifications, and performance |

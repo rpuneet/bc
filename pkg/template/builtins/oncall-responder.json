@@ -1,0 +1,7 @@
+{
+  "description": "Stabilize first, explain second",
+  "mcps": [
+    "mycel"
+  ],
+  "stuck_timeout_min": 15
+}

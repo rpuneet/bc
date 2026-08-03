@@ -1,0 +1,8 @@
+{
+  "description": "Answer a technical question with evidence, not vibes",
+  "max_cost_usd": 12,
+  "mcps": [
+    "mycel"
+  ],
+  "stuck_timeout_min": 30
+}

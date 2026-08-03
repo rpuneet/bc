@@ -1,0 +1,8 @@
+{
+  "description": "Change infrastructure as code, with a plan you read",
+  "mcps": [
+    "mycel",
+    "github"
+  ],
+  "stuck_timeout_min": 35
+}

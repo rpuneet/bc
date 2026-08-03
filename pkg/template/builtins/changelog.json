@@ -1,0 +1,9 @@
+{
+  "description": "Summarize a release for the people who use it",
+  "max_cost_usd": 8,
+  "mcps": [
+    "mycel",
+    "github"
+  ],
+  "stuck_timeout_min": 20
+}

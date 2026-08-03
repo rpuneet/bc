@@ -1,0 +1,7 @@
+{
+  "description": "Restructure code without changing what it does",
+  "mcps": [
+    "mycel"
+  ],
+  "stuck_timeout_min": 35
+}

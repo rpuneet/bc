@@ -1,0 +1,7 @@
+{
+  "description": "Empty starting point",
+  "mcps": [
+    "mycel"
+  ],
+  "stuck_timeout_min": 30
+}
