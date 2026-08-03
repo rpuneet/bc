@@ -530,6 +530,26 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 			r.URL.Path = "/"
 			fileServer.ServeHTTP(w, r)
 		})
+	} else {
+		// A binary built without the UI bundle registered no root handler at
+		// all, so opening the daemon in a browser gave Go's bare
+		// "404 page not found" — indistinguishable from a broken daemon, a
+		// wrong port, or a crashed server, when in fact the daemon is fine and
+		// only its UI is absent. Saying so is the difference between a
+		// two-minute fix and an afternoon.
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/hooks/") || strings.HasPrefix(r.URL.Path, "/_mcp/") {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"error":"not found"}`))
+				return
+			}
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			// 503, not 404: the daemon answered, and this address will serve
+			// the UI once the binary carries it.
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(noWebUIPage))
+		})
 	}
 
 	// Middleware chain (outermost runs first):
