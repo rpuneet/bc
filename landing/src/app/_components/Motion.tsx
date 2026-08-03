@@ -55,10 +55,18 @@ export function ScrollReveal({
       "(prefers-reduced-motion: reduce)",
     ).matches;
     if (!el || reduced || typeof IntersectionObserver === "undefined") {
-      setRevealed(true);
+      // Nothing to do: `hidden` is false until the animation is armed, so the
+      // content is already visible. Setting `revealed` here would have been a
+      // synchronous state update in an effect — a cascading render — to reach a
+      // state that renders identically.
       return;
     }
-    setArmed(true);
+    // Arm on the next tick rather than synchronously in the effect body, the
+    // same way useMounted does and for the same reason. Should the observer win
+    // the race — an element already in the viewport at load — `revealed` lands
+    // first and the element simply never hides, skipping the animation rather
+    // than the content.
+    const arm = setTimeout(() => setArmed(true), 0);
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) {
@@ -72,6 +80,7 @@ export function ScrollReveal({
     // Safety net: never leave content hidden if the trigger misfires.
     const failsafe = setTimeout(() => setRevealed(true), 3000);
     return () => {
+      clearTimeout(arm);
       observer.disconnect();
       clearTimeout(failsafe);
     };
