@@ -358,6 +358,72 @@ export function activityItemToNode(item: AgentActivityItem): ToolNode {
   };
 }
 
+/**
+ * Rebuild a feed from stored activity, pairing each tool call's start with its
+ * finish. Takes the REST feed's own order (newest first) and returns nodes
+ * oldest first.
+ *
+ * A tool call is reported as two events, and mapping one node per event made
+ * every call in a reloaded feed appear twice — once for `PreToolUse`, once for
+ * `PostToolUse` — with no duration on either, since a duration needs both
+ * halves. The live stream never showed this because it holds the call it just
+ * saw start and completes it in place; only a reload went through the mapping
+ * path, which is to say the feed most people look at was the wrong one (#3535).
+ *
+ * The events carry no id tying a finish to its start, so a finish is matched to
+ * the most recent unfinished call of the same tool — the same rule the live
+ * stream applies, for the same reason. It is exact for the sequential tool use
+ * these providers emit, and where it cannot be sure it errs toward keeping
+ * events: an unmatched finish becomes its own row rather than being dropped.
+ *
+ * A call whose finish was never recorded keeps no end time, so it renders
+ * without a duration instead of claiming one. It is deliberately not left
+ * "running": an elapsed timer ticking up from a start time hours in the past is
+ * the stale-snapshot bug of #3267, and history is exactly where that would
+ * happen on every reload.
+ */
+export function activityItemsToNodes(items: AgentActivityItem[]): ToolNode[] {
+  const nodes: ToolNode[] = [];
+  const isFinish = (event: string) => event === "PostToolUse" || event === "PostToolUseFailure";
+
+  for (const item of [...items].reverse()) {
+    const node = activityItemToNode(item);
+
+    if (isFinish(item.event)) {
+      const startIdx = findLastIdx(
+        nodes,
+        (n) => n.toolName === node.toolName && n.status === "running",
+      );
+      const start = startIdx >= 0 ? nodes[startIdx] : undefined;
+      if (start) {
+        nodes[startIdx] = {
+          ...start,
+          // The call's own input and summary describe it better than the
+          // result does, so only the outcome is taken from the finish.
+          status: item.event === "PostToolUseFailure" || node.error ? "failed" : "completed",
+          endTime: node.startTime,
+          fullOutput: node.fullOutput ?? start.fullOutput,
+          error: node.error ?? start.error,
+        };
+        continue;
+      }
+      nodes.push(node);
+      continue;
+    }
+
+    if (item.event === "PreToolUse") {
+      // "running" marks it as awaiting a finish while folding; anything still
+      // marked at the end had none, and is settled below.
+      nodes.push({ ...node, status: "running" });
+      continue;
+    }
+
+    nodes.push(node);
+  }
+
+  return nodes.map((n) => (n.status === "running" ? { ...n, status: "completed" as const } : n));
+}
+
 /** Derive a tool name from a historical row's message ("Bash: cmd" or a
  *  bare word) when the structured tool_name field is absent. */
 function parseHistoricalToolName(item: AgentActivityItem): string {

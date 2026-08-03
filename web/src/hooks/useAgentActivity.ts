@@ -37,7 +37,7 @@ function finalizeRunningNodes(nodes: ToolNode[], endTime: number): ToolNode[] {
 const TERMINAL_STATES = new Set(["idle", "stopped", "done", "error"]);
 
 import {
-  activityItemToNode,
+  activityItemsToNodes,
   findLastIdx,
   nextId,
   parseTaskCreate,
@@ -130,7 +130,9 @@ export function useAgentActivity(agentName?: string, options?: UseAgentActivityO
             const next = new Map(prev);
             const existing = next.get(agentName);
             if (existing && existing.nodes.length === 0 && items.length > 0) {
-              const nodes: ToolNode[] = items.map(activityItemToNode);
+              // Newest first here, as the detail feed reads; paired first so a
+              // tool call is one row with a duration rather than two without.
+              const nodes: ToolNode[] = activityItemsToNodes(items).reverse();
               next.set(agentName, { ...existing, nodes });
             }
             return next;
@@ -151,10 +153,7 @@ export function useAgentActivity(agentName?: string, options?: UseAgentActivityO
               const existing = next.get(a.name);
               if (!existing || existing.nodes.length > 0) return prev;
               // Oldest-first inside each card; the REST feed is newest-first.
-              const nodes: ToolNode[] = items
-                .slice()
-                .reverse()
-                .map(activityItemToNode);
+              const nodes: ToolNode[] = activityItemsToNodes(items);
               next.set(a.name, { ...existing, nodes });
               return next;
             });
