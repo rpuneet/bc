@@ -22,21 +22,23 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Subdirectories and files relative to MycelHome().
 const (
-	globalTemplatesDirName = "templates"
-	globalSecretsFileName  = "secrets.vault"
-	globalMCPFileName      = "mcps.json"
-	globalToolsFileName    = "tools.json"
-	globalAgentsDirName    = "agents"
-	globalAppsDirName      = "apps"
-	globalLogsDirName      = "logs"
-	globalRunDirName       = "run"
-	globalDaemonPidName    = "daemon.pid"
-	globalDaemonLogName    = "daemon.log"
-	globalDaemonAddrName   = "daemon.addr"
+	globalTemplatesDirName    = "templates"
+	globalSecretsFileName     = "secrets.vault"
+	globalMCPFileName         = "mcps.json"
+	globalToolsFileName       = "tools.json"
+	globalAgentsDirName       = "agents"
+	globalAppsDirName         = "apps"
+	globalLogsDirName         = "logs"
+	globalRunDirName          = "run"
+	globalDaemonPidName       = "daemon.pid"
+	globalDaemonLogName       = "daemon.log"
+	globalDaemonAddrName      = "daemon.addr"
+	globalDaemonWorkspaceName = "workspace"
 )
 
 // Agent entity subdirectories under agents/<name>/.
@@ -203,6 +205,62 @@ func DaemonAddrPath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(dir, globalDaemonAddrName), nil
+}
+
+// DaemonWorkspacePath returns the path to the file recording which workspace
+// the daemon is serving (~/.mycel/run/workspace), or an empty line when it is
+// serving none.
+//
+// A daemon's workspace is not cosmetic: tmux session names include a hash of it
+// so two workspaces cannot collide, so a process that guesses a different
+// workspace cannot find the sessions of the agents already running. The desktop
+// app has no way to guess — launched from Finder its working directory is `/` —
+// and reading a directory it was never told about is how every agent came to be
+// listed as running and none could be attached to (#3569). Publishing it here
+// lets the next process adopt the workspace instead of inventing one.
+func DaemonWorkspacePath() (string, error) {
+	dir, err := RunDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, globalDaemonWorkspaceName), nil
+}
+
+// PublishDaemonWorkspace records the workspace the running daemon serves. An
+// empty root is written as an empty file rather than left stale, so a reader
+// can tell "serving no workspace" from "no daemon has ever run".
+func PublishDaemonWorkspace(root string) error {
+	path, err := DaemonWorkspacePath()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(root+"\n"), 0o600)
+}
+
+// LastDaemonWorkspace returns the workspace the most recent daemon served, or
+// "" when there is no record or the directory has since gone away.
+func LastDaemonWorkspace() string {
+	path, err := DaemonWorkspacePath()
+	if err != nil {
+		return ""
+	}
+	data, err := os.ReadFile(path) //nolint:gosec // path is derived from MycelHome
+	if err != nil {
+		return ""
+	}
+	root := strings.TrimSpace(string(data))
+	if root == "" {
+		return ""
+	}
+	// A workspace that has been moved or deleted is worse than none: adopting it
+	// would produce the same invisible-session mismatch from the other side.
+	if info, err := os.Stat(root); err != nil || !info.IsDir() {
+		return ""
+	}
+	return root
 }
 
 // EnsureGlobalDir makes sure ~/.mycel/ exists with 0750 permissions. It is

@@ -146,22 +146,27 @@ func unpublishDaemonAddr(url string) {
 }
 
 // resolveRepoRoot mirrors the CLI's repo resolution: explicit
-// MYCEL_WORKSPACE wins, then the enclosing adopted repo of the
-// current directory. GUI launches usually have neither — empty means
-// a MycelHome-only boot.
+// MYCEL_WORKSPACE wins, then the enclosing adopted repo of the current
+// directory, then the workspace the last daemon served.
+//
+// That last step is not a nicety. Tmux session names carry a hash of the
+// workspace so two of them cannot collide, which means a daemon serving a
+// different workspace cannot see the sessions of agents that are plainly still
+// running. A Finder launch has a working directory of `/`, so the first two
+// steps find nothing and the app used to serve no workspace at all — every
+// agent listed as running, none of them attachable, and nothing in the UI
+// naming the cause (#3569). The workspace the CLI daemon published is the
+// closest thing to an answer the app can have without asking.
 func resolveRepoRoot() string {
 	if p := os.Getenv("MYCEL_WORKSPACE"); p != "" {
 		return p
 	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		return ""
+	if cwd, err := os.Getwd(); err == nil {
+		if h, err := home.Find(cwd); err == nil && h != nil {
+			return h.RootDir
+		}
 	}
-	h, err := home.Find(cwd)
-	if err != nil || h == nil {
-		return ""
-	}
-	return h.RootDir
+	return home.LastDaemonWorkspace()
 }
 
 // resolveListenAddr honors the global preferences (server.host /
