@@ -40,14 +40,17 @@ export function ElapsedTimer({ start }: { start: number }) {
   return <>{elapsed(start)}</>;
 }
 
-export function RelativeTimestamp({ ts }: { ts: number }) {
+export function RelativeTimestamp({ ts, className = "" }: { ts: number; className?: string }) {
   const [, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(id);
   }, []);
   return (
-    <span title={new Date(ts).toISOString()} className="text-[10px] text-mycel-muted font-mono tabular-nums">
+    <span
+      title={new Date(ts).toISOString()}
+      className={`text-[10px] text-mycel-muted font-mono tabular-nums ${className}`}
+    >
       {relativeTime(ts)}
     </span>
   );
@@ -348,17 +351,26 @@ export function EventRow({ node, searchQuery = "" }: { node: ToolNode; searchQue
         <EventName node={node} kind={kind} query={searchQuery} />
         <EventSummary node={node} kind={kind} query={searchQuery} />
 
+        {/* How long it took, then when it happened. Two columns, not two
+            adjacent labels: an event with no duration — a state change, a
+            prompt — would otherwise let its timestamp slide right into the
+            space a duration pill occupies on the rows above and below it, and
+            a column of times that moves is a column you have to read one row
+            at a time. Both are fixed-width and right-aligned so they line up
+            whether or not a row has a duration to show. */}
         <span className="flex items-center gap-2 shrink-0 ml-auto pl-2">
-          <RelativeTimestamp ts={node.startTime} />
-          {node.status === "running" ? (
-            <span className="text-[11px] tabular-nums font-mono px-1.5 py-0.5 rounded-md bg-mycel-accent-subtle text-mycel-accent">
-              <ElapsedTimer start={node.startTime} />
-            </span>
-          ) : node.endTime != null ? (
-            <span className={`text-[11px] tabular-nums font-mono px-1.5 py-0.5 rounded-md ${durationPillClass(node.startTime, node.endTime)}`}>
-              {elapsed(node.startTime, node.endTime)}
-            </span>
-          ) : null}
+          <span className="w-14 flex justify-end">
+            {node.status === "running" ? (
+              <span className="text-[11px] tabular-nums font-mono px-1.5 py-0.5 rounded-md bg-mycel-accent-subtle text-mycel-accent">
+                <ElapsedTimer start={node.startTime} />
+              </span>
+            ) : node.endTime != null ? (
+              <span className={`text-[11px] tabular-nums font-mono px-1.5 py-0.5 rounded-md ${durationPillClass(node.startTime, node.endTime)}`}>
+                {elapsed(node.startTime, node.endTime)}
+              </span>
+            ) : null}
+          </span>
+          <RelativeTimestamp ts={node.startTime} className="w-16 text-right" />
         </span>
       </button>
 
