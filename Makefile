@@ -53,7 +53,13 @@
 # Source builds and release builds deliberately produce the same format so that
 # `mycel version`, /api/health and the About page's update check never have to
 # know which kind of build they are looking at.
-VERSION ?= $(shell sh scripts/version.sh)
+# Evaluated once, when make starts, rather than on first use: a build writes into
+# the tree (server/web/dist, wails.json) and a recursively-expanded VERSION would
+# be computed after those writes, letting a build's own side effects decide
+# whether it calls itself dirty. `ifeq` keeps `make VERSION=... ` working.
+ifeq ($(origin VERSION),undefined)
+VERSION := $(shell sh scripts/version.sh)
+endif
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 DATE    ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 BUILD_DIR ?= bin
@@ -156,6 +162,12 @@ build-local-web: ## Build web UI → server/web/dist/
 	@mkdir -p server/web
 	@rm -rf server/web/dist
 	@cp -r web/dist server/web/dist
+	# server/web/dist/placeholder.txt is tracked (see .gitignore) so that a fresh
+	# checkout has a non-empty directory for //go:embed to accept. The rm above
+	# takes it with the rest of dist, and leaving it deleted marks the worktree
+	# dirty — which then shows up in the version string of every later build, so a
+	# clean checkout of a tag stops reporting itself as that release.
+	@printf 'placeholder\n' > server/web/dist/placeholder.txt
 
 build-local-landing: ## Build landing page
 	cd landing && bun install && bun run build
