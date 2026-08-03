@@ -18,11 +18,22 @@ type CursorProvider struct {
 func init() { Register(NewCursorProvider()) }
 
 // NewCursorProvider creates a new Cursor provider.
+//
+// --trust: cursor-agent asks "do you trust the contents of this directory?" on
+// first use of a workspace, and a tmux pane has nobody to answer it. The agent
+// sat at that prompt indefinitely — reporting no events at all, since even
+// SessionStart fires after trust is granted — which reads from the outside as an
+// agent that started fine and a Live tab that doesn't work.
+//
+// Answering it is not a decision being taken away from anyone: mycel created the
+// worktree it is pointing the agent at, moments earlier, from a repo the user
+// had already adopted. The prompt exists for a directory of unknown provenance,
+// which this never is.
 func NewCursorProvider() *CursorProvider {
 	return &CursorProvider{
 		name:        "cursor",
 		description: "Cursor Agent CLI",
-		command:     "cursor-agent",
+		command:     "cursor-agent --trust",
 		binary:      "cursor-agent",
 	}
 }

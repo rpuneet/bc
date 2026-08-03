@@ -261,8 +261,11 @@ func TestCursorProvider(t *testing.T) {
 	if p.Description() == "" {
 		t.Error("expected non-empty description")
 	}
-	if p.Command() != "cursor-agent" {
-		t.Errorf("expected command 'cursor-agent', got %q", p.Command())
+	// --trust is not optional decoration: without it cursor-agent stops on a
+	// workspace-trust prompt that a tmux pane has nobody to answer, and the agent
+	// reports no events at all while it waits.
+	if p.Command() != "cursor-agent --trust" {
+		t.Errorf("expected command 'cursor-agent --trust', got %q", p.Command())
 	}
 }
 
