@@ -450,14 +450,16 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewTemplateHandler(tmplStore).Register(mux)
 
 		// Marketplace — live catalog aggregating MCP registry, GitHub, vendor skill
-		// sources (Claude/openclaw/Gemini), and local templates. The install
-		// endpoint reuses the agent-message path (AgentService.Send) to dispatch
-		// install instructions; sender may be nil when agents are unavailable.
+		// sources (Claude/openclaw/Gemini), and local templates. Template
+		// installs write directly to tmplStore (deterministic); every other
+		// item type dispatches an install instruction via the agent-message
+		// path (AgentService.Send); sender may be nil when agents are unavailable.
 		var mktSender handlers.AgentSender
 		if svc.Agents != nil {
 			mktSender = svc.Agents
 		}
-		handlers.NewMarketplaceHandler(marketplace.NewAggregator(tmplStore, nil), mktSender).Register(mux)
+		handlers.NewMarketplaceHandler(marketplace.NewAggregator(tmplStore, nil), mktSender).
+			WithTemplateStore(tmplStore).Register(mux)
 
 		// File upload/download for channel attachments + shared screenshots
 		fileStore := attachment.NewStore(svc.Home.StateDir())

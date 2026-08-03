@@ -488,24 +488,169 @@ func TestInstall_InjectionStripped(t *testing.T) {
 	}
 }
 
-// A template entry names a template that is already on the machine, so the
-// instruction has to be something an agent can actually run. It used to name
-// `mycel template import`, which has never been a command (#3538).
-func TestComposeInstallMessage_Template(t *testing.T) {
-	req := installRequest{
+// ── template install: direct store write ─────────────────────────────────────
+
+func TestMarketplaceHandler_Install_TemplateWritesToStoreDirectly(t *testing.T) {
+	dir := t.TempDir()
+	store := template.NewStore(dir)
+	if err := store.Create(template.Template{Name: "engineer", Description: "v1"}, "prompt v1", template.ScopeGlobal); err != nil {
+		t.Fatalf("seed template: %v", err)
+	}
+	agg := marketplace.NewAggregator(store, &fakeFetcherHandler{})
+
+	// No sender wired: a direct-write install must not depend on any agent
+	// being reachable.
+	h := NewMarketplaceHandler(agg, nil).WithTemplateStore(store)
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	body := `{
+		"item_id":     "mycel:engineer",
+		"item_name":   "engineer",
+		"item_type":   "template",
+		"item_source": "mycel",
+		"agents":      ["alpha"]
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/api/marketplace/install", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp installResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Dispatched != 1 {
+		t.Errorf("want dispatched=1, got %d", resp.Dispatched)
+	}
+
+	got, prompt, err := store.Get("engineer")
+	if err != nil {
+		t.Fatalf("get template after install: %v", err)
+	}
+	if got.Description != "v1" || prompt != "prompt v1" {
+		t.Errorf("template content changed unexpectedly: description=%q prompt=%q", got.Description, prompt)
+	}
+}
+
+// The daemon must not fetch an address chosen by a request. This endpoint is
+// reachable from any page the browser has open, so a fetch here is a way to make
+// the daemon issue requests on the caller's behalf — to a cloud metadata service,
+// or to whatever else is listening on loopback. A remote template is imported by
+// the agent instead, from a URL a person typed.
+func TestMarketplaceHandler_Install_TemplateFromAURLIsNotFetchedByTheDaemon(t *testing.T) {
+	dir := t.TempDir()
+	store := template.NewStore(dir)
+	agg := marketplace.NewAggregator(store, &fakeFetcherHandler{})
+
+	fetched := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fetched = true
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"name":"remote-tmpl","system_prompt":"remote prompt"}`))
+	}))
+	defer srv.Close()
+
+	sender := &fakeAgentSender{}
+	h := NewMarketplaceHandler(agg, sender).WithTemplateStore(store)
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	body, err := json.Marshal(installRequest{
+		ItemName:      "remote-tmpl",
+		ItemType:      "template",
+		ItemSourceURL: srv.URL,
+		Agents:        []string{"alpha"},
+	})
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/marketplace/install", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if fetched {
+		t.Error("the daemon fetched a URL supplied in a request body")
+	}
+	if _, _, err := store.Get("remote-tmpl"); err == nil {
+		t.Error("a template arrived in the store from a URL the daemon should not have read")
+	}
+	if len(sender.calls) != 1 {
+		t.Fatalf("want the import dispatched to the agent instead, got %d Send calls", len(sender.calls))
+	}
+	if !contains(sender.calls[0].message, "mycel template import") {
+		t.Errorf("expected the agent to be told to import it, got: %s", sender.calls[0].message)
+	}
+}
+
+func TestMarketplaceHandler_Install_TemplateUnresolvableFails(t *testing.T) {
+	dir := t.TempDir()
+	store := template.NewStore(dir)
+	agg := marketplace.NewAggregator(store, &fakeFetcherHandler{})
+	h := NewMarketplaceHandler(agg, nil).WithTemplateStore(store)
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	body := `{"item_name":"does-not-exist","item_type":"template","agents":["alpha"]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/marketplace/install", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code == http.StatusOK {
+		t.Fatalf("want a non-200 status for an unresolvable template install, got 200: %s", rec.Body.String())
+	}
+}
+
+func TestMarketplaceHandler_Install_TemplateNoStoreFallsBackToDispatch(t *testing.T) {
+	// Without WithTemplateStore, template installs must still fall back to
+	// the original agent-dispatch behavior rather than erroring out.
+	sender := &fakeAgentSender{}
+	h := NewMarketplaceHandler(newTestAggregator(t, nil), sender)
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	body := `{"item_name":"engineer","item_type":"template","item_source":"mycel","agents":["alpha"]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/marketplace/install", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if len(sender.calls) != 1 {
+		t.Fatalf("want 1 dispatched Send call, got %d", len(sender.calls))
+	}
+	if !contains(sender.calls[0].message, "mycel agent create") {
+		t.Errorf("expected dispatched message to name a command that exists, got: %s", sender.calls[0].message)
+	}
+}
+
+// A template from the mycel source is already in ~/.mycel/templates, so
+// importing it would achieve nothing. What a template is for is creating an
+// agent, so that is what the instruction asks for.
+func TestComposeInstallMessage_TemplateAlreadyLocal(t *testing.T) {
+	msg := composeInstallMessage(installRequest{
 		ItemID:     "mycel:engineer",
 		ItemName:   "engineer",
 		ItemType:   "template",
 		ItemSource: "mycel",
 		Agents:     []string{"a"},
-	}
-	msg := composeInstallMessage(req)
+	})
 
 	if !contains(msg, `mycel agent create <agent-name> --template "engineer"`) {
-		t.Errorf("template message should tell the agent to create an agent from the template, got:\n%s", msg)
+		t.Errorf("want the create command for a local template, got:\n%s", msg)
 	}
 	if contains(msg, "template import") {
-		t.Errorf("template message still names a command that does not exist, got:\n%s", msg)
+		t.Errorf("a local template does not need importing, got:\n%s", msg)
 	}
 }
 
@@ -521,7 +666,7 @@ func TestComposeInstallMessage_TemplateStripsTheSourcePrefix(t *testing.T) {
 	})
 
 	if !contains(msg, `--template "feature-dev"`) {
-		t.Errorf(`want --template "feature-dev" without the catalog prefix, got:\n%s`, msg)
+		t.Errorf("want --template \"feature-dev\" without the catalog prefix, got:\n%s", msg)
 	}
 	if contains(msg, "mycel:feature-dev") {
 		t.Errorf("the catalog id leaked into the command, got:\n%s", msg)
@@ -538,7 +683,26 @@ func TestComposeInstallMessage_TemplateFallsBackToTheName(t *testing.T) {
 	})
 
 	if !contains(msg, `--template "reviewer"`) {
-		t.Errorf("want the item name used as the template, got:\n%s", msg)
+		t.Errorf("want the name used when no id was given, got:\n%s", msg)
+	}
+}
+
+// A template from anywhere but the local store has to be fetched before it can
+// be used, and `mycel template import` is the command that does it.
+func TestComposeInstallMessage_TemplateFromElsewhereIsImportedFirst(t *testing.T) {
+	msg := composeInstallMessage(installRequest{
+		ItemName:      "trader",
+		ItemType:      "template",
+		ItemSource:    "community",
+		ItemSourceURL: "https://example.com/trader.json",
+		Agents:        []string{"a"},
+	})
+
+	if !contains(msg, `mycel template import "https://example.com/trader.json"`) {
+		t.Errorf("want the import command for a remote template, got:\n%s", msg)
+	}
+	if !contains(msg, "mycel agent create") {
+		t.Errorf("import alone leaves nothing running — want the create step too, got:\n%s", msg)
 	}
 }
 
