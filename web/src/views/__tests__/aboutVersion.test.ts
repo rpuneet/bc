@@ -1,0 +1,43 @@
+import { describe, it, expect } from "vitest";
+import { isReleaseVersion } from "../About";
+
+/**
+ * The About page shows "update available" only when the running build is a
+ * release older than the latest tag. Getting this wrong is user-visible in both
+ * directions: a false positive nags every developer running from source (#3212),
+ * and a false negative hides a real update from someone on an old release.
+ */
+describe("isReleaseVersion", () => {
+  it("accepts a plain release version", () => {
+    expect(isReleaseVersion("0.4.4")).toBe(true);
+    expect(isReleaseVersion("1.0.0")).toBe(true);
+    // Multi-digit components must not be mistaken for something else — 0.3.13
+    // is a real tag in this repo's history.
+    expect(isReleaseVersion("0.3.13")).toBe(true);
+    expect(isReleaseVersion("12.34.567")).toBe(true);
+  });
+
+  it("rejects the source-build version from scripts/version.sh", () => {
+    expect(isReleaseVersion("0.4.5-dev.12.g1a2b3c4")).toBe(false);
+    expect(isReleaseVersion("0.4.5-dev.0.g1a2b3c4.dirty")).toBe(false);
+  });
+
+  it("rejects the tagless sentinel and a bare commit hash", () => {
+    // /api/health substitutes the commit when the build has no version at all.
+    expect(isReleaseVersion("dev")).toBe(false);
+    expect(isReleaseVersion("12029d9f")).toBe(false);
+    expect(isReleaseVersion("")).toBe(false);
+  });
+
+  it("rejects the retired YYYY.MM.DD.<sha> format", () => {
+    // Source builds no longer produce this, but binaries built before the
+    // formats were unified are still installed on people's machines and must
+    // keep reading as dev builds rather than as a release from the year 2026.
+    expect(isReleaseVersion("2026.08.02.48266874")).toBe(false);
+  });
+
+  it("rejects a prerelease tag, which is not the latest release", () => {
+    expect(isReleaseVersion("0.5.0-rc1")).toBe(false);
+    expect(isReleaseVersion("0.1.0-alpha")).toBe(false);
+  });
+});

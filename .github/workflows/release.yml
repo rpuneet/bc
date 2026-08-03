@@ -51,12 +51,21 @@ jobs:
         run: |
           echo "tag=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
           echo "version=${RELEASE_VERSION#v}" >> "$GITHUB_OUTPUT"
+          # Validated on both triggers: a tag pushed by hand is just as capable
+          # of being malformed as one typed into the dispatch form, and a bad tag
+          # propagates into artifact names, the npm version and the Homebrew
+          # formula before anyone notices.
+          if [[ ! "$RELEASE_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "Invalid version format: $RELEASE_VERSION (expected vX.Y.Z)"
+            exit 1
+          fi
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            if [[ ! "$RELEASE_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
-              echo "Invalid version format: $RELEASE_VERSION (expected vX.Y.Z)"
-              exit 1
-            fi
-            git tag "$RELEASE_VERSION"
+            # Annotated, matching the documented manual procedure. `git describe`
+            # prefers annotated tags, so a lightweight release tag makes source
+            # builds describe themselves against an older release than they
+            # actually contain.
+            git -c user.name=github-actions -c user.email=github-actions@github.com \
+              tag -a "$RELEASE_VERSION" -m "$RELEASE_VERSION"
             git push origin "$RELEASE_VERSION"
           fi
 
@@ -239,7 +248,11 @@ jobs:
           LDFLAGS="-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           LDFLAGS="${LDFLAGS} -X github.com/rpuneet/mycel/pkg/gateway/gmail.defaultGoogleClientID=${GOOGLE_OAUTH_CLIENT_ID}"
           LDFLAGS="${LDFLAGS} -X github.com/rpuneet/mycel/pkg/gateway/gmail.defaultGoogleClientSecret=${GOOGLE_OAUTH_CLIENT_SECRET}"
-          sed -i.bak "s/\"productVersion\": \"[^\"]*\"/\"productVersion\": \"${VERSION}\"/" wails.json && rm -f wails.json.bak
+          # CFBundleShortVersionString must be a plain X.Y.Z, so a prerelease tag
+          # (v0.5.0-rc1) contributes only its numeric core to bundle metadata.
+          # The full version still reaches the app via -X main.version above.
+          VERSION_CORE=$(printf '%s' "${VERSION}" | cut -d- -f1)
+          sed -i.bak "s/\"productVersion\": \"[^\"]*\"/\"productVersion\": \"${VERSION_CORE}\"/" wails.json && rm -f wails.json.bak
           case "${{ matrix.os }}" in
             linux)
               # webkit2gtk 4.1 on the ubuntu runners; wails v2 defaults to 4.0 pkg-config

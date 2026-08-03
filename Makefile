@@ -49,7 +49,11 @@
 # Variables
 # =============================================================================
 
-VERSION ?= $(shell date -u +%Y.%m.%d).$(shell git rev-parse --short HEAD 2>/dev/null || echo "dev")
+# Semver derived from git tags — see scripts/version.sh for the exact shapes.
+# Source builds and release builds deliberately produce the same format so that
+# `mycel version`, /api/health and the About page's update check never have to
+# know which kind of build they are looking at.
+VERSION ?= $(shell sh scripts/version.sh)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 DATE    ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 BUILD_DIR ?= bin
@@ -60,6 +64,12 @@ IMAGE_TAG ?= latest
 AGENT_PROVIDERS := claude agy codex cursor openclaw pi
 
 LDFLAGS_VERSION = -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
+
+# CFBundleShortVersionString has to be a plain X.Y.Z, so the macOS bundle gets
+# the numeric core while the precise build string still reaches the app through
+# -X main.version. Anything unparseable (VERSION=dev) becomes 0.0.0, which reads
+# as "unstamped" rather than as a plausible-looking release number.
+VERSION_CORE = $(shell printf '%s' '$(VERSION)' | awk -F- '{print $$1}' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$$' || echo 0.0.0)
 
 # Official mycel builds embed the registered Google "Desktop app" OAuth
 # client so Gmail "Sign in with Google" works zero-setup. GOOGLE_OAUTH_CLIENT_ID
@@ -122,8 +132,16 @@ build-local-mycel: build-local-web ## Build mycel (embeds web UI, server)
 	$(GO) build -ldflags="$(LDFLAGS_VERSION) $(LDFLAGS_GMAIL)" -o $(BUILD_DIR)/mycel ./cmd/mycel
 
 
+# wails reads the bundle version from wails.json rather than a flag, so the
+# committed placeholder is swapped for the real one and restored afterwards —
+# without this a locally built .app advertises the placeholder in Finder and
+# About This Mac while the binary inside reports the true version. The release
+# workflow does the same substitution.
 build-local-desktop: build-local-web ## Build desktop app for the host OS (requires wails CLI)
-	cd desktop && wails build -ldflags "$(LDFLAGS_VERSION) $(LDFLAGS_GMAIL)"
+	cd desktop && cp wails.json wails.json.orig && \
+		trap 'mv -f wails.json.orig wails.json' EXIT INT TERM && \
+		sed -i.bak 's/"productVersion": "[^"]*"/"productVersion": "$(VERSION_CORE)"/' wails.json && rm -f wails.json.bak && \
+		wails build -ldflags "$(LDFLAGS_VERSION) $(LDFLAGS_GMAIL)"
 
 
 # =============================================================================
