@@ -2,6 +2,11 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { App } from "./App";
 
+// Imported for its module-load side effect: it reads the desktop shell's version
+// out of the handoff URL, which router navigation would otherwise discard before
+// the About page ever asks for it.
+import "./utils/desktopApp";
+
 // Geist Sans + Geist Mono via @fontsource. We import only the weights the
 // dashboard actually uses (400 normal, 500 medium, 600 semibold for sans;
 // 400 + 600 for mono) to keep the initial bundle slim and avoid a FOIT.
