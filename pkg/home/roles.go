@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"gopkg.in/yaml.v3"
 
@@ -58,13 +59,55 @@ func (r *Role) Description() string {
 	return ""
 }
 
-// RoleManager handles role operations.
-// All role data is stored in SQL (SQLite or Postgres) via the RoleStore.
-// The rolesDir field is retained only for migration from legacy file-based storage.
+// RoleManager resolves roles and caches what it has parsed. All role data is
+// stored in SQL (SQLite or Postgres) via the RoleStore; the rolesDir field is
+// retained only for migration from legacy file-based storage.
+//
+// The cache is shared: one manager serves every HTTP request, and resolving a
+// role reads the cache while another request may be filling it. An unsynchronized
+// map read against a concurrent write is not a data race Go tolerates — it is
+// `fatal error: concurrent map read and map write`, which no recover can catch,
+// so two people loading the agents list at the same moment took the whole daemon
+// down and every agent with it (#3565). mu guards roles, and only roles.
 type RoleManager struct {
 	store    *RoleStore // SQL store (required for all operations)
 	roles    map[string]*Role
 	rolesDir string // kept for migration only
+	mu       sync.RWMutex
+}
+
+// cachedRole returns a parsed role from the cache.
+func (rm *RoleManager) cachedRole(name string) (*Role, bool) {
+	rm.mu.RLock()
+	defer rm.mu.RUnlock()
+	role, ok := rm.roles[name]
+	return role, ok
+}
+
+// cacheRole records a parsed role.
+func (rm *RoleManager) cacheRole(name string, role *Role) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+	rm.roles[name] = role
+}
+
+// uncacheRole forgets a role, after it has been deleted from the store.
+func (rm *RoleManager) uncacheRole(name string) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+	delete(rm.roles, name)
+}
+
+// cacheSnapshot copies the cache. Callers get a map they can read at leisure;
+// handing out the live one is how a caller ends up reading it during a write.
+func (rm *RoleManager) cacheSnapshot() map[string]*Role {
+	rm.mu.RLock()
+	defer rm.mu.RUnlock()
+	out := make(map[string]*Role, len(rm.roles))
+	for name, role := range rm.roles {
+		out[name] = role
+	}
+	return out
 }
 
 // DefaultBaseRole is the foundational role all other roles inherit from.
@@ -308,7 +351,7 @@ func (rm *RoleManager) EnsureDefaultRoles() ([]string, error) {
 		if err := rm.store.Save(role); err != nil {
 			return nil, fmt.Errorf("failed to save default role %s: %w", name, err)
 		}
-		rm.roles[name] = role
+		rm.cacheRole(name, role)
 		created = append(created, name)
 	}
 	return created, nil
@@ -330,7 +373,7 @@ func (rm *RoleManager) EnsureDefaultRoot() (bool, error) {
 		if saveErr := rm.store.Save(role); saveErr != nil {
 			return false, fmt.Errorf("failed to save default base role: %w", saveErr)
 		}
-		rm.roles["base"] = role
+		rm.cacheRole("base", role)
 	}
 
 	if rm.store.Has("root") {
@@ -344,7 +387,7 @@ func (rm *RoleManager) EnsureDefaultRoot() (bool, error) {
 	if saveErr := rm.store.Save(role); saveErr != nil {
 		return false, fmt.Errorf("failed to save default root role: %w", saveErr)
 	}
-	rm.roles["root"] = role
+	rm.cacheRole("root", role)
 
 	return true, nil
 }
@@ -361,7 +404,7 @@ func (rm *RoleManager) LoadRole(name string) (*Role, error) {
 	name = NormalizeRoleName(name)
 
 	// Check cache first
-	if role, ok := rm.roles[name]; ok {
+	if role, ok := rm.cachedRole(name); ok {
 		return role, nil
 	}
 
@@ -374,7 +417,7 @@ func (rm *RoleManager) LoadRole(name string) (*Role, error) {
 		return nil, fmt.Errorf("failed to load role %q: %w", name, err)
 	}
 
-	rm.roles[name] = role
+	rm.cacheRole(name, role)
 	return role, nil
 }
 
@@ -389,15 +432,14 @@ func (rm *RoleManager) LoadAllRoles() (map[string]*Role, error) {
 		return nil, fmt.Errorf("failed to load roles from store: %w", err)
 	}
 	for name, role := range all {
-		rm.roles[name] = role
+		rm.cacheRole(name, role)
 	}
-	return rm.roles, nil
+	return rm.cacheSnapshot(), nil
 }
 
 // GetRole returns a cached role by name.
 func (rm *RoleManager) GetRole(name string) (*Role, bool) {
-	role, ok := rm.roles[name]
-	return role, ok
+	return rm.cachedRole(name)
 }
 
 // HasRole checks if a role exists (cached or in store).
@@ -405,7 +447,7 @@ func (rm *RoleManager) HasRole(name string) bool {
 	name = NormalizeRoleName(name)
 
 	// Check cache
-	if _, ok := rm.roles[name]; ok {
+	if _, ok := rm.cachedRole(name); ok {
 		return true
 	}
 
@@ -482,7 +524,7 @@ func (rm *RoleManager) WriteRole(role *Role) error {
 	if err := rm.store.Save(role); err != nil {
 		return fmt.Errorf("failed to save role to store: %w", err)
 	}
-	rm.roles[name] = role
+	rm.cacheRole(name, role)
 	return nil
 }
 
@@ -728,7 +770,7 @@ func (rm *RoleManager) DeleteRole(name string) error {
 	if err := rm.store.Delete(name); err != nil {
 		return fmt.Errorf("failed to delete role from store: %w", err)
 	}
-	delete(rm.roles, name)
+	rm.uncacheRole(name)
 	return nil
 }
 
