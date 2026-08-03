@@ -8,7 +8,7 @@ import { usePolling } from "../hooks/usePolling";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { StatsTab as StatsTabComponent } from "../components/StatsTab";
 import { WebTerminal, type TerminalConnectionState, type TerminalConnectionDetail } from "../components/WebTerminal";
-import { LiveAgentCharacter, AgentTimeline } from "../components/agent-ui";
+import { LiveAgentCharacter } from "../components/agent-ui";
 import { MCPServerList } from "../components/shared/MCPServerList";
 import { McpEnvEditor } from "../components/shared/McpEnvEditor";
 import { SystemPromptEditor } from "../components/shared/SystemPromptEditor";
@@ -28,22 +28,28 @@ const formatRelative = (t?: string): string => sharedFormatRelative(t, { emptyLa
    Tab types — v3: Live / Attach / Settings / Metrics
    ═══════════════════════════════════════════════════════════════════ */
 
-type Tab = "attach" | "live" | "timeline" | "settings" | "metrics" | "code";
+type Tab = "attach" | "live" | "settings" | "metrics" | "code";
 
 const TABS: { key: Tab; label: string; shortcut: string }[] = [
   { key: "attach", label: "Attach", shortcut: "1" },
   { key: "live", label: "Live", shortcut: "2" },
-  { key: "timeline", label: "Timeline", shortcut: "3" },
-  { key: "settings", label: "Settings", shortcut: "4" },
-  { key: "metrics", label: "Metrics", shortcut: "5" },
-  { key: "code", label: "Code", shortcut: "6" },
+  { key: "settings", label: "Settings", shortcut: "3" },
+  { key: "metrics", label: "Metrics", shortcut: "4" },
+  { key: "code", label: "Code", shortcut: "5" },
 ];
 
-/** Map a URL sub-path segment to a tab. The legacy `config` segment
- *  resolves to the renamed Settings tab so old deep links keep working. */
+/** Map a URL sub-path segment to a tab.
+ *
+ *  Two legacy segments are kept alive so existing links and bookmarks do not
+ *  break: `config` predates the Settings rename, and `timeline` was a separate
+ *  tab that showed the same events as Live. It was removed rather than kept in
+ *  parallel — Live already hydrates from the same persisted activity feed
+ *  (GET /api/agents/{name}/activity) before it starts appending live events, so
+ *  the two tabs were rendering one source of truth twice. */
 function tabForSegment(seg: string | undefined): Tab | null {
   if (seg === "config") return "settings";
-  const known: Tab[] = ["attach", "live", "timeline", "settings", "metrics", "code"];
+  if (seg === "timeline") return "live";
+  const known: Tab[] = ["attach", "live", "settings", "metrics", "code"];
   return known.includes(seg as Tab) ? (seg as Tab) : null;
 }
 
@@ -1502,7 +1508,7 @@ export function AgentDetail() {
     return subscribe("agent.state_changed", () => void refresh());
   }, [subscribe, refresh]);
 
-  // Keyboard shortcuts: 1-6 for tabs, s for start/stop, Esc for back
+  // Keyboard shortcuts: 1-5 for tabs, s for start/stop, Esc for back
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
@@ -1516,15 +1522,12 @@ export function AgentDetail() {
           selectTab("live");
           break;
         case "3":
-          selectTab("timeline");
-          break;
-        case "4":
           selectTab("settings");
           break;
-        case "5":
+        case "4":
           selectTab("metrics");
           break;
-        case "6":
+        case "5":
           selectTab("code");
           break;
         case "Escape":
@@ -1721,7 +1724,6 @@ export function AgentDetail() {
           />
         )}
         {activeTab === "attach" && <AttachTab agent={agent} />}
-        {activeTab === "timeline" && <AgentTimeline agentName={agent.name} />}
         {activeTab === "settings" && <SettingsTab agent={agent} agentsUrl={agentsUrl} />}
         {activeTab === "metrics" && <MetricsTab agent={agent} />}
         {activeTab === "code" && <CodeTab agent={agent} />}

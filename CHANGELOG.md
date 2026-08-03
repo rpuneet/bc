@@ -29,6 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Settings → Providers & Tools → Optional Services. The Code tab's "Edit in VS
   Code" button only appears while code-server is running, so this is where you
   turn it on (#3473).
+- **The agent's Timeline tab is gone; Live is the single activity surface.**
+  *The tab shortcuts shift up by one — Settings is now `3`, Metrics `4`, Code
+  `5`.* Both tabs rendered the same events from the same persisted feed, since
+  Live already loads history from `GET /api/agents/{name}/activity` before it
+  starts appending live events. Existing `/timeline` links redirect to Live.
+  History beyond Live's initial window is no longer paged in the UI; the full
+  record remains available from the activity API (#3485).
 
 ## [0.4.4] - 2026-08-02
 

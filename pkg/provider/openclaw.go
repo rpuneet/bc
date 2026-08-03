@@ -132,7 +132,34 @@ func (p *OpenclawProvider) Version(ctx context.Context) string {
 	return raw
 }
 
+// ActivityMode reports that OpenClaw exposes no activity signal mycel can
+// attribute to an agent, so agent state is never derived from its output.
+//
+// Neither of the two mechanisms mycel supports is available. OpenClaw's `hooks`
+// command manages plugin "hook packs" that extend the assistant, not
+// per-invocation lifecycle callbacks a host can register, so there is nothing to
+// push. And its transcripts are not per-worktree: sessions live in one global
+// store (~/.openclaw/agents/<agent>/sessions) keyed by OpenClaw's own agent and
+// chat identity rather than the working directory, so two mycel agents running
+// `openclaw tui` would read each other's session file. Tailing it would
+// attribute activity to the wrong agent, which is worse than showing none.
+//
+// Declaring the mode explicitly is what makes the UI honest: it tells the Live
+// tab to say capture is unavailable instead of waiting for events that will
+// never arrive, and it stops mycel writing Claude hook settings into an OpenClaw
+// worktree where nothing would ever read them.
+func (p *OpenclawProvider) ActivityMode() string { return ActivityModeNone }
+
+// WriteHookConfig is a no-op: OpenClaw has no lifecycle hook mechanism
+// (ActivityModeNone).
+func (p *OpenclawProvider) WriteHookConfig(_, _, _ string) error { return nil }
+
+// TranscriptGlobs returns nil: OpenClaw's session store is global rather than
+// per-worktree, so no glob can identify one mycel agent's transcript.
+func (p *OpenclawProvider) TranscriptGlobs(_ string) []string { return nil }
+
 // Ensure OpenclawProvider implements all declared interfaces.
 var _ Provider = (*OpenclawProvider)(nil)
+var _ ActivitySource = (*OpenclawProvider)(nil)
 var _ ContainerCustomizer = (*OpenclawProvider)(nil)
 var _ SessionCustomizer = (*OpenclawProvider)(nil)

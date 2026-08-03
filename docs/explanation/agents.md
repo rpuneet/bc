@@ -152,6 +152,42 @@ All started with `cd <worktree> && <command>`:
 | Codex | `codex --full-auto` |
 | Pi | `pi` |
 
+### How Activity Is Observed
+
+Agent state is never guessed from terminal output. It is derived in `pkg/agent`
+from lifecycle events, and each provider declares how those events reach the
+daemon by implementing `provider.ActivitySource`. `ActivityMode()` returns one of
+three answers, and that answer decides what mycel writes into a new worktree and
+whether the Live tab expects events at all.
+
+| Mode | Providers | How events arrive | Written into the worktree |
+|------|-----------|-------------------|---------------------------|
+| `hooks` | claude, agy, cursor | The provider runs a command on each lifecycle event, which POSTs to `/api/agents/{name}/hook` | claude: `.claude/settings.json`, agy: `.agents/hooks.json`, cursor: `.cursor/hooks.json` + `.cursor/hooks/mycel-activity.sh` |
+| `transcript` | pi, codex | The daemon tails the session file the provider already writes and parses appended lines | Nothing — the tailer needs no cooperation |
+| `none` | openclaw | No events | Nothing |
+
+Every provider must declare a mode; `pkg/provider` has tests that fail when one
+does not, and that check each mode's obligations (a `hooks` provider must
+actually write a config that references the endpoint; a `transcript` provider
+must be able to both locate and parse its session file). A provider that declared
+nothing used to fall through to writing Claude's hook settings, which meant
+non-Claude worktrees got a config no process would ever read and their agents
+looked permanently idle.
+
+Providers name their events and fields differently, so hook-mode providers
+translate to the daemon's vocabulary (see `pkg/agent/hooks.go`) on the way out.
+Cursor is the clearest case: it emits camelCase events and reports a tool's
+result as `tool_output` and a failure as `error_message`, so
+`.cursor/hooks/mycel-activity.sh` maps `beforeSubmitPrompt` → `UserPromptSubmit`,
+`tool_output` → `tool_response`, and `error_message` → `error`. Cursor's
+`beforeSubmitPrompt` and `stop` events fire only for an interactive session,
+which is the mode mycel runs, and they are what make an agent's `working` → `idle`
+turn boundary visible.
+
+The mode is served on `GET /api/providers` as `activity_mode` so the web UI reads
+the provider's own declaration rather than keeping its own list, which is how the
+Live tab distinguishes "no activity yet" from "this provider cannot be captured".
+
 ### Session Resume
 
 On stop, mycel captures Claude's UUID from output (`claude --resume <uuid>` pattern). On restart:

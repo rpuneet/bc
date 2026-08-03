@@ -36,6 +36,13 @@ type ProviderInfo struct { //nolint:govet // field order matches JSON/API contra
 	InstallHint string `json:"install_hint"`
 	Version     string `json:"version"`
 	Status      string `json:"status"`
+	// ActivityMode is how mycel observes agents driven by this provider:
+	// "hooks" (the provider POSTs lifecycle events), "transcript" (the daemon
+	// tails its session file), or "none" (no attributable signal exists). The
+	// Live tab reads this to decide between waiting for events and telling the
+	// user capture is unavailable, so the UI can never disagree with what the
+	// provider actually implements.
+	ActivityMode string `json:"activity_mode"`
 	// Models is the provider's curated model list for UI pickers.
 	// Empty means the provider has no model selection.
 	Models       []ModelInfo `json:"models"`
@@ -821,6 +828,17 @@ func (h *ProviderHandler) patchConfig(w http.ResponseWriter, r *http.Request, na
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "provider": name, "command": req.Command})
 }
 
+// providerActivityMode reports how the provider exposes agent activity. A
+// provider that declares no ActivitySource is reported as "none": no source
+// means no signal, and callers should not have to distinguish "declared none"
+// from "declared nothing".
+func providerActivityMode(p provider.Provider) string {
+	if src, ok := p.(provider.ActivitySource); ok {
+		return src.ActivityMode()
+	}
+	return provider.ActivityModeNone
+}
+
 // buildProviderInfo builds a ProviderInfo from a provider and pre-computed maps.
 func (h *ProviderHandler) buildProviderInfo(
 	ctx context.Context,
@@ -853,17 +871,18 @@ func (h *ProviderHandler) buildProviderInfo(
 	models := h.fetchModels(ctx, p)
 
 	info := ProviderInfo{
-		Name:        p.Name(),
-		Description: p.Description(),
-		Binary:      p.Binary(),
-		Command:     command,
-		InstallHint: p.InstallHint(),
-		Version:     version,
-		Status:      status,
-		Models:      models,
-		AgentCount:  agentCounts[p.Name()],
-		Installed:   installed,
-		Enabled:     enabled,
+		Name:         p.Name(),
+		Description:  p.Description(),
+		Binary:       p.Binary(),
+		Command:      command,
+		InstallHint:  p.InstallHint(),
+		Version:      version,
+		Status:       status,
+		ActivityMode: providerActivityMode(p),
+		Models:       models,
+		AgentCount:   agentCounts[p.Name()],
+		Installed:    installed,
+		Enabled:      enabled,
 	}
 
 	if agg, ok := costByProvider[p.Name()]; ok {
