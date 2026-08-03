@@ -158,6 +158,52 @@ describe("useAgentActivity — full event coverage", () => {
   });
 });
 
+describe("useAgentActivity — a provider that cannot serve a turn", () => {
+  it("turns the failure into a row carrying the reason, and marks the agent errored", async () => {
+    // This event is the only thing such an agent ever produces: its CLI refuses
+    // every turn and reports nothing, so without this row the feed stays empty
+    // and the state keeps claiming the agent is fine. See #3512.
+    const { result } = renderHook(() => useAgentActivity());
+    await tick(0);
+
+    act(() => {
+      emit("agent.hook", {
+        agent: "osprey",
+        event: "ProviderFailure",
+        error: "pi's model is unavailable to this account — pick another model for this agent",
+      });
+    });
+    await tick();
+
+    const osprey = result.current.activities.get("osprey");
+    expect(osprey).toBeDefined();
+    expect(osprey!.state).toBe("error");
+
+    const node = osprey!.nodes.find((n) => n.toolName === "Provider unavailable");
+    expect(node).toBeDefined();
+    expect(node!.status).toBe("failed");
+    // The reason has to reach both the row's summary and its error slot, since
+    // the two are rendered in different places.
+    expect(node!.args).toContain("model is unavailable");
+    expect(node!.error).toContain("model is unavailable");
+  });
+
+  it("still says something useful when the reason is missing", async () => {
+    const { result } = renderHook(() => useAgentActivity());
+    await tick(0);
+
+    act(() => {
+      emit("agent.hook", { agent: "gecko", event: "ProviderFailure" });
+    });
+    await tick();
+
+    const node = result.current.activities
+      .get("gecko")!
+      .nodes.find((n) => n.toolName === "Provider unavailable");
+    expect(node!.error).toBeTruthy();
+  });
+});
+
 describe("useAgentActivity — ElicitationResult clears the running node", () => {
   it("finalizes a pending Elicitation node when its result arrives", async () => {
     const { result } = renderHook(() => useAgentActivity());

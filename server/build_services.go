@@ -304,6 +304,16 @@ func buildServicesFromHome(ctx context.Context, globals *Globals, h *home.Home) 
 		runTranscriptTailer(svcCtx, agentSvc)
 	}()
 
+	// Provider failure monitor — reports agents whose provider CLI is running
+	// but cannot serve a turn (no credential, spent quota, unusable model).
+	// Such agents report nothing at all, so without this they keep whatever
+	// state they last had and their Live feed stays empty with no reason.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		runProviderFailureMonitor(svcCtx, agentSvc)
+	}()
+
 	// Notify service (channel subscriptions + delivery).
 	var notifyService *notifypkg.Service
 	if ns, err := notifypkg.OpenStore(wsDB, wsDriver); err != nil {
