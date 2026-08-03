@@ -59,11 +59,14 @@ function baseProvider(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function renderDetail(provider: ReturnType<typeof baseProvider>) {
+function renderDetail(
+  provider: ReturnType<typeof baseProvider>,
+  mcps: Array<Record<string, unknown>> = [],
+) {
   fetchMock.mockImplementation((url: RequestInfo | URL, init?: RequestInit) => {
     const u = String(url);
     if (u.endsWith("/commands")) return jsonResponse([]);
-    if (u.endsWith("/mcps")) return jsonResponse([]);
+    if (u.endsWith("/mcps")) return jsonResponse(mcps);
     if (u.endsWith("/models")) return jsonResponse(provider.models ?? []);
     if (u === "/api/deps/install" && init?.method === "POST") {
       return streamResponse([
@@ -132,6 +135,23 @@ describe("ProviderDetail install", () => {
   });
 });
 
+// The health map is only filled by "Check All MCPs". Counting an unasked server
+// as unhealthy rendered a red "0/2 healthy" for servers that were fine — a false
+// negative presented as a measurement (#3475).
+describe("ProviderDetail MCP health summary", () => {
+  const servers = [
+    { name: "context7", command: "npx", args: ["-y", "@upstash/context7-mcp"], type: "stdio", status: "ok" },
+    { name: "playwright", command: "npx", args: ["-y", "@playwright/mcp"], type: "stdio", status: "ok" },
+  ];
+
+  it("says nothing has been checked yet instead of reporting zero healthy", async () => {
+    renderDetail(baseProvider({ installed: true, version: "1.0.0", status: "healthy" }), servers);
+
+    expect(await screen.findByText("—/2 checked")).toBeTruthy();
+    expect(screen.queryByText("0/2 healthy")).toBeNull();
+  });
+});
+
 describe("ProviderDetail update", () => {
   it("streams a real update via POST /api/providers/:name/update", async () => {
     renderDetail(baseProvider({ installed: true, version: "1.0.0", status: "healthy" }));
@@ -154,6 +174,35 @@ describe("ProviderDetail update", () => {
 
     await screen.findByText("cursor");
     expect(screen.queryByRole("button", { name: "Update now" })).toBeNull();
+  });
+
+  // The daemon derives an uninstall command from the install hint and refuses
+  // when it cannot. The UI mirrored only the other refusal (default providers),
+  // so agy — installed by piping a script into sh — showed a destructive Remove
+  // that answered HTTP 400 after both confirm clicks (#3475).
+  it("does not offer Remove when no uninstall can be derived from the hint", async () => {
+    renderDetail(baseProvider({
+      name: "agy",
+      install_hint: "curl -fsSL https://agy.sh/install | sh",
+      installed: true,
+      version: "1.1.10",
+      status: "healthy",
+    }));
+
+    await screen.findByText("agy");
+    expect(screen.queryByRole("button", { name: /remove/i })).toBeNull();
+  });
+
+  it("still offers Remove when the hint is a global npm install", async () => {
+    renderDetail(baseProvider({
+      name: "codex",
+      install_hint: "npm install -g @openai/codex",
+      installed: true,
+      version: "1.0.0",
+      status: "healthy",
+    }));
+
+    expect(await screen.findByRole("button", { name: /remove/i })).toBeTruthy();
   });
 
   it("check-update surfaces an honest 'couldn't verify' message when the server reports checked=false", async () => {

@@ -10,6 +10,7 @@ import type {
   ModelInfo,
 } from "../api/client";
 import { installDep } from "../wizard/installStream";
+import { canAutoInstall, canAutoUninstall } from "../utils/providerActions";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
@@ -62,16 +63,10 @@ function providerStatus(provider: ProviderDetailResponse): string {
 
 /* ── Real install / update actions ────────────────────────────────────
  *
- * canAutoInstall mirrors the server's providerInstallCmd predicate
- * (deps_install.go): a hint is executable when it isn't empty and isn't a
- * bare download URL (e.g. cursor's "https://cursor.sh" — a GUI installer
- * with no runnable command). Install and update both stream through
- * installDep-compatible NDJSON endpoints, so the two share one console UI. */
-function canAutoInstall(hint: string | undefined | null): boolean {
-  if (!hint) return false;
-  const h = hint.trim();
-  return h !== "" && !h.startsWith("http://") && !h.startsWith("https://");
-}
+ * Install and update both stream through installDep-compatible NDJSON
+ * endpoints, so the two share one console UI. Whether either is possible at
+ * all is decided by canAutoInstall — see utils/providerActions, which is where
+ * the table reads the same rule from. */
 
 type RunState = "idle" | "running" | "ok" | "error";
 
@@ -260,9 +255,11 @@ function UpdateAction({
  * /api/providers/:name/uninstall, which derives an uninstall command from
  * the provider's vetted install hint and streams live NDJSON output — same
  * console UX as Install/Update. Destructive, so it sits behind the shared
- * two-click ConfirmButton. Only ever rendered for installed, non-default
- * providers — see the `installed && !isDefault` guard at the call site,
- * which mirrors the server's own isRequiredProvider refusal. */
+ * two-click ConfirmButton. The call site renders it only for an installed,
+ * non-default provider whose hint an uninstall can be derived from, mirroring
+ * both of the server's refusals — isRequiredProvider and deriveUninstall.
+ * Mirroring only the first one meant agy and cursor showed a destructive Remove
+ * that answered HTTP 400 after both clicks. */
 function UninstallAction({
   providerName,
   onUninstalled,
@@ -522,7 +519,7 @@ function ProviderHeader({
             </>
           )}
           <SignInAction provider={provider} onToast={onToast} />
-          {provider.installed && !isDefault && (
+          {provider.installed && !isDefault && canAutoUninstall(provider.install_hint) && (
             <UninstallAction providerName={provider.name} onUninstalled={onUninstalled} />
           )}
         </div>
@@ -741,6 +738,24 @@ function resolveMCPHealth(server: ProviderMCPServer, healthMap: Record<string, {
 function MCPHealthSummary({ servers, healthMap }: { servers: ProviderMCPServer[]; healthMap: Record<string, { status: string; error?: string }> }) {
   if (servers.length === 0) return null;
 
+  // healthMap is only populated by "Check All MCPs", so before that every server
+  // resolves to unknown. Counting them as unhealthy rendered a red "0/2 healthy"
+  // for servers that were perfectly fine and had simply never been asked — a
+  // false negative dressed as a measurement (#3475). Nothing has been measured
+  // yet, so the bar says exactly that.
+  const checked = Object.keys(healthMap).length > 0;
+  if (!checked) {
+    return (
+      <div className="mb-3">
+        <div className="flex items-center justify-between text-xs text-mycel-muted mb-1">
+          <span>MCP Health</span>
+          <span className="tabular-nums">—/{servers.length} checked</span>
+        </div>
+        <div className="h-1.5 rounded-full bg-mycel-border overflow-hidden" />
+      </div>
+    );
+  }
+
   const healthy = servers.filter((s) => {
     const h = resolveMCPHealth(s, healthMap);
     return h.status === "connected";
@@ -751,7 +766,7 @@ function MCPHealthSummary({ servers, healthMap }: { servers: ProviderMCPServer[]
     <div className="mb-3">
       <div className="flex items-center justify-between text-xs text-mycel-muted mb-1">
         <span>MCP Health</span>
-        <span>{healthy}/{servers.length} healthy</span>
+        <span className="tabular-nums">{healthy}/{servers.length} healthy</span>
       </div>
       <div className="h-1.5 rounded-full bg-mycel-border overflow-hidden">
         <motion.div
