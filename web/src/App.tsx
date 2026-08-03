@@ -33,8 +33,25 @@ function Loading() {
  * Any probe failure (or a positive "not first run") falls through to Home,
  * so a daemon hiccup never traps the user in onboarding.
  */
-export function HomeGate() {
+/** Where "Default view" can actually send you, and the route for each. */
+const DEFAULT_VIEW_ROUTES: Record<string, string> = { agents: "/agents", insights: "/insights" };
+
+/**
+ * HomeGate — what the root path resolves to.
+ *
+ * `honorDefaultView` is set only on the index route. Someone who asks for /home
+ * has named the view they want, so the preference does not override them; it
+ * decides what "no route at all" means, which is the only thing it was ever
+ * offering to do.
+ *
+ * That preference used to be saved, displayed, and never read: you picked Agents
+ * or Insights and always landed on Home (#3474). First run still wins — being
+ * sent to an unfinished setup matters more than a view preference.
+ */
+export function HomeGate({ honorDefaultView = false }: { honorDefaultView?: boolean } = {}) {
   const [status, setStatus] = useState<"pending" | "home" | "settings">("pending");
+  const [defaultRoute, setDefaultRoute] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     api
@@ -49,8 +66,31 @@ export function HomeGate() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!honorDefaultView) return;
+    let cancelled = false;
+    api
+      .getSettings()
+      .then((cfg) => {
+        // Anything unrecognized — including the "home" default and an older
+        // spelling like "dashboard" — means Home, which is what rendering
+        // nothing special does.
+        const choice = cfg.ui?.default_view ?? "";
+        if (!cancelled) setDefaultRoute(DEFAULT_VIEW_ROUTES[choice] ?? null);
+      })
+      .catch(() => {
+        // A preference is not worth blocking the app over.
+        if (!cancelled) setDefaultRoute(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [honorDefaultView]);
+
   if (status === "pending") return <Loading />;
   if (status === "settings") return <Navigate to="/settings" replace />;
+  if (defaultRoute) return <Navigate to={defaultRoute} replace />;
   return <Home />;
 }
 
@@ -108,7 +148,7 @@ export function AppRoutes() {
           Bookmarked /welcome links redirect to Settings. */}
       <Route path="welcome" element={<Navigate to="/settings" replace />} />
       <Route element={<Layout />}>
-        <Route index element={wrap(<HomeGate />)} />
+        <Route index element={wrap(<HomeGate honorDefaultView />)} />
         <Route path="home" element={wrap(<HomeGate />)} />
         {/* Live view became the Home page — old links/bookmarks redirect. */}
         <Route path="live" element={<Navigate to="/" replace />} />
