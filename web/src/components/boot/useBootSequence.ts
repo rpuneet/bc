@@ -75,12 +75,12 @@ export function useBootSequence(
   // Bumped by retry() to restart the probe effect below.
   const [retryNonce, setRetryNonce] = useState(0);
   const idRef = useRef(0);
-  // Guards so React 18 StrictMode's double-invoke doesn't double-stream.
-  const readyHandled = useRef(false);
+  // Dedupes the opening banner across StrictMode's double-invoke, which would
+  // otherwise say "connecting" twice. The ready guard is deliberately NOT a ref
+  // — see the note on `handled` inside the effect.
   const startedWaiting = useRef(false);
 
   const retry = useCallback(() => {
-    readyHandled.current = false;
     startedWaiting.current = false;
     setStalled(false);
     setRetryNonce((n) => n + 1);
@@ -88,6 +88,19 @@ export function useBootSequence(
 
   useEffect(() => {
     let cancelled = false;
+    /**
+     * "This effect instance has already handled readiness." Scoped to the
+     * effect, not held in a ref, because a ref outlives the instance that set
+     * it and that wedged the splash for good in development:
+     *
+     * StrictMode mounts, probes, marks handled, then immediately tears the
+     * instance down — so the probe's own `cancelled` check returned before it
+     * could set `healthy`. The re-mounted instance then saw the ref already
+     * marked, skipped probing entirely, and nothing was left to flip `healthy`
+     * or to trip the stall timer. The splash sat on "connecting to the mycel
+     * daemon" forever against a daemon that was answering every request.
+     */
+    let handled = false;
     const timers: ReturnType<typeof setTimeout>[] = [];
 
     const push = (line: Omit<BootLine, "id">) => {
@@ -113,14 +126,13 @@ export function useBootSequence(
     // silently forever with no escape.
     const stallMs = timings.stallMs ?? 9000;
     const stallTimer = setTimeout(() => {
-      if (!cancelled && !readyHandled.current) setStalled(true);
+      if (!cancelled && !handled) setStalled(true);
     }, stallMs);
     timers.push(stallTimer);
 
     async function onReady() {
-      if (readyHandled.current) return;
-      readyHandled.current = true;
-      if (cancelled) return;
+      if (cancelled || handled) return;
+      handled = true;
       setHealthy(true);
       setStalled(false);
       push({ status: "ok", label: "daemon online", detail: "http responding" });
@@ -169,7 +181,7 @@ export function useBootSequence(
     }
 
     async function poll() {
-      if (cancelled || readyHandled.current) return;
+      if (cancelled || handled) return;
       try {
         await api.getHealth();
         await onReady();

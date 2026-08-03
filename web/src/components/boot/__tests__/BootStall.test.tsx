@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import { BootSplash, type SplashTimings } from "../BootSplash";
@@ -70,6 +71,36 @@ describe("BootSplash stall fallback", () => {
 
     await waitFor(() => expect(screen.queryByTestId("boot-stall")).not.toBeInTheDocument());
     await waitFor(() => expect(screen.getByText("daemon online")).toBeInTheDocument());
+  });
+
+  it("boots under StrictMode's double mount, against a daemon that answers", async () => {
+    // StrictMode is how the app runs in development: mount, tear down, mount
+    // again. The readiness guard used to survive that teardown, so the second
+    // instance never probed and nothing was left to report the daemon online —
+    // the splash sat on "connecting" forever while every request returned 200,
+    // which made the dev server unusable and hid a broken /api proxy behind it.
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      const body = u.includes("/api/health") ? { status: "ok" } : [];
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: () => Promise.resolve(body),
+      } as Response);
+    });
+
+    const onReady = vi.fn();
+    render(
+      <StrictMode>
+        <BootSplash onReady={onReady} timings={STALL_FAST} />
+      </StrictMode>,
+    );
+
+    await waitFor(() => expect(screen.getByText("daemon online")).toBeInTheDocument());
+    await waitFor(() => expect(onReady).toHaveBeenCalled());
+    // A daemon that answered must never be reported as stalled.
+    expect(screen.queryByTestId("boot-stall")).not.toBeInTheDocument();
   });
 
   it("re-arms the stall timeout when the caller changes timing props", async () => {
