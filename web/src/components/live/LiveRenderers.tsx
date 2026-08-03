@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, memo } from "react";
+import { useCallback, useEffect, useMemo, useState, memo, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
 import type {
@@ -206,12 +206,21 @@ export function AgentDrillDown({
   tasks,
   onBack,
   hideRawStream,
+  emptyState,
 }: {
   activity: AgentActivity;
   rawEvents: RawEvent[];
   tasks: Map<string, TaskItem>;
   onBack?: () => void;
   hideRawStream?: boolean;
+  /**
+   * Shown instead of a bare "no tool events" line when the stream is empty.
+   * An agent can have lifecycle events (started, state changed) and still no
+   * tool events at all, which is what a broken agent looks like — so callers
+   * that know the agent's state can explain the silence instead of describing
+   * it. See EmptyFeed.
+   */
+  emptyState?: ReactNode;
 }) {
   const [activeTab, setActiveTab] = useState<DrillDownTab>("live");
   const [rawExpanded, setRawExpanded] = useState<Set<string>>(new Set());
@@ -313,9 +322,11 @@ export function AgentDrillDown({
         {activeTab === "live" && (
           <div>
             {allNodes.length === 0 ? (
-              <div className="text-sm text-mycel-muted italic py-8 text-center">
-                No tool events yet for this agent.
-              </div>
+              emptyState ?? (
+                <div className="text-sm text-mycel-muted italic py-8 text-center">
+                  No tool events yet for this agent.
+                </div>
+              )
             ) : (
               <>
                 <RunningSection nodes={runningNodes} sticky />
