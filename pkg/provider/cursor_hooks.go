@@ -87,6 +87,13 @@ const cursorNoState = "none"
 //
 // It always exits 0 and always prints {}: a reporter that failed to reach the
 // daemon must never turn into a stalled or blocked agent.
+//
+// Only event and state are added. The reporter used to also derive a per-event
+// task ("Processing prompt...", "Turn complete"), which the daemon stored and
+// the Live feed rendered in the same "task" field that now holds the agent's
+// real task line — a label naming the hook that fired, sitting where the thing
+// the agent was asked to do belongs. The task line is derived from the prompt on
+// a turn start; the lifecycle meaning those strings carried is already in state.
 const cursorReporterScript = `#!/usr/bin/env bash
 # Managed by mycel. Regenerated whenever an agent starts — edit the generator
 # (pkg/provider/cursor_hooks.go), not this file.
@@ -98,31 +105,17 @@ event="$1"
 state="$2"
 [ "$state" = "` + cursorNoState + `" ] && state=""
 
-case "$event" in
-  SessionStart)       task="Session started" ;;
-  SessionEnd)         task="Session ended" ;;
-  UserPromptSubmit)   task="Processing prompt..." ;;
-  PreToolUse)         task="Running tool" ;;
-  PostToolUse)        task="Tool completed" ;;
-  PostToolUseFailure) task="Tool failed" ;;
-  SubagentStart)      task="Subagent started" ;;
-  SubagentStop)       task="Subagent completed" ;;
-  PreCompact)         task="Compacting context..." ;;
-  Stop)               task="Turn complete" ;;
-  *)                  task="" ;;
-esac
-
 raw=$(cat)
 addr="${MYCEL_DAEMON_ADDR:-http://127.0.0.1:9374}"
 
 payload=$(printf '%s' "$raw" | jq -c \
-  --arg event "$event" --arg state "$state" --arg task "$task" \
-  '. + {event: $event, state: $state, task: $task}
+  --arg event "$event" --arg state "$state" \
+  '. + {event: $event, state: $state}
      + (if .tool_output   then {tool_response: .tool_output}  else {} end)
      + (if .error_message then {error: .error_message}        else {} end)' 2>/dev/null)
 
 if [ -z "$payload" ]; then
-  payload=$(printf '{"event":"%s","state":"%s","task":"%s"}' "$event" "$state" "$task")
+  payload=$(printf '{"event":"%s","state":"%s"}' "$event" "$state")
 fi
 
 curl -sS -m 3 -X POST "$addr/api/agents/${MYCEL_AGENT_ID}/hook" \

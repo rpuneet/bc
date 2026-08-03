@@ -54,36 +54,44 @@ func WriteClaudeHookSettings(repoRoot string) error {
 	// hookCmd reads the full raw JSON from Claude Code's stdin, merges in
 	// our event/state fields, and POSTs the complete payload to the daemon.
 	// This preserves all fields Claude sends (tool_name, tool_input, session_id, etc.)
-	hookCmd := func(event, stateTarget, taskDesc string) string {
+	//
+	// Only event and state are added. These commands used to also send a
+	// per-event task ("Processing prompt...", "Turn complete"), which the daemon
+	// stored and the Live feed rendered in the same "task" field that now holds
+	// the agent's real task line — a label describing the hook that fired,
+	// sitting where the thing the agent was asked to do belongs. The task line is
+	// derived from the prompt on a turn start; the lifecycle meaning these
+	// strings carried is already in state.
+	hookCmd := func(event, stateTarget string) string {
 		return fmt.Sprintf(
-			`bash -c 'RAW=$(cat); PAYLOAD=$(echo "$RAW" | jq -c ". + {event:\"%s\",state:\"%s\",task:\"%s\"}" 2>/dev/null || echo "{\"event\":\"%s\",\"state\":\"%s\",\"task\":\"%s\"}"); curl -sX POST %s/api/agents/${MYCEL_AGENT_ID}/hook -H "Content-Type: application/json" -d "$PAYLOAD" 2>/dev/null || true'`,
-			event, stateTarget, taskDesc, event, stateTarget, taskDesc, daemonAddr,
+			`bash -c 'RAW=$(cat); PAYLOAD=$(echo "$RAW" | jq -c ". + {event:\"%s\",state:\"%s\"}" 2>/dev/null || echo "{\"event\":\"%s\",\"state\":\"%s\"}"); curl -sX POST %s/api/agents/${MYCEL_AGENT_ID}/hook -H "Content-Type: application/json" -d "$PAYLOAD" 2>/dev/null || true'`,
+			event, stateTarget, event, stateTarget, daemonAddr,
 		)
 	}
 
 	settings := claudeSettings{
 		Hooks: map[string][]claudeHookMatcher{
-			"SessionStart":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("SessionStart", "idle", "Session started")}}}},
-			"SessionEnd":         {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("SessionEnd", "stopped", "Session ended")}}}},
-			"UserPromptSubmit":   {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("UserPromptSubmit", "working", "Processing prompt...")}}}},
-			"PreToolUse":         {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("PreToolUse", "", "Running tool")}}}},
-			"PostToolUse":        {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("PostToolUse", "", "Tool completed")}}}},
-			"PostToolUseFailure": {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("PostToolUseFailure", "", "Tool failed")}}}},
-			"PermissionRequest":  {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("PermissionRequest", "stuck", "Waiting for permission")}}}},
-			"Stop":               {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("Stop", "idle", "Turn complete")}}}},
-			"Notification":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("Notification", "", "")}}}},
-			"SubagentStart":      {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("SubagentStart", "", "Subagent started")}}}},
-			"SubagentStop":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("SubagentStop", "", "Subagent completed")}}}},
-			"TaskCompleted":      {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("TaskCompleted", "done", "Task completed")}}}},
-			"TeammateIdle":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("TeammateIdle", "", "")}}}},
-			"InstructionsLoaded": {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("InstructionsLoaded", "", "")}}}},
-			"ConfigChange":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("ConfigChange", "", "")}}}},
-			"WorktreeCreate":     {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("WorktreeCreate", "", "Creating worktree")}}}},
-			"WorktreeRemove":     {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("WorktreeRemove", "", "")}}}},
-			"PreCompact":         {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("PreCompact", "", "Compacting context...")}}}},
-			"PostCompact":        {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("PostCompact", "", "Context compacted")}}}},
-			"Elicitation":        {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("Elicitation", "stuck", "MCP input needed")}}}},
-			"ElicitationResult":  {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("ElicitationResult", "working", "MCP input received")}}}},
+			"SessionStart":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("SessionStart", "idle")}}}},
+			"SessionEnd":         {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("SessionEnd", "stopped")}}}},
+			"UserPromptSubmit":   {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("UserPromptSubmit", "working")}}}},
+			"PreToolUse":         {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("PreToolUse", "")}}}},
+			"PostToolUse":        {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("PostToolUse", "")}}}},
+			"PostToolUseFailure": {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("PostToolUseFailure", "")}}}},
+			"PermissionRequest":  {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("PermissionRequest", "stuck")}}}},
+			"Stop":               {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("Stop", "idle")}}}},
+			"Notification":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("Notification", "")}}}},
+			"SubagentStart":      {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("SubagentStart", "")}}}},
+			"SubagentStop":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("SubagentStop", "")}}}},
+			"TaskCompleted":      {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("TaskCompleted", "done")}}}},
+			"TeammateIdle":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("TeammateIdle", "")}}}},
+			"InstructionsLoaded": {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("InstructionsLoaded", "")}}}},
+			"ConfigChange":       {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("ConfigChange", "")}}}},
+			"WorktreeCreate":     {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("WorktreeCreate", "")}}}},
+			"WorktreeRemove":     {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("WorktreeRemove", "")}}}},
+			"PreCompact":         {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("PreCompact", "")}}}},
+			"PostCompact":        {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("PostCompact", "")}}}},
+			"Elicitation":        {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("Elicitation", "stuck")}}}},
+			"ElicitationResult":  {{Hooks: []claudeHook{{Type: "command", Command: hookCmd("ElicitationResult", "working")}}}},
 		},
 	}
 

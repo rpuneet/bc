@@ -70,19 +70,26 @@ const agyHookTimeoutSecs = 5
 // If jq is missing or the payload is unparseable, the bare event is still POSTed
 // so state remains correct; only the detail is lost. The stdout contract is
 // honored unconditionally — a reporting failure must never stall a turn.
-func agyHookCommand(event, state, task, stdout string) string {
+//
+// Only event and state are added. These commands used to also send a per-event
+// task ("Thinking...", "Turn complete"), which the daemon stored and the Live
+// feed rendered in the same "task" field that now holds the agent's real task
+// line — a label naming the hook that fired, sitting where the thing the agent
+// was asked to do belongs. The task line is derived from the prompt on a turn
+// start; the lifecycle meaning those strings carried is already in state.
+func agyHookCommand(event, state, stdout string) string {
 	const daemonAddr = "${MYCEL_DAEMON_ADDR:-http://127.0.0.1:9374}"
-	fallback := fmt.Sprintf(`{\"event\":\"%s\",\"state\":\"%s\",\"task\":\"%s\"}`, event, state, task)
+	fallback := fmt.Sprintf(`{\"event\":\"%s\",\"state\":\"%s\"}`, event, state)
 	return fmt.Sprintf(
-		`bash -c 'RAW=$(cat); PAYLOAD=$(echo "$RAW" | jq -c ". + {event:\"%s\",state:\"%s\",task:\"%s\"}" 2>/dev/null || echo "%s"); `+
+		`bash -c 'RAW=$(cat); PAYLOAD=$(echo "$RAW" | jq -c ". + {event:\"%s\",state:\"%s\"}" 2>/dev/null || echo "%s"); `+
 			`curl -sX POST "%s/api/agents/${MYCEL_AGENT_ID}/hook" -H "Content-Type: application/json" -d "$PAYLOAD" >/dev/null 2>&1; `+
 			`printf "%%s" %s'`,
-		event, state, task, fallback, daemonAddr, strconv.Quote(stdout),
+		event, state, fallback, daemonAddr, strconv.Quote(stdout),
 	)
 }
 
-func agyHandler(event, state, task, stdout string) agyHookHandler {
-	return agyHookHandler{Type: "command", Command: agyHookCommand(event, state, task, stdout), Timeout: agyHookTimeoutSecs}
+func agyHandler(event, state, stdout string) agyHookHandler {
+	return agyHookHandler{Type: "command", Command: agyHookCommand(event, state, stdout), Timeout: agyHookTimeoutSecs}
 }
 
 // WriteAgyHookSettings writes .agents/hooks.json into the agent worktree so the
@@ -108,11 +115,11 @@ func WriteAgyHookSettings(worktreeRoot string) error {
 	const empty = `{}`
 
 	bcHook := agyHookSpec{
-		PreInvocation:  []agyHookHandler{agyHandler("PreInvocation", "working", "Thinking...", empty)},
-		PostInvocation: []agyHookHandler{agyHandler("PostInvocation", "", "Response received", empty)},
-		Stop:           []agyHookHandler{agyHandler("Stop", "idle", "Turn complete", empty)},
-		PreToolUse:     []agyHookGroup{{Matcher: "*", Hooks: []agyHookHandler{agyHandler("PreToolUse", "", "Running tool", allow)}}},
-		PostToolUse:    []agyHookGroup{{Matcher: "*", Hooks: []agyHookHandler{agyHandler("PostToolUse", "", "Tool completed", empty)}}},
+		PreInvocation:  []agyHookHandler{agyHandler("PreInvocation", "working", empty)},
+		PostInvocation: []agyHookHandler{agyHandler("PostInvocation", "", empty)},
+		Stop:           []agyHookHandler{agyHandler("Stop", "idle", empty)},
+		PreToolUse:     []agyHookGroup{{Matcher: "*", Hooks: []agyHookHandler{agyHandler("PreToolUse", "", allow)}}},
+		PostToolUse:    []agyHookGroup{{Matcher: "*", Hooks: []agyHookHandler{agyHandler("PostToolUse", "", empty)}}},
 	}
 
 	const hookName = "mycel-activity"
