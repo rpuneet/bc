@@ -1,8 +1,9 @@
 package provider
 
-import "strings"
-
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // Verbatim panes from agents mycel was reporting as healthy (#3512). They are
 // quoted rather than paraphrased because the whole mechanism rests on matching
@@ -46,13 +47,13 @@ func TestPiDetectFailure(t *testing.T) {
 	tests := []struct {
 		name       string
 		pane       string
-		wantFailed bool
 		wantIn     string
+		wantFailed bool
 	}{
-		{"no api key", piNoKeyPane, true, "no API key"},
-		{"model not entitled", piNoModelAccessPane, true, "model is unavailable"},
-		{"working agent", workingPane, false, ""},
-		{"empty pane", "", false, ""},
+		{"no api key", piNoKeyPane, "no API key", true},
+		{"model not entitled", piNoModelAccessPane, "model is unavailable", true},
+		{"working agent", workingPane, "", false},
+		{"empty pane", "", "", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -141,7 +142,7 @@ func TestDetectFailureSeesThroughTerminalColour(t *testing.T) {
 	// and all. This is what a detector is actually handed — the first attempt at
 	// this feature matched nothing in production while every unit test passed,
 	// because the fixtures were hand-typed plain text and the real error line
-	// starts with a colour sequence rather than "Error:".
+	// starts with a color sequence rather than "Error:".
 	pane := " \x1b[38;2;204;102;102mError: No API key found for amazon-bedrock." +
 		"                                               \n" +
 		"\x1b[2K \x1b[38;2;204;102;102mUse /login to log into a provider via OAuth or API key. See:\x1b[0m\x1b]8;;file:///docs\x07\n" +
@@ -149,7 +150,7 @@ func TestDetectFailureSeesThroughTerminalColour(t *testing.T) {
 
 	reason, failed := (&PiProvider{}).DetectFailure(pane)
 	if !failed {
-		t.Fatal("a coloured provider error must be detected — panes are never plain text")
+		t.Fatal("a colored provider error must be detected — panes are never plain text")
 	}
 	if !strings.Contains(reason, "no API key") {
 		t.Errorf("reason = %q, want it to mention the missing key", reason)
@@ -200,11 +201,11 @@ func TestMatchFailureSkipsEmptyPatterns(t *testing.T) {
 // is how the daemon finds them.
 func TestProvidersImplementFailureDetector(t *testing.T) {
 	for _, tt := range []struct {
-		name string
 		p    Provider
+		name string
 	}{
-		{"pi", &PiProvider{}},
-		{"agy", &AgyProvider{}},
+		{&PiProvider{}, "pi"},
+		{&AgyProvider{}, "agy"},
 	} {
 		if _, ok := tt.p.(FailureDetector); !ok {
 			t.Errorf("%s does not implement FailureDetector", tt.name)

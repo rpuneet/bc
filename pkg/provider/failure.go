@@ -1,4 +1,4 @@
-// failure.go — recognising a provider CLI that is running but cannot work.
+// failure.go — recognizing a provider CLI that is running but cannot work.
 //
 // A provider process can be perfectly alive and still refuse every turn: no API
 // key, a spent quota, a model the account isn't entitled to. mycel used to
@@ -19,12 +19,12 @@ import (
 
 // ansiEscape matches the escape sequences a terminal UI paints its output with.
 //
-// Captured panes are not plain text: providers colour their own error messages,
+// Captured panes are not plain text: providers color their own error messages,
 // so the line that reads "Error: No API key found for amazon-bedrock" actually
-// begins with a colour sequence. Anything anchoring to the start of a line has
+// begins with a color sequence. Anything anchoring to the start of a line has
 // to see through that first.
 //
-// Covered: CSI sequences (colour, cursor movement, line clears), OSC sequences
+// Covered: CSI sequences (color, cursor movement, line clears), OSC sequences
 // (hyperlinks and window titles, which terminate with BEL or ST), and the
 // two-character escapes. An unterminated OSC is left alone rather than risking
 // swallowing the newline that separates two lines.
@@ -70,7 +70,7 @@ type FailureDetector interface {
 // FailurePattern maps a line of provider output to the reason it implies.
 //
 // Literal fragments rather than regexes: these are matched against terminal
-// text that providers reflow and colour unpredictably, and a fragment short
+// text that providers reflow and color unpredictably, and a fragment short
 // enough to survive that is also short enough to read here and check against the
 // real message.
 type FailurePattern struct {

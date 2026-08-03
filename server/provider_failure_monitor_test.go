@@ -12,13 +12,13 @@ import (
 // fakeFailureDeps stands in for the agent service so a sweep can be driven
 // without a tmux session.
 type fakeFailureDeps struct {
-	agents    []*agentpkg.Agent
 	panes     map[string]string
 	peekErr   map[string]error
-	peeked    []string
-	ingested  []agentpkg.HookPayload
 	ingestErr error
 	listErr   error
+	agents    []*agentpkg.Agent
+	peeked    []string
+	ingested  []agentpkg.HookPayload
 }
 
 func (f *fakeFailureDeps) List(context.Context, agentpkg.ListOptions) ([]*agentpkg.Agent, error) {
