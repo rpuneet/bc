@@ -25,12 +25,15 @@ function setSearch(search: string) {
 }
 
 /**
- * installStorage — this jsdom setup does not provide localStorage (other suites
- * guard it with `window.localStorage?.`), so each case supplies its own. That
- * also lets the failure case be a store whose writes throw, which is what
- * private browsing does.
+ * installStorage — this jsdom setup does not provide storage (other suites guard
+ * it with `window.localStorage?.`), so each case supplies its own. That also
+ * lets the failure case be a store whose writes throw, which is what private
+ * browsing does.
+ *
+ * `which` matters: the marker belongs in sessionStorage, and a case can install
+ * a populated localStorage to prove it is never consulted.
  */
-function installStorage(opts: { throwOnWrite?: boolean } = {}) {
+function installStorage(opts: { throwOnWrite?: boolean; which?: "sessionStorage" | "localStorage" } = {}) {
   const map = new Map<string, string>();
   const stub = {
     getItem: (k: string) => map.get(k) ?? null,
@@ -41,7 +44,7 @@ function installStorage(opts: { throwOnWrite?: boolean } = {}) {
     removeItem: (k: string) => void map.delete(k),
     clear: () => map.clear(),
   };
-  Object.defineProperty(globalThis, "localStorage", {
+  Object.defineProperty(globalThis, opts.which ?? "sessionStorage", {
     value: stub,
     writable: true,
     configurable: true,
@@ -108,8 +111,36 @@ describe("desktopAppVersion", () => {
 
   it("returns empty rather than throwing when storage is absent entirely", async () => {
     // Which is this jsdom setup's actual default, and any environment where the
-    // bare `localStorage` reference is a ReferenceError.
-    Reflect.deleteProperty(globalThis, "localStorage");
+    // bare `sessionStorage` reference is a ReferenceError.
+    Reflect.deleteProperty(globalThis, "sessionStorage");
+    setSearch("");
+    const { desktopAppVersion } = await loadFresh();
+    expect(desktopAppVersion()).toBe("");
+  });
+
+  it("forgets the app once its window is gone", async () => {
+    // The marker outliving the window is how a plain browser tab came to report
+    // a "Desktop app" that was not running: the version was in localStorage, so
+    // every later visit inherited it and About warned of a mismatch against a
+    // build that no longer existed. A new session must start with no claim.
+    const handoff = installStorage();
+    setSearch("?desktop=1&app_version=0.4.5-dev.37.g8c72ca8");
+    const first = await loadFresh();
+    expect(first.desktopAppVersion()).toBe("0.4.5-dev.37.g8c72ca8");
+    expect(handoff.get(STORAGE_KEY)).toBe("0.4.5-dev.37.g8c72ca8");
+
+    // A different visit: same machine, same origin, no app hosting it.
+    installStorage();
+    setSearch("");
+    const later = await loadFresh();
+    expect(later.desktopAppVersion()).toBe("");
+  });
+
+  it("ignores a version left in localStorage by an older build", async () => {
+    // Upgrading does not clear what the previous version wrote, so the value is
+    // still there on the first run of this one. It must not be believed.
+    installStorage({ which: "localStorage" }).set(STORAGE_KEY, "0.4.5-dev.37.g8c72ca8");
+    installStorage();
     setSearch("");
     const { desktopAppVersion } = await loadFresh();
     expect(desktopAppVersion()).toBe("");
