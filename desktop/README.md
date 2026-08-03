@@ -107,9 +107,16 @@ one deferred target.
 ## Code-signing & notarization (release secrets)
 
 The macOS legs of `release-desktop` sign and notarize `mycel.app` **only
-when the signing secrets are present**. On fork PRs or any run without the
-secrets the app ships ad-hoc and the signing steps are skipped — the
-workflow never fails for missing secrets.
+when the signing secrets are present**, and **fail when they are not**. An
+ad-hoc-signed `.app` is refused by Gatekeeper on every machine except the one
+that built it, so a release that cannot sign has not produced a mac app anyone
+can open — it used to skip ahead and publish one anyway, reporting success
+(#3561).
+
+To publish without a certificate on purpose, set the repository variable
+`ALLOW_UNSIGNED_MACOS=true`. The run then warns instead of failing and names
+the asset `..._UNSIGNED.zip`, so nobody downloads one without knowing they will
+have to clear the quarantine flag themselves.
 
 To enable signed + notarized macOS builds, the owner adds these repository
 secrets (Settings → Secrets and variables → Actions):
