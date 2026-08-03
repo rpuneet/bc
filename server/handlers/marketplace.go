@@ -201,7 +201,20 @@ func composeInstallMessage(req installRequest) string {
 			sb.WriteString(fmt.Sprintf("  claude plugin install %q\n", req.ItemName+"@"+marketplaceName))
 		}
 	case marketplace.TypeTemplate:
-		sb.WriteString(fmt.Sprintf("  mycel template import %q\n", req.ItemName))
+		// A template entry names a template that is already on the machine: the
+		// mycel source lists ~/.mycel/templates itself, so there is nothing to
+		// fetch. The old instruction asked for `mycel template import`, a
+		// command that has never existed — an agent that did as it was told got
+		// "unknown command", which is the failure the Glama branch above goes
+		// out of its way to avoid. What a template is *for* is creating an
+		// agent, so that is what is asked for.
+		template := strings.TrimPrefix(req.ItemID, "mycel:")
+		if template == "" {
+			template = req.ItemName
+		}
+		sb.WriteString("  This template is already available locally; use it when creating an agent:\n")
+		sb.WriteString(fmt.Sprintf("  mycel agent create <agent-name> --template %q\n", template))
+		sb.WriteString("  (mycel template list shows every template on this machine.)\n")
 	default:
 		sb.WriteString("  Consult the item URL above for installation instructions.\n")
 	}
