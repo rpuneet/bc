@@ -15,7 +15,7 @@ import (
 // all shell behavior.
 func resolveAddr(t *testing.T, mycelHome, envAddr string) string {
 	t.Helper()
-	cmd := exec.Command("/bin/sh", "-c", `addr=`+DaemonAddrShell+`; printf '%s' "$addr"`)
+	cmd := exec.CommandContext(t.Context(), "/bin/sh", "-c", `addr=`+DaemonAddrShell+`; printf '%s' "$addr"`)
 	cmd.Env = []string{
 		"HOME=" + t.TempDir(), // never the real home, whatever the case under test
 		"PATH=" + os.Getenv("PATH"),
@@ -135,7 +135,7 @@ func TestDaemonAddrShellSurvivesClaudeQuoting(t *testing.T) {
 	home := homeWithAddrFile(t, "http://127.0.0.1:9374\n")
 	// Exactly how claude_hooks.go nests it: single-quoted outer command.
 	script := `bash -c 'addr=` + DaemonAddrShell + `; printf "%s" "$addr"'`
-	cmd := exec.Command("/bin/sh", "-c", script)
+	cmd := exec.CommandContext(t.Context(), "/bin/sh", "-c", script)
 	cmd.Env = []string{"HOME=" + t.TempDir(), "PATH=" + os.Getenv("PATH"), "MYCEL_HOME=" + home}
 
 	out, err := cmd.Output()
