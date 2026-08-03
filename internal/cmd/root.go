@@ -4,6 +4,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
@@ -18,11 +19,97 @@ var (
 	date    = "unknown"
 )
 
-// SetVersionInfo sets the version information from build flags.
+// SetVersionInfo sets the version information from build flags, filling in
+// from the build's recorded VCS stamp whatever the linker did not supply.
+//
+// A binary from `go build ./cmd/mycel` has no -X flags, so it used to identify
+// itself as version "dev", commit "none" — and since /api/health substitutes the
+// commit for a version of "dev", the About page reported a daemon whose version
+// was literally "none". Go stamps the revision into every binary built inside a
+// repository, so there is no need to report nothing.
 func SetVersionInfo(v, c, d string) {
-	version = v
-	commit = c
-	date = d
+	version, commit, date = resolveVersionInfo(v, c, d)
+}
+
+// resolveVersionInfo fills placeholder build values in from the VCS stamp. Kept
+// separate from the package variables it ends up in so it can be tested without
+// writing to them.
+func resolveVersionInfo(v, c, d string) (outV, outC, outD string) {
+	if unstamped(c) {
+		if rev, modified, ok := vcsStamp(); ok {
+			c = rev
+			if modified {
+				c += "+dirty"
+			}
+		}
+	}
+	if unstamped(d) {
+		if t, ok := vcsTime(); ok {
+			d = t
+		}
+	}
+	return v, c, d
+}
+
+// unstamped reports whether a build value is one of the placeholders that means
+// "the linker did not set this".
+func unstamped(v string) bool {
+	switch v {
+	case "", "none", "unknown", "dev":
+		return true
+	}
+	return false
+}
+
+// vcsStamp returns the short revision Go recorded at build time, and whether the
+// tree had uncommitted changes.
+func vcsStamp() (rev string, modified, ok bool) {
+	info, available := debug.ReadBuildInfo()
+	if !available {
+		return "", false, false
+	}
+	return stampFromSettings(info.Settings)
+}
+
+// stampFromSettings is vcsStamp's logic, separated from where the settings come
+// from: a test cannot choose how its own binary was built, and a stamp read from
+// this binary is absent in exactly the cases (linked worktrees, -buildvcs=false)
+// that would silently turn the test into a skip.
+func stampFromSettings(settings []debug.BuildSetting) (rev string, modified, ok bool) {
+	for _, s := range settings {
+		switch s.Key {
+		case "vcs.revision":
+			rev = s.Value
+		case "vcs.modified":
+			modified = s.Value == "true"
+		}
+	}
+	if rev == "" {
+		return "", false, false
+	}
+	// Short enough to read in a header, long enough to paste into `git show`.
+	if len(rev) > 8 {
+		rev = rev[:8]
+	}
+	return rev, modified, true
+}
+
+// vcsTime returns the commit time Go recorded at build time.
+func vcsTime() (string, bool) {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "", false
+	}
+	return timeFromSettings(info.Settings)
+}
+
+func timeFromSettings(settings []debug.BuildSetting) (string, bool) {
+	for _, s := range settings {
+		if s.Key == "vcs.time" && s.Value != "" {
+			return s.Value, true
+		}
+	}
+	return "", false
 }
 
 // rootCmd is the base command for mycel.
