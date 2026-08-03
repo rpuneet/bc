@@ -18,7 +18,7 @@ import (
 )
 
 // normalizeAddr ensures the host part of a host:port address is not empty.
-// If the host is missing (e.g. ":8080"), it defaults to "127.0.0.1".
+// If the host is missing (e.g. ":9374"), it defaults to "127.0.0.1".
 func normalizeAddr(addr string) string {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -104,7 +104,7 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	// Normalize addr: ":8080" → "127.0.0.1:8080"
+	// Normalize addr: ":9374" → "127.0.0.1:9374"
 	upAddr = normalizeAddr(upAddr)
 
 	// Daemon mode: re-exec mycel up in background

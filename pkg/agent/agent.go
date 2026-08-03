@@ -3109,7 +3109,7 @@ func (m *Manager) enforceRootSingleton(_ string) error {
 // (with host.docker.internal substituted for Docker runtimes).
 func daemonAddrForRuntime(rt string) string {
 	if addr := os.Getenv("MYCEL_DAEMON_ADDR"); addr != "" {
-		// Normalize empty hostname: "http://:8080" → "http://127.0.0.1:8080"
+		// Normalize empty hostname: "http://:9374" → "http://127.0.0.1:9374"
 		if u, parseErr := url.Parse(addr); parseErr == nil && u.Hostname() == "" && u.Port() != "" {
 			u.Host = net.JoinHostPort("127.0.0.1", u.Port())
 			addr = u.String()
