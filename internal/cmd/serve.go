@@ -73,6 +73,15 @@ func RunServerCtx(ctx context.Context, addr, repoRoot, corsOrigin, apiKey string
 		}
 	}
 
+	// Publish the workspace alongside the address, so the next process to start
+	// a daemon — the desktop app, which has no working directory to infer one
+	// from — serves the same one rather than a namespace matching no running
+	// agent's tmux session (#3569).
+	if wsErr := home.PublishDaemonWorkspace(h.RootDir); wsErr != nil {
+		log.Warn("could not record which workspace this daemon serves — the desktop app may start one that cannot see these agents",
+			"workspace", h.RootDir, "error", wsErr)
+	}
+
 	pidPath, pidErr := home.DaemonPidPath()
 	if pidErr != nil {
 		log.Warn("failed to resolve daemon pid path", "error", pidErr)
