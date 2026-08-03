@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -53,6 +54,7 @@ const bootPage = `<!doctype html>
 </div>
 <script>
   var TARGET = %q;
+  var HANDOFF = %q;
   var msg = document.getElementById("msg");
   var attempts = 0;
 
@@ -68,12 +70,16 @@ const bootPage = `<!doctype html>
     // ?desktop=1 marker tells the SPA it is running inside the Wails webview
     // (served from the daemon's http:// origin, where window.runtime is never
     // injected) so it routes external links through /api/system/open-url.
-    window.location.replace(TARGET + "/?desktop=1");
+    // app_version is the app's own version: the UI is served entirely by the
+    // daemon, which may be an older one this app attached to rather than
+    // started, so the handoff is the only channel through which the app can
+    // tell the page what it is.
+    window.location.replace(TARGET + HANDOFF);
     // Fallback: if the webview refused the cross-scheme navigation,
     // we are still here after 2s — embed the UI in a full-window iframe.
     setTimeout(function () {
       var f = document.createElement("iframe");
-      f.src = TARGET + "/?desktop=1";
+      f.src = TARGET + HANDOFF;
       document.body.appendChild(f);
       document.getElementById("boot").remove();
     }, 2000);
@@ -94,16 +100,28 @@ const bootPage = `<!doctype html>
 </html>
 `
 
-// renderBootPage bakes the server URL into the boot page.
-func renderBootPage(serverURL string) string {
-	return fmt.Sprintf(bootPage, serverURL)
+// handoffPath builds the path the boot page navigates to, carrying the desktop
+// marker and the app's own version. appVersion is URL-encoded because a source
+// build's version is not a bare identifier ("0.4.5-dev.12.g1a2b3c4.dirty") and
+// nothing guarantees a future one will stay query-safe.
+func handoffPath(appVersion string) string {
+	q := url.Values{"desktop": {"1"}}
+	if appVersion != "" {
+		q.Set("app_version", appVersion)
+	}
+	return "/?" + q.Encode()
+}
+
+// renderBootPage bakes the server URL and the handoff path into the boot page.
+func renderBootPage(serverURL, appVersion string) string {
+	return fmt.Sprintf(bootPage, serverURL, handoffPath(appVersion))
 }
 
 // bootMiddleware intercepts the document requests ("/", "/index.html")
 // and serves the boot page with the live server URL; everything else
 // falls through to the embedded assets.
-func bootMiddleware(serverURL string) func(http.Handler) http.Handler {
-	page := []byte(renderBootPage(serverURL))
+func bootMiddleware(serverURL, appVersion string) func(http.Handler) http.Handler {
+	page := []byte(renderBootPage(serverURL, appVersion))
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			path := strings.TrimSuffix(r.URL.Path, "index.html")

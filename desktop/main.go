@@ -41,7 +41,7 @@ func main() {
 		MinHeight: 600,
 		AssetServer: &assetserver.Options{
 			Assets:     assets,
-			Middleware: bootMiddleware(srv.URL()),
+			Middleware: bootMiddleware(srv.URL(), version),
 		},
 		OnStartup:  func(context.Context) { srv.Start() },
 		OnShutdown: func(context.Context) { srv.Stop() },

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ExternalLink } from "../components/ExternalLink";
+import { desktopAppVersion } from "../utils/desktopApp";
 
 /* ── Types ──────────────────────────────────────────────────────────── */
 
@@ -151,7 +152,25 @@ export function About() {
 
   const latestTag = latest?.tag_name?.replace(/^v/, "") ?? null;
 
+  const appVersion = desktopAppVersion();
+  // The desktop app attaches to an already-running daemon rather than starting
+  // its own when it finds one, so these two genuinely can differ — and when they
+  // do, every version on this page comes from the daemon while the user is
+  // looking at a newer app. Surfacing it is the difference between "my update
+  // didn't work" and "my daemon is stale".
+  const appDiffersFromDaemon = Boolean(appVersion && health?.version && appVersion !== health.version);
+
   const channels: ChannelStatus[] = [
+    ...(appVersion
+      ? [
+          {
+            label: "Desktop app",
+            version: appVersion,
+            detail: appDiffersFromDaemon ? "newer than the daemon below" : "matches the daemon",
+            state: (appDiffersFromDaemon ? "stale" : "ok") as ChannelStatus["state"],
+          },
+        ]
+      : []),
     {
       label: "Daemon",
       version: health?.version ?? undefined,
@@ -212,10 +231,24 @@ export function About() {
     <div className="p-6 flex flex-col gap-6 max-w-3xl mx-auto">
       <header className="flex items-baseline justify-between gap-3">
         <div className="flex items-baseline gap-3">
-          <span className="text-[11px] uppercase tracking-wider text-mycel-muted">Installed</span>
+          {/* Named for what it actually is. This number always comes from the
+              daemon's /api/health; calling it "Installed" inside the desktop app
+              invited reading it as the app's own version, which is a different
+              number whenever the app attached to a daemon it did not start. */}
+          <span className="text-[11px] uppercase tracking-wider text-mycel-muted">
+            {appVersion ? "Daemon" : "Installed"}
+          </span>
           <span className="text-2xl font-semibold text-mycel-text font-mono tabular-nums">
             {health?.version ?? "—"}
           </span>
+          {appDiffersFromDaemon && (
+            <span
+              className="text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 bg-mycel-warning-subtle text-mycel-warning ring-1 ring-inset ring-mycel-border"
+              title={`This desktop app is ${appVersion}, but it is using a separately running daemon on ${health?.version}. Restart the daemon from the newer build to match.`}
+            >
+              app is {appVersion}
+            </span>
+          )}
           {/* Compare like-with-like. `latestTag` is a released version
               ("0.3.1"), so only a build that claims to *be* a release can
               meaningfully be behind one. Fixes #3212. */}
