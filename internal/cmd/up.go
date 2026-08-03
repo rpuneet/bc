@@ -313,15 +313,21 @@ func runUpDaemon(repoRoot string) error {
 	_ = logFile.Close()
 	_ = nullFile.Close()
 
+	// Read the pid before releasing the process: Release invalidates the handle
+	// and leaves Pid as -1, so reporting it afterwards told everyone their
+	// daemon had started as "PID -1" — a number that cannot be signaled or
+	// looked up, from a daemon that had in fact started fine.
+	pid := cmd.Process.Pid
+
 	// Write PID file
-	if writeErr := os.WriteFile(pidPath, []byte(fmt.Sprintf("%d\n", cmd.Process.Pid)), 0600); writeErr != nil {
+	if writeErr := os.WriteFile(pidPath, []byte(fmt.Sprintf("%d\n", pid)), 0600); writeErr != nil {
 		log.Warn("failed to write PID file", "path", pidPath, "error", writeErr)
 	}
 
 	// Detach — don't wait for the process
 	_ = cmd.Process.Release()
 
-	fmt.Printf("  %s mycel server started (PID %d)\n", ui.GreenText("ok"), cmd.Process.Pid)
+	fmt.Printf("  %s mycel server started (PID %d)\n", ui.GreenText("ok"), pid)
 	fmt.Printf("  http://%s\n", upAddr)
 	fmt.Printf("  logs: %s\n", logPath)
 	fmt.Printf("  pid:  %s\n", pidPath)
