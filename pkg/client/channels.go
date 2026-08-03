@@ -94,14 +94,25 @@ func (ch *ChannelsClient) RemoveMember(ctx context.Context, chanName, agentName 
 	return ch.client.delete(ctx, "/api/channels/"+chanName+"/members/"+agentName)
 }
 
-// Send sends a message to a channel.
-func (ch *ChannelsClient) Send(ctx context.Context, chanName, sender, message string) (*MessageInfo, error) {
-	body := map[string]string{"sender": sender, "content": message}
-	var msg MessageInfo
-	if err := ch.client.post(ctx, "/api/channels/"+chanName+"/messages", body, &msg); err != nil {
-		return nil, err
+// Send delivers a message to a channel as sender, reporting whether the
+// daemon's gateway actually routed it. A channel with no configured route
+// returns false with no error — that is the endpoint's contract, not a failure,
+// so callers must check the flag before telling a user the message was sent.
+//
+// This posts to /api/channels/send, the same endpoint the web UI and the
+// send_message MCP tool use. It previously posted to
+// /api/channels/{name}/messages, which no route serves: /api/channels/ is
+// handled by the history endpoint, which accepts GET only, so every CLI send
+// failed with 405.
+func (ch *ChannelsClient) Send(ctx context.Context, chanName, sender, message string) (bool, error) {
+	body := map[string]string{"channel": chanName, "sender": sender, "message": message}
+	var res struct {
+		Sent bool `json:"sent"`
 	}
-	return &msg, nil
+	if err := ch.client.post(ctx, "/api/channels/send", body, &res); err != nil {
+		return false, err
+	}
+	return res.Sent, nil
 }
 
 // History returns message history for a channel.

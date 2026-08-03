@@ -829,20 +829,48 @@ func TestChannels_RemoveMember(t *testing.T) {
 	}
 }
 
+// Send must hit the one endpoint the daemon actually serves, with the field
+// names it actually reads. Asserting only the body is what let this ship broken:
+// the client posted to /api/channels/{name}/messages, which no route handles, and
+// a fake server answering every path never noticed.
 func TestChannels_Send(t *testing.T) {
-	handler, cap := capturingHandler(t, http.MethodPost, 200, MessageInfo{Channel: "general", Sender: "alice", Content: "hi"})
+	handler, cap := capturingHandler(t, http.MethodPost, 200, map[string]bool{"sent": true})
 	ts := mockServer(t, handler)
 	c := New(ts.URL)
 
-	result, err := c.Channels.Send(context.Background(), "general", "alice", "hi")
+	sent, err := c.Channels.Send(context.Background(), "slack:general", "alice", "hi")
 	if err != nil {
 		t.Fatalf("Send() error = %v", err)
 	}
-	if result.Content != "hi" {
-		t.Errorf("Content = %q, want hi", result.Content)
+	if !sent {
+		t.Error("sent = false, want true")
 	}
-	if cap.Body["sender"] != "alice" {
-		t.Errorf("body sender = %v, want alice", cap.Body["sender"])
+	if cap.Path != "/api/channels/send" {
+		t.Errorf("path = %q, want /api/channels/send", cap.Path)
+	}
+	for field, want := range map[string]string{
+		"channel": "slack:general",
+		"sender":  "alice",
+		"message": "hi",
+	} {
+		if got := cap.Body[field]; got != want {
+			t.Errorf("body %s = %v, want %q", field, got, want)
+		}
+	}
+}
+
+// An unroutable channel is reported by the daemon as {"sent":false} with a 200,
+// so the client must surface that rather than treating a 200 as delivery.
+func TestChannels_SendReportsUndelivered(t *testing.T) {
+	ts := mockServer(t, jsonHandler(200, map[string]bool{"sent": false}))
+	c := New(ts.URL)
+
+	sent, err := c.Channels.Send(context.Background(), "slack:nowhere", "alice", "hi")
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if sent {
+		t.Error("sent = true, want false for a channel with no route")
 	}
 }
 
