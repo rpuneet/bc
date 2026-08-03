@@ -265,24 +265,40 @@ jobs:
           esac
 
       # ── macOS code-signing + notarization (gated on secrets) ───────────
-      # When the Developer ID secrets are absent (fork PRs, no-secret runs) the
-      # app ships ad-hoc/self-signed and these steps are skipped — the workflow
-      # never fails for missing secrets. See desktop/README.md for the secret
-      # names the owner must add. The step-output gate is used because the
-      # `secrets` context cannot be referenced from a step-level `if`.
+      # An unsigned .app is refused by Gatekeeper on every machine but the one
+      # that built it, so a release that cannot sign has not produced a mac app
+      # anyone can open. This step therefore fails the job rather than skipping
+      # ahead: v0.4.5 shipped ad-hoc-signed and green, and the only way to find
+      # out was to install it (#3561).
+      #
+      # ALLOW_UNSIGNED_MACOS=true is the deliberate escape hatch — it publishes,
+      # with UNSIGNED in the filename so nobody downloads one by accident. See
+      # desktop/README.md for the secret names the owner must add. The
+      # step-output gate is used because the `secrets` context cannot be
+      # referenced from a step-level `if`.
       - name: Check macOS signing secrets
         id: signing
         if: matrix.os == 'darwin'
         shell: bash
         env:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          ALLOW_UNSIGNED: ${{ vars.ALLOW_UNSIGNED_MACOS }}
         run: |
           if [ -n "$MACOS_CERTIFICATE" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false (no MACOS_CERTIFICATE secret — shipping ad-hoc)"
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "unsigned_suffix=" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          if [ "$ALLOW_UNSIGNED" = "true" ]; then
+            echo "::warning title=Unsigned macOS app::No MACOS_CERTIFICATE secret. Publishing an ad-hoc-signed app because ALLOW_UNSIGNED_MACOS is set; Gatekeeper will refuse it, and users must run 'xattr -dr com.apple.quarantine' to open it. The asset is named UNSIGNED to say so."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "unsigned_suffix=-UNSIGNED" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::error title=Cannot sign the macOS app::No MACOS_CERTIFICATE secret, so this app would be ad-hoc signed and refused by Gatekeeper on every machine that downloads it. Add the Developer ID secrets (see desktop/README.md), or set the repository variable ALLOW_UNSIGNED_MACOS=true to publish it anyway, marked UNSIGNED."
+          exit 1
 
       - name: Import Developer ID certificate
         if: matrix.os == 'darwin' && steps.signing.outputs.enabled == 'true'
@@ -339,12 +355,15 @@ jobs:
         shell: bash
         env:
           RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          # Empty unless the app went out unsigned, in which case the filename
+          # carries the warning to wherever the download ends up.
+          UNSIGNED: ${{ steps.signing.outputs.unsigned_suffix }}
         run: |
           VERSION=${RELEASE_TAG#v}
           mkdir -p dist
           case "${{ matrix.os }}" in
             darwin)
-              ditto -c -k --keepParent desktop/build/bin/mycel.app "dist/${{ matrix.artifact }}_${VERSION}.zip" ;;
+              ditto -c -k --keepParent desktop/build/bin/mycel.app "dist/${{ matrix.artifact }}_${VERSION}${UNSIGNED}.zip" ;;
             linux)
               tar -C desktop/build/bin -czf "dist/${{ matrix.artifact }}_${VERSION}.tar.gz" . ;;
             windows)
@@ -434,6 +453,40 @@ jobs:
             -H "Content-Type: application/json" \
             https://api.github.com/repos/rpuneet/homebrew-mycel/contents/Formula/mycel.rb \
             -d "{\"message\":\"chore(formula): bump to ${TAG} (cross-platform)\",\"content\":\"${CONTENT_B64}\",\"sha\":\"${OLD_SHA}\",\"branch\":\"main\"}"
+
+  # ── Checksums for the desktop downloads ──────────────────────────────
+  # The CLI archives are hashed inside the jobs that build them, but each
+  # desktop artifact is built by a different matrix leg, so one job cannot see
+  # the others' files. Hashing them from the release afterwards is what gives
+  # every desktop download something to verify against: through v0.4.5 neither
+  # manifest mentioned a mycel-desktop_* file, so an unsigned app was also an
+  # unverifiable one (#3561).
+  desktop-checksums:
+    name: Checksum desktop artifacts
+    runs-on: ubuntu-latest
+    needs: [release-desktop, prepare]
+    steps:
+      - name: Hash every desktop asset on the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          mkdir -p desktop-assets && cd desktop-assets
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern 'mycel-desktop_*' --clobber
+          # Fail rather than publish an empty manifest that reads as "verified".
+          if ! ls mycel-desktop_* >/dev/null 2>&1; then
+            echo "::error title=No desktop assets::The release has no mycel-desktop_* files to hash."
+            exit 1
+          fi
+          shasum -a 256 mycel-desktop_* > ../checksums-desktop.txt
+          cat ../checksums-desktop.txt
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          files: checksums-desktop.txt
 
   # ── SBOM generation ──────────────────────────────────────────────────
   sbom:
