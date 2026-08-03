@@ -3470,6 +3470,118 @@ func TestEffectiveToolExplicit(t *testing.T) {
 	}
 }
 
+// TestRefreshActivityConfigsHealsAStaleAddress covers the migration half of
+// #3510: agents already on disk hold a hook config written by an older mycel,
+// pointing at whichever port was current then — or, for agents old enough,
+// referencing BC_BCD_ADDR, a variable the rename left behind and nothing sets.
+// Their hooks fire into nothing, and because state still comes from what the
+// daemon observes, the agent looks fine while every prompt, tool call and result
+// a hook would have carried is lost.
+func TestRefreshActivityConfigsHealsAStaleAddress(t *testing.T) {
+	m := newTestManager(t)
+
+	worktree := t.TempDir()
+	claudeDir := filepath.Join(worktree, ".claude")
+	if err := os.MkdirAll(claudeDir, 0o750); err != nil {
+		t.Fatalf("create .claude: %v", err)
+	}
+	settings := filepath.Join(claudeDir, "settings.json")
+	// Verbatim shape of the configs found on a real machine, where 25 of 27
+	// agents pointed at a port nothing had listened on for weeks.
+	stale := `{"hooks":{"SessionStart":[{"hooks":[{"type":"command",` +
+		`"command":"bash -c 'curl -sX POST ${BC_BCD_ADDR:-http://0.0.0.0:8080}/api/agents/${MYCEL_AGENT_ID}/hook'"}]}]}}`
+	if err := os.WriteFile(settings, []byte(stale), 0o600); err != nil {
+		t.Fatalf("write stale settings: %v", err)
+	}
+
+	m.mu.Lock()
+	m.agents["ghost"] = &Agent{Name: "ghost", Tool: "claude", WorktreeDir: worktree}
+	m.mu.Unlock()
+
+	if n := m.RefreshActivityConfigs(); n != 1 {
+		t.Fatalf("refreshed %d configs, want 1", n)
+	}
+
+	data, err := os.ReadFile(settings) //nolint:gosec // test-owned path
+	if err != nil {
+		t.Fatalf("read refreshed settings: %v", err)
+	}
+	got := string(data)
+	if strings.Contains(got, "BC_BCD_ADDR") {
+		t.Error("the refreshed config still reads BC_BCD_ADDR, a variable nothing sets — its hooks would keep falling back to the baked address")
+	}
+	if strings.Contains(got, "8080") {
+		t.Error("the refreshed config still points at the stale port 8080")
+	}
+	if !strings.Contains(got, "run/daemon.addr") {
+		t.Errorf("the refreshed config does not consult the published address, so it will go stale again:\n%s", got)
+	}
+}
+
+// TestRefreshActivityConfigsSkipsAMissingWorktree keeps the refresh from
+// resurrecting directories: an agent whose worktree was deleted should be passed
+// over, not rebuilt as a side effect of starting the daemon.
+func TestRefreshActivityConfigsSkipsAMissingWorktree(t *testing.T) {
+	m := newTestManager(t)
+
+	gone := filepath.Join(t.TempDir(), "deleted-worktree")
+	m.mu.Lock()
+	m.agents["vanished"] = &Agent{Name: "vanished", Tool: "claude", WorktreeDir: gone}
+	m.mu.Unlock()
+
+	if n := m.RefreshActivityConfigs(); n != 0 {
+		t.Errorf("refreshed %d configs, want 0 for a worktree that no longer exists", n)
+	}
+	if _, err := os.Stat(gone); err == nil {
+		t.Error("the refresh recreated a deleted worktree")
+	}
+}
+
+// TestDaemonAddrEnvForRuntime covers what mycel exports into an agent's session.
+// A local agent must be told nothing, because anything it is told it remembers:
+// an address exported at creation stays in the session after the daemon restarts
+// elsewhere, and every hook then POSTs to a port nobody is listening on with no
+// sign that anything is wrong (#3510). A container cannot read the published
+// address, so it is the one case that still needs telling.
+func TestDaemonAddrEnvForRuntime(t *testing.T) {
+	t.Setenv("MYCEL_DAEMON_ADDR", "http://127.0.0.1:8080")
+
+	if got := daemonAddrEnvForRuntime("tmux"); got != "" {
+		t.Errorf("a local agent was handed %q; it must resolve the daemon per call instead of remembering one", got)
+	}
+	if got := daemonAddrEnvForRuntime("docker"); got != "http://host.docker.internal:8080" {
+		t.Errorf("a container was handed %q, want http://host.docker.internal:8080", got)
+	}
+}
+
+// TestPublishedDaemonAddrPrefersTheAddrFile pins the precedence that makes the
+// stale-address bug impossible: the file is written by whichever daemon is
+// running now, while the environment preserves whatever was true when this
+// process started.
+func TestPublishedDaemonAddrPrefersTheAddrFile(t *testing.T) {
+	t.Setenv("MYCEL_HOME", t.TempDir())
+	t.Setenv("MYCEL_DAEMON_ADDR", "http://127.0.0.1:8080")
+
+	if got := publishedDaemonAddr(); got != "http://127.0.0.1:8080" {
+		t.Fatalf("with nothing published, got %q, want the environment's http://127.0.0.1:8080", got)
+	}
+
+	addrPath, err := home.DaemonAddrPath()
+	if err != nil {
+		t.Fatalf("resolve daemon.addr path: %v", err)
+	}
+	if mkErr := os.MkdirAll(filepath.Dir(addrPath), 0o750); mkErr != nil {
+		t.Fatalf("create run dir: %v", mkErr)
+	}
+	if wErr := os.WriteFile(addrPath, []byte("http://127.0.0.1:9374\n"), 0o600); wErr != nil {
+		t.Fatalf("publish address: %v", wErr)
+	}
+
+	if got := publishedDaemonAddr(); got != "http://127.0.0.1:9374" {
+		t.Errorf("got %q, want the published http://127.0.0.1:9374 — a running daemon outranks a remembered address", got)
+	}
+}
+
 func TestDaemonAddrForRuntime_NormalizesEmptyHost(t *testing.T) {
 	tests := []struct {
 		name    string

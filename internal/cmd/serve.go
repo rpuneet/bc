@@ -8,7 +8,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"syscall"
 
 	dbpkg "github.com/rpuneet/mycel/pkg/db"
@@ -190,49 +189,17 @@ func RunServerCtx(ctx context.Context, addr, repoRoot, corsOrigin, apiKey string
 		BuiltAt: date,
 	}
 
-	// Rewrite agent hook settings to point at the actual the daemon address.
-	updateAgentHookPorts(h, cfg.Addr)
+	// Bring existing agents' hook configs up to date with the current
+	// generators, so agents created against an older daemon stop reporting to
+	// the address that was current when they were made.
+	if svc.AgentMgr != nil {
+		if n := svc.AgentMgr.RefreshActivityConfigs(); n > 0 {
+			log.Info("refreshed agent activity configs", "agents", n)
+		}
+	}
 
 	srv := server.New(cfg, svc, globalHub, server.WebDist())
 	return srv.Start(ctx)
-}
-
-// updateAgentHookPorts rewrites agent hook settings to use the current the daemon address.
-// This is necessary because existing tmux sessions don't inherit the MYCEL_DAEMON_ADDR
-// environment variable that is set in the daemon process env.
-func updateAgentHookPorts(h *home.Home, listenAddr string) {
-	daemonURL := "http://" + listenAddr
-	agentsDir := filepath.Join(h.StateDir(), "agents")
-	entries, err := os.ReadDir(agentsDir)
-	if err != nil {
-		return
-	}
-
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		agentName := e.Name()
-		settingsGlob := filepath.Join(agentsDir, agentName, "*", ".claude", "settings.json")
-		matches, _ := filepath.Glob(settingsGlob) //nolint:errcheck // Glob only errors on bad pattern
-		for _, settingsPath := range matches {
-			data, readErr := os.ReadFile(settingsPath) //nolint:gosec // path is the result of filepath.Glob under the agents dir
-			if readErr != nil {
-				continue
-			}
-			content := string(data)
-			updated := strings.ReplaceAll(content, "http://127.0.0.1:9374", daemonURL)
-			updated = strings.ReplaceAll(updated, "${MYCEL_DAEMON_ADDR:-http://127.0.0.1:9374}", daemonURL)
-
-			if updated != content {
-				if writeErr := os.WriteFile(settingsPath, []byte(updated), 0644); writeErr != nil { //nolint:gosec // agent settings file
-					log.Warn("failed to update hook port", "path", settingsPath, "error", writeErr)
-					continue
-				}
-				log.Info("updated hook port", "agent", agentName, "addr", daemonURL)
-			}
-		}
-	}
 }
 
 func writePID(path string) error {

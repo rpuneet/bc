@@ -984,6 +984,49 @@ func (m *Manager) writeActivityConfig(toolName, wtDir, agentName string) error {
 	return provider.WriteClaudeHookSettings(wtDir)
 }
 
+// RefreshActivityConfigs regenerates every existing agent's activity config from
+// the current generators, and reports how many it rewrote.
+//
+// New configs resolve the daemon address per event, but the ones already on disk
+// were written by older versions of mycel and hold a literal: an agent created
+// while the daemon listened on :8080 has :8080 in its hook config, and agents old
+// enough to predate the rename still reference BC_BCD_ADDR, a variable nothing
+// sets any more. Those hooks fire, fail to connect, and are dropped in silence —
+// the agent's state still updates from what the daemon observes, so it looks
+// present while everything a hook would have carried (the prompt, each tool call,
+// its result) never arrives (#3510).
+//
+// Regenerating is preferred over patching the addresses in place: the provider's
+// own writer is the definition of a correct config, so this needs no list of
+// past mistakes to recognize, and it is idempotent for an agent already correct.
+// A worktree that has since been deleted is skipped rather than recreated.
+func (m *Manager) RefreshActivityConfigs() int {
+	m.mu.Lock()
+	type target struct{ name, tool, worktree string }
+	targets := make([]target, 0, len(m.agents))
+	for name, a := range m.agents {
+		if a == nil || a.WorktreeDir == "" {
+			continue
+		}
+		targets = append(targets, target{name: name, tool: a.Tool, worktree: a.WorktreeDir})
+	}
+	m.mu.Unlock()
+
+	refreshed := 0
+	for _, t := range targets {
+		if _, err := os.Stat(t.worktree); err != nil {
+			continue
+		}
+		if err := m.writeActivityConfig(t.tool, t.worktree, t.name); err != nil {
+			log.Warn("could not refresh agent activity config — its hooks may still report to a stale address",
+				"agent", t.name, "tool", t.tool, "error", err)
+			continue
+		}
+		refreshed++
+	}
+	return refreshed
+}
+
 // SetBootstrapDelay sets the delay before sending bootstrap prompts.
 func (m *Manager) SetBootstrapDelay(d time.Duration) {
 	m.mu.Lock()
@@ -1287,8 +1330,10 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		"MYCEL_AGENT_ROLE":    string(existing.Role),
 		"MYCEL_WORKSPACE":     repoPath,
 		"MYCEL_AGENT_RUNTIME": agentRuntime,
-		"MYCEL_DAEMON_ADDR":   daemonAddrForRuntime(agentRuntime),
 		"MYCEL_WORKTREE_NAME": worktreeName,
+	}
+	if addr := daemonAddrEnvForRuntime(agentRuntime); addr != "" {
+		env["MYCEL_DAEMON_ADDR"] = addr
 	}
 	if toolName != "" {
 		env["MYCEL_AGENT_TOOL"] = toolName
@@ -1533,8 +1578,10 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		"MYCEL_AGENT_ROLE":    string(role),
 		"MYCEL_WORKSPACE":     repoPath,
 		"MYCEL_AGENT_RUNTIME": agentRuntime,
-		"MYCEL_DAEMON_ADDR":   daemonAddrForRuntime(agentRuntime),
 		"MYCEL_WORKTREE_NAME": name,
+	}
+	if addr := daemonAddrEnvForRuntime(agentRuntime); addr != "" {
+		env["MYCEL_DAEMON_ADDR"] = addr
 	}
 	if effectiveTool != "" {
 		env["MYCEL_AGENT_TOOL"] = effectiveTool
@@ -3137,26 +3184,69 @@ func (m *Manager) enforceRootSingleton(_ string) error {
 	return nil
 }
 
-// daemonAddrForRuntime returns the daemon server address for the given runtime.
-// Docker containers reach the host via host.docker.internal.
-// If MYCEL_DAEMON_ADDR is set in the environment, it is used as the base address
-// (with host.docker.internal substituted for Docker runtimes).
-func daemonAddrForRuntime(rt string) string {
-	if addr := os.Getenv("MYCEL_DAEMON_ADDR"); addr != "" {
-		// Normalize empty hostname: "http://:9374" → "http://127.0.0.1:9374"
-		if u, parseErr := url.Parse(addr); parseErr == nil && u.Hostname() == "" && u.Port() != "" {
-			u.Host = net.JoinHostPort("127.0.0.1", u.Port())
-			addr = u.String()
-		}
-		if rt == "docker" {
-			// Replace localhost/127.0.0.1 with host.docker.internal for Docker
-			addr = strings.ReplaceAll(addr, "127.0.0.1", "host.docker.internal")
-			addr = strings.ReplaceAll(addr, "localhost", "host.docker.internal")
-		}
-		return addr
+// daemonAddrEnvForRuntime returns the daemon address to export into an agent's
+// environment, and "" when the agent should discover it for itself.
+//
+// A local agent shares the daemon's home directory, so it can read the address
+// the running daemon publishes at run/daemon.addr. Exporting a literal instead
+// hands it an address that is only true on the day the agent is created: the
+// daemon later restarts on another port, the exported value keeps pointing at
+// the old one, and every hook the agent fires goes to a port nobody is
+// listening on. Nothing reports that — curl fails silently, so the agent simply
+// looks quiet (#3510). Exporting nothing is what makes it resolve the daemon per
+// call instead of remembering one.
+//
+// A Docker agent has no such option: it does not share the home directory, so
+// there the address is exported, translated to the container's view of the host.
+func daemonAddrEnvForRuntime(rt string) string {
+	if rt != "docker" {
+		return ""
 	}
+	return daemonAddrForRuntime(rt)
+}
+
+// daemonAddrForRuntime returns a concrete, dialable base URL for this daemon as
+// seen from the given runtime. Callers that must write a fixed address into a
+// config file need this; anything that can defer resolution to call time should.
+func daemonAddrForRuntime(rt string) string {
+	addr := publishedDaemonAddr()
+	// Normalize an empty hostname ("http://:9374") before rewriting the host,
+	// so the port is not the only thing the container is told.
+	if u, err := url.Parse(addr); err == nil && u.Hostname() == "" && u.Port() != "" {
+		u.Host = net.JoinHostPort("127.0.0.1", u.Port())
+		addr = u.String()
+	}
+	// A wildcard bind is what the daemon listens on, not something anything can
+	// dial; from inside a container the host's own names for itself mean the
+	// container.
+	target := "127.0.0.1"
 	if rt == "docker" {
-		return "http://host.docker.internal:9374"
+		target = "host.docker.internal"
+	}
+	for _, hostLocal := range []string{"0.0.0.0", "localhost", "127.0.0.1"} {
+		if hostLocal == target {
+			continue
+		}
+		addr = strings.ReplaceAll(addr, hostLocal, target)
+	}
+	return addr
+}
+
+// publishedDaemonAddr returns where the daemon is listening, preferring the
+// address the running daemon published over the one this process was started
+// with. The port is not a constant — `mycel up --addr` chooses it — so assuming
+// the default here would hand a container the wrong port whenever an operator
+// picked their own.
+func publishedDaemonAddr() string {
+	if path, err := home.DaemonAddrPath(); err == nil {
+		if data, readErr := os.ReadFile(path); readErr == nil { //nolint:gosec // path comes from home, not user input
+			if addr := strings.TrimSpace(string(data)); addr != "" {
+				return addr
+			}
+		}
+	}
+	if addr := os.Getenv("MYCEL_DAEMON_ADDR"); addr != "" {
+		return addr
 	}
 	return "http://127.0.0.1:9374"
 }
