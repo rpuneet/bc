@@ -15,7 +15,7 @@ import { describe, it, expect } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { EventRow, compactPath, eventGlyphKind } from "./EventRow";
 import { RunningSection } from "./LiveRenderers";
-import { activityItemToNode, flattenNodes, partitionRunning } from "./liveHelpers";
+import { activityItemToNode, activityItemsToNodes, flattenNodes, partitionRunning } from "./liveHelpers";
 import type { ToolNode } from "./liveTypes";
 
 function node(overrides: Partial<ToolNode>): ToolNode {
@@ -223,6 +223,117 @@ describe("activityItemToNode + historical expansion", () => {
     });
     expect(n.status).toBe("failed");
     expect(n.error).toBe("exit status 1");
+  });
+
+  it("pairs a tool call's start and finish into one row with a duration", () => {
+    // Newest first, exactly as /api/agents/<id>/activity returns it. Shapes
+    // copied from a real cursor agent's feed.
+    const nodes = activityItemsToNodes([
+      {
+        timestamp: "2026-08-03T14:18:13.000Z",
+        event: "PostToolUse",
+        message: "Shell: curl -sS …",
+        data: { tool_name: "Shell", tool_input: { command: "curl -sS …" }, tool_response: "ok" },
+      },
+      {
+        timestamp: "2026-08-03T14:18:11.000Z",
+        event: "PreToolUse",
+        message: "Shell: curl -sS …",
+        data: { tool_name: "Shell", tool_input: { command: "curl -sS …" } },
+      },
+    ]);
+
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]?.toolName).toBe("Shell");
+    expect(nodes[0]?.status).toBe("completed");
+    expect(nodes[0]?.fullOutput).toBe("ok");
+    // 14:18:11 → 14:18:13. Without pairing this was two rows and no duration.
+    expect((nodes[0]?.endTime ?? 0) - (nodes[0]?.startTime ?? 0)).toBe(2000);
+  });
+
+  it("pairs each of several calls with its own finish, in order", () => {
+    const at = (s: string) => `2026-08-03T14:18:${s}.000Z`;
+    const call = (event: string, tool: string, ts: string) => ({
+      timestamp: at(ts),
+      event,
+      message: `${tool}: x`,
+      data: { tool_name: tool, tool_input: { command: "x" } },
+    });
+    // Read starts and finishes, then Shell starts and finishes — newest first.
+    const nodes = activityItemsToNodes([
+      call("PostToolUse", "Shell", "40"),
+      call("PreToolUse", "Shell", "30"),
+      call("PostToolUse", "Read", "20"),
+      call("PreToolUse", "Read", "10"),
+    ]);
+
+    expect(nodes.map((n) => n.toolName)).toEqual(["Read", "Shell"]);
+    expect(nodes.every((n) => n.endTime !== undefined)).toBe(true);
+    expect((nodes[0]?.endTime ?? 0) - (nodes[0]?.startTime ?? 0)).toBe(10_000);
+  });
+
+  it("keeps a failure's error and marks the paired row failed", () => {
+    const nodes = activityItemsToNodes([
+      {
+        timestamp: "2026-08-03T14:18:13.000Z",
+        event: "PostToolUseFailure",
+        message: "Shell",
+        data: { tool_name: "Shell", tool_input: { command: "false" }, error: "exit status 1" },
+      },
+      {
+        timestamp: "2026-08-03T14:18:11.000Z",
+        event: "PreToolUse",
+        message: "Shell: false",
+        data: { tool_name: "Shell", tool_input: { command: "false" } },
+      },
+    ]);
+
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]?.status).toBe("failed");
+    expect(nodes[0]?.error).toBe("exit status 1");
+  });
+
+  it("claims no duration for a call whose finish was never recorded, and does not leave it running", () => {
+    // A timer ticking up from a start time hours in the past is #3267, and a
+    // reloaded feed is where it would happen every time.
+    const nodes = activityItemsToNodes([
+      {
+        timestamp: "2026-08-03T14:18:11.000Z",
+        event: "PreToolUse",
+        message: "Shell: sleep 600",
+        data: { tool_name: "Shell", tool_input: { command: "sleep 600" } },
+      },
+    ]);
+
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]?.endTime).toBeUndefined();
+    expect(nodes[0]?.status).toBe("completed");
+  });
+
+  it("keeps a finish that has no start rather than dropping the event", () => {
+    // History is a window: a call that began before it opened still finished.
+    const nodes = activityItemsToNodes([
+      {
+        timestamp: "2026-08-03T14:18:13.000Z",
+        event: "PostToolUse",
+        message: "Shell: curl",
+        data: { tool_name: "Shell", tool_input: { command: "curl" }, tool_response: "ok" },
+      },
+    ]);
+
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]?.toolName).toBe("Shell");
+  });
+
+  it("leaves non-tool events alone, and returns them oldest first", () => {
+    const nodes = activityItemsToNodes([
+      { timestamp: "2026-08-03T14:18:20.000Z", event: "Stop", message: "Turn complete" },
+      { timestamp: "2026-08-03T14:18:10.000Z", event: "UserPromptSubmit", message: "fix the login bug" },
+    ]);
+
+    expect(nodes).toHaveLength(2);
+    expect(nodes[0]?.startTime).toBeLessThan(nodes[1]?.startTime ?? 0);
+    expect(nodes.every((n) => n.endTime === undefined)).toBe(true);
   });
 
   it("degrades gracefully when only a message is stored (no data)", () => {
