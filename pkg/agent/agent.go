@@ -917,6 +917,16 @@ func (m *Manager) SetAgentByName(name string) bool {
 	return true
 }
 
+// DefaultTool returns the provider new agents get when none is named. Exported
+// so a caller that configures the default can verify the manager took it: the
+// setting reaching only part of the way through is how it came to be ignored
+// for agent creation in the first place.
+func (m *Manager) DefaultTool() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.defaultTool
+}
+
 // writeActivityConfig writes the provider's activity configuration into the
 // agent worktree, dispatching on how the provider reports activity:
 //

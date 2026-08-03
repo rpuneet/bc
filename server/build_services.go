@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -425,10 +426,34 @@ func newAgentManager(h *home.Home) (*agentpkg.Manager, *containerpkg.Backend, st
 			// runtime — an explicit tmux default is working as intended.
 			reason = fmt.Sprintf("docker runtime unavailable — agents fall back to tmux: %v", err)
 		}
-		return agentpkg.NewManagerWithRepo(h.AgentsDir(), h.RootDir), nil, reason, nil
+		mgr := agentpkg.NewManagerWithRepo(h.AgentsDir(), h.RootDir)
+		applyDefaultProvider(mgr, h)
+		return mgr, nil, reason, nil
 	}
 	mgr := agentpkg.NewManagerWithRuntime(h.AgentsDir(), h.RootDir, be, "docker")
+	applyDefaultProvider(mgr, h)
 	return mgr, be, "", nil
+}
+
+// applyDefaultProvider points the manager at the provider configured as
+// providers.default, which is what `mycel agent create` uses when no --tool is
+// given.
+//
+// Without this the setting reached only the "default" badge on the providers
+// page: agent creation used the compiled-in DefaultProvider, so someone who
+// switched the default watched every new agent come up on the old tool with
+// nothing to explain why. An unknown or unregistered name leaves the built-in
+// default in place rather than failing the daemon's boot, since a provider can
+// disappear from the registry between one release and the next.
+func applyDefaultProvider(mgr *agentpkg.Manager, h *home.Home) {
+	name := h.DefaultProvider()
+	if name == "" || strings.EqualFold(name, agentpkg.DefaultProvider) {
+		return
+	}
+	if !mgr.SetAgentByName(name) {
+		log.Warn("configured default provider is not registered — keeping built-in default",
+			"providers.default", name, "using", agentpkg.DefaultProvider)
+	}
 }
 
 // buildGatewayManager constructs the gateway.Manager and registers an
