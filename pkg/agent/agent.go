@@ -1359,8 +1359,8 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		existing.State = StateStarting
 		// Clear the task so the UI doesn't render the previous session's
 		// stale task next to a fresh "starting" badge. Lifecycle progress
-		// ("Starting…") is conveyed by State, never by Task — Task holds
-		// only what the agent itself reports via mycel report/report_status.
+		// ("Starting…") is conveyed by State, never by Task — Task holds the
+		// prompt the agent is working on, and it has not been given one yet.
 		existing.Task = ""
 	}
 	existing.UpdatedAt = time.Now()
@@ -2598,8 +2598,10 @@ func (m *Manager) UpdateAgentState(ctx context.Context, name string, state State
 }
 
 // SetAgentTask updates an agent's task line without touching its lifecycle
-// state, so a status report never has to satisfy the state machine. This is
-// the write path for the MCP report_status tool.
+// state, so recording what an agent is working on never has to satisfy the
+// state machine. Two things write here: hook ingestion, which derives the task
+// from the prompt on a user turn, and spawn_agent, which records the task a
+// parent handed its child before that child has run a turn of its own.
 func (m *Manager) SetAgentTask(ctx context.Context, name, task string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -2616,11 +2618,11 @@ func (m *Manager) SetAgentTask(ctx context.Context, name, task string) error {
 }
 
 // SetAgentState updates an agent's state from a lifecycle event while
-// preserving the agent's reported task. Lifecycle descriptions ("Turn
-// complete", "Session ended", …) belong in the activity/event stream, not
-// in the Task field — Task is reserved for the agent's own report
-// (mycel report / report_status). The task is cleared when the agent stops
-// so a dead agent doesn't keep advertising a stale task.
+// preserving the agent's task. Lifecycle descriptions ("Turn complete",
+// "Session ended", …) belong in the activity/event stream, not in the Task
+// field — Task holds what the agent was asked to do, derived from the prompt on
+// its last user turn. The task is cleared when the agent stops so a dead agent
+// doesn't keep advertising a stale task.
 // Returns an error if the transition is invalid per the state machine.
 func (m *Manager) SetAgentState(ctx context.Context, name string, state State) error {
 	var (

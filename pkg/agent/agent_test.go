@@ -1236,7 +1236,7 @@ func TestUpdateAgentState_TaskUpdate(t *testing.T) {
 	}
 }
 
-// --- SetAgentTask (MCP report_status write path) ---
+// --- SetAgentTask (hook ingestion and spawn_agent write path) ---
 
 func TestSetAgentTask(t *testing.T) {
 	m := newTestManager(t)
@@ -1806,8 +1806,8 @@ func TestUpdateAgentStateValidation(t *testing.T) {
 }
 
 // SetAgentState is the lifecycle-hook path: it must move state WITHOUT
-// overwriting the agent's reported task (#3259 — lifecycle strings like
-// "Turn complete"/"Session ended" were clobbering report_status tasks).
+// overwriting the agent's task (#3259 — lifecycle strings like
+// "Turn complete"/"Session ended" were clobbering the real task).
 func TestSetAgentState_PreservesReportedTask(t *testing.T) {
 	m := &Manager{
 		agents: make(map[string]*Agent),

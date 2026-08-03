@@ -101,22 +101,29 @@ type HookPayload struct {
 	SubagentID   string         `json:"subagent_id,omitempty"`
 	Channel      string         `json:"channel,omitempty"`
 	State        string         `json:"state,omitempty"`
-	Task         string         `json:"task,omitempty"`
-	TaskID       string         `json:"task_id,omitempty"`
-	TaskTitle    string         `json:"task_title,omitempty"`
-	ToolName     string         `json:"tool_name,omitempty"`
-	Command      string         `json:"command,omitempty"`
-	Error        string         `json:"error,omitempty"`
-	Model        string         `json:"model,omitempty"`
-	Event        HookEvent      `json:"event"`
-	Sender       string         `json:"sender,omitempty"`
-	SubagentType string         `json:"subagent_type,omitempty"`
-	Message      string         `json:"message,omitempty"`
-	File         string         `json:"file,omitempty"`
-	Mentions     []string       `json:"mentions,omitempty"`
-	CostUSD      float64        `json:"cost_usd,omitempty"`
-	InputTokens  int64          `json:"input_tokens,omitempty"`
-	OutputTokens int64          `json:"output_tokens,omitempty"`
+	// Prompt is the text the user sent on a UserPromptSubmit event. It is the
+	// source of the agent's task line: what an agent was asked to do is a
+	// better answer to "what is this agent working on" than a summary it has to
+	// remember to publish itself. Providers that forward their hook payload
+	// (claude, cursor) carry it through unchanged; the transcript tailer fills
+	// it from the parsed user turn.
+	Prompt       string    `json:"prompt,omitempty"`
+	Task         string    `json:"task,omitempty"`
+	TaskID       string    `json:"task_id,omitempty"`
+	TaskTitle    string    `json:"task_title,omitempty"`
+	ToolName     string    `json:"tool_name,omitempty"`
+	Command      string    `json:"command,omitempty"`
+	Error        string    `json:"error,omitempty"`
+	Model        string    `json:"model,omitempty"`
+	Event        HookEvent `json:"event"`
+	Sender       string    `json:"sender,omitempty"`
+	SubagentType string    `json:"subagent_type,omitempty"`
+	Message      string    `json:"message,omitempty"`
+	File         string    `json:"file,omitempty"`
+	Mentions     []string  `json:"mentions,omitempty"`
+	CostUSD      float64   `json:"cost_usd,omitempty"`
+	InputTokens  int64     `json:"input_tokens,omitempty"`
+	OutputTokens int64     `json:"output_tokens,omitempty"`
 }
 
 // The Claude Code hook-settings writer that generates .claude/settings.json

@@ -269,7 +269,7 @@ func writeMCPJSON(ctx context.Context, repoPath, agentName string, resolved *hom
 	}
 
 	// Always ensure the mycel MCP server is included with an agent-scoped URL.
-	// It carries send_message, report_status, and the other agent tools.
+	// It carries send_message, query_costs, and the other agent tools.
 	if _, hasSelf := cfg.MCPServers["mycel"]; !hasSelf {
 		cfg.MCPServers["mycel"] = mcpServerEntry{URL: selfMCPURL(runtimeBackend, agentName), Type: "http"}
 	}

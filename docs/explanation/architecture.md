@@ -146,8 +146,8 @@ AI Agent (Claude Code)             mycel MCP Server
         |   {channel, message, sender}     |
         |<-- result ----------------------|
         |                                  |
-        |-- tools/call report_status ----->|
-        |   {agent, task}                  |
+        |-- tools/call query_costs ------->|
+        |   {agent?}                       |
         |<-- result ----------------------|
 ```
 

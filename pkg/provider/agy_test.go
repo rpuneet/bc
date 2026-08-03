@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -412,5 +414,134 @@ func TestAgyContainerCommand(t *testing.T) {
 	}
 	if p.DockerImage() != "" {
 		t.Errorf("DockerImage() = %q, want empty", p.DockerImage())
+	}
+}
+
+// agyCurlRecorder builds a PATH in which curl is shadowed by a shim that writes
+// the payload it was handed to a file, so a generated hook command can be run
+// for real and its POST body inspected. The rest of the system PATH is kept so
+// bash, cat and jq resolve normally.
+func agyCurlRecorder(t *testing.T) (pathEnv, payloadFile string) {
+	t.Helper()
+	shimDir := t.TempDir()
+	payloadFile = filepath.Join(t.TempDir(), "payload.json")
+	shim := "#!/usr/bin/env bash\n" +
+		"# Record the value that followed -d, which is the POST body.\n" +
+		"prev=\"\"\n" +
+		"for arg in \"$@\"; do\n" +
+		"  if [ \"$prev\" = \"-d\" ]; then printf '%s' \"$arg\" > " + strconv.Quote(payloadFile) + "; fi\n" +
+		"  prev=\"$arg\"\n" +
+		"done\n" +
+		"exit 0\n"
+	if err := os.WriteFile(filepath.Join(shimDir, "curl"), []byte(shim), 0700); err != nil { //nolint:gosec // shim must be executable
+		t.Fatalf("write curl shim: %v", err)
+	}
+	return shimDir + string(os.PathListSeparator) + os.Getenv("PATH"), payloadFile
+}
+
+// The agy hook must forward the payload agy pipes in on stdin. It used to drain
+// stdin to /dev/null and POST only the three fields known at generation time, so
+// the prompt and every tool detail agy reported was discarded — leaving agy
+// agents with a Live feed of bare event names and no task line.
+func TestAgyHookCommandForwardsStdin(t *testing.T) {
+	if _, err := exec.LookPath("jq"); err != nil {
+		t.Skip("jq not available")
+	}
+	pathEnv, payloadFile := agyCurlRecorder(t)
+
+	cmd := exec.CommandContext(t.Context(), "bash", "-c", //nolint:gosec // running the generated command is the point of the test
+		agyHookCommand("PreInvocation", "working", "Thinking...", "{}"))
+	cmd.Env = append(os.Environ(),
+		"PATH="+pathEnv,
+		"MYCEL_AGENT_ID=agent-x",
+		"MYCEL_DAEMON_ADDR=http://127.0.0.1:9374",
+	)
+	cmd.Stdin = strings.NewReader(`{"prompt":"fix the login bug","tool_name":"Bash"}`)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("run hook command: %v", err)
+	}
+
+	// agy requires the handler to print its JSON result, whatever else happens.
+	if strings.TrimSpace(string(out)) != "{}" {
+		t.Errorf("stdout = %q, want %q", out, "{}")
+	}
+
+	raw, err := os.ReadFile(payloadFile) //nolint:gosec // test-local temp dir
+	if err != nil {
+		t.Fatalf("no payload was POSTed: %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("payload is not valid JSON: %v (%s)", err, raw)
+	}
+	for field, want := range map[string]string{
+		"event":     "PreInvocation",
+		"state":     "working",
+		"prompt":    "fix the login bug",
+		"tool_name": "Bash",
+	} {
+		if got[field] != want {
+			t.Errorf("payload %s = %v, want %q", field, got[field], want)
+		}
+	}
+}
+
+// Without jq the reporter must still POST the bare event so the agent's state
+// stays correct, and must still honor agy's stdout contract. Losing the detail
+// is acceptable; a stalled turn is not.
+func TestAgyHookCommandFallsBackWithoutJQ(t *testing.T) {
+	pathEnv, payloadFile := agyCurlRecorder(t)
+	// Shadow jq with a shim that always fails, in front of the recorder's PATH.
+	jqDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(jqDir, "jq"), []byte("#!/usr/bin/env bash\nexit 1\n"), 0700); err != nil { //nolint:gosec // shim must be executable
+		t.Fatalf("write jq shim: %v", err)
+	}
+
+	cmd := exec.CommandContext(t.Context(), "bash", "-c", //nolint:gosec // running the generated command is the point of the test
+		agyHookCommand("Stop", "idle", "Turn complete", "{}"))
+	cmd.Env = append(os.Environ(),
+		"PATH="+jqDir+string(os.PathListSeparator)+pathEnv,
+		"MYCEL_AGENT_ID=agent-x",
+	)
+	cmd.Stdin = strings.NewReader(`{"prompt":"ignored"}`)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("run hook command: %v", err)
+	}
+	if strings.TrimSpace(string(out)) != "{}" {
+		t.Errorf("stdout = %q, want %q", out, "{}")
+	}
+
+	raw, err := os.ReadFile(payloadFile) //nolint:gosec // test-local temp dir
+	if err != nil {
+		t.Fatalf("no payload was POSTed without jq: %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("fallback payload is not valid JSON: %v (%s)", err, raw)
+	}
+	if got["event"] != "Stop" || got["state"] != "idle" {
+		t.Errorf("fallback payload = %s, want the bare Stop/idle event", raw)
+	}
+}
+
+// Every generated agy command must be a runnable shell program. A quoting slip
+// would make each hook a silent no-op with nothing in the UI to explain it.
+func TestAgyHookCommandsAreValidBash(t *testing.T) {
+	for _, tc := range []struct{ event, state, task, stdout string }{
+		{"PreInvocation", "working", "Thinking...", "{}"},
+		{"PostInvocation", "", "Response received", "{}"},
+		{"Stop", "idle", "Turn complete", "{}"},
+		{"PreToolUse", "", "Running tool", `{"decision":"allow"}`},
+		{"PostToolUse", "", "Tool completed", "{}"},
+	} {
+		t.Run(tc.event, func(t *testing.T) {
+			cmd := exec.CommandContext(t.Context(), "bash", "-n", "-c", //nolint:gosec // syntax-checking the generated command is the point of the test
+				agyHookCommand(tc.event, tc.state, tc.task, tc.stdout))
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Errorf("bash -n rejected the %s command: %v\n%s", tc.event, err, out)
+			}
+		})
 	}
 }

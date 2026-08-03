@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -53,17 +54,30 @@ type agyHookSpec struct {
 // agent's execution loop.
 const agyHookTimeoutSecs = 5
 
-// agyHookCommand builds the shell command an agy hook runs. It drains stdin
-// (agy pipes the payload in), POSTs a mycel hook event to the daemon, and prints
-// the JSON result agy expects on stdout. daemonAddr and agentID are resolved
-// at runtime from the MYCEL_DAEMON_ADDR / MYCEL_AGENT_ID environment variables
-// set on the agent session, matching the claude provider.
+// agyHookCommand builds the shell command an agy hook runs. It merges mycel's
+// event/state fields into the payload agy pipes in on stdin, POSTs the result to
+// the daemon, and prints the JSON result agy expects on stdout. daemonAddr and
+// agentID are resolved at runtime from the MYCEL_DAEMON_ADDR / MYCEL_AGENT_ID
+// environment variables set on the agent session, matching the claude provider.
+//
+// It previously discarded stdin (`cat >/dev/null`) and POSTed only the three
+// fields known at generation time. Everything agy reports about a turn — the
+// prompt, the tool being called, its input and its result — was thrown away, so
+// agy agents got a Live feed of bare event names and, once the task line began
+// to be derived from the prompt, no task at all. Forwarding the payload is what
+// gives agy the same detail claude and cursor have.
+//
+// If jq is missing or the payload is unparseable, the bare event is still POSTed
+// so state remains correct; only the detail is lost. The stdout contract is
+// honored unconditionally — a reporting failure must never stall a turn.
 func agyHookCommand(event, state, task, stdout string) string {
 	const daemonAddr = "${MYCEL_DAEMON_ADDR:-http://127.0.0.1:9374}"
-	payload := fmt.Sprintf(`{"event":"%s","state":"%s","task":"%s"}`, event, state, task)
+	fallback := fmt.Sprintf(`{\"event\":\"%s\",\"state\":\"%s\",\"task\":\"%s\"}`, event, state, task)
 	return fmt.Sprintf(
-		`cat >/dev/null 2>&1; curl -sX POST "%s/api/agents/${MYCEL_AGENT_ID}/hook" -H "Content-Type: application/json" -d '%s' >/dev/null 2>&1; printf '%%s' '%s'`,
-		daemonAddr, payload, stdout,
+		`bash -c 'RAW=$(cat); PAYLOAD=$(echo "$RAW" | jq -c ". + {event:\"%s\",state:\"%s\",task:\"%s\"}" 2>/dev/null || echo "%s"); `+
+			`curl -sX POST "%s/api/agents/${MYCEL_AGENT_ID}/hook" -H "Content-Type: application/json" -d "$PAYLOAD" >/dev/null 2>&1; `+
+			`printf "%%s" %s'`,
+		event, state, task, fallback, daemonAddr, strconv.Quote(stdout),
 	)
 }
 

@@ -24,7 +24,7 @@ const (
 	maxCommentLen = 64 * 1024 // file upload comments
 	maxChannelLen = 256       // gateway channel identifier
 	maxRoleLen    = 256       // role filter on list_agents
-	maxTaskLen    = 1024      // report_status task line
+	maxTaskLen    = 1024      // initial task line on spawn_agent
 	maxPathLen    = 4 * 1024  // file_path on send_file (typical PATH_MAX)
 	// maxTemplateLen bounds a template name on spawn_agent. Names are short
 	// identifiers, so this only exists to reject junk before it reaches the store.
@@ -85,13 +85,6 @@ func addTools(s *sdk.Server, cfg Config, agentName string) {
 		Description: "Upload a file to a gateway channel (e.g., share a screenshot to Slack)",
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in sendFileIn) (*sdk.CallToolResult, sendFileOut, error) {
 		return sendFile(ctx, cfg, agentName, in)
-	})
-
-	sdk.AddTool(s, &sdk.Tool{
-		Name:        "report_status",
-		Description: "Update this agent's current task line shown in the TUI and web UI",
-	}, func(ctx context.Context, _ *sdk.CallToolRequest, in reportStatusIn) (*sdk.CallToolResult, reportStatusOut, error) {
-		return reportStatus(ctx, cfg, agentName, in)
 	})
 
 	sdk.AddTool(s, &sdk.Tool{
@@ -509,31 +502,6 @@ func detectMIME(filename string, data []byte) string {
 		mimeType = "application/pdf"
 	}
 	return mimeType
-}
-
-// ─── report_status ──────────────────────────────────────────────────────────
-
-type reportStatusIn struct {
-	Task string `json:"task" jsonschema:"one-line description of what the agent is working on"`
-}
-
-type reportStatusOut struct {
-	Agent string `json:"agent"`
-	Task  string `json:"task"`
-}
-
-func reportStatus(ctx context.Context, cfg Config, agentName string, in reportStatusIn) (*sdk.CallToolResult, reportStatusOut, error) {
-	out := reportStatusOut{Agent: agentName, Task: in.Task}
-	if len(in.Task) > maxTaskLen {
-		return nil, out, fmt.Errorf("task too long: %d bytes (max %d)", len(in.Task), maxTaskLen)
-	}
-	if cfg.Agents == nil {
-		return nil, out, fmt.Errorf("agent manager not available")
-	}
-	if err := cfg.Agents.SetAgentTask(ctx, agentName, in.Task); err != nil {
-		return nil, out, fmt.Errorf("update failed: %w", err)
-	}
-	return nil, out, nil
 }
 
 // ─── query_costs ────────────────────────────────────────────────────────────

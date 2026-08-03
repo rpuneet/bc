@@ -436,7 +436,7 @@ Read-only code browsing for agent worktrees. All endpoints take `worktree=<agent
 
 ## MCP Protocol (agent-facing)
 
-The MCP server agents connect to for `send_message` / `report_status` / `query_costs` and friends. These paths bypass API-key auth.
+The MCP server agents connect to for `send_message` / `query_costs` and friends. These paths bypass API-key auth.
 
 | Method | Path | Description |
 |--------|------|-------------|

@@ -85,11 +85,29 @@ func (s *AgentService) IngestHookEvent(ctx context.Context, name string, payload
 	if hasState {
 		// State-only update: lifecycle descriptions baked into hook
 		// commands ("Turn complete", "Session ended", "Processing
-		// prompt...") must NOT overwrite the agent's reported task.
-		// They still flow to the event log and SSE stream below.
+		// prompt...") must NOT become the agent's task line. They still
+		// flow to the event log and SSE stream below.
 		if err := s.manager.SetAgentState(ctx, name, targetState); err != nil {
 			log.Debug("hook state update skipped", "agent", name, "error", err)
 			return &HookStateSkippedError{Err: err}
+		}
+	}
+
+	// The prompt an agent was just given is its task. Applying it here is what
+	// makes the task line a property of observed activity rather than something
+	// the agent has to remember to publish: it updates on every turn, for every
+	// provider that reports one, and it cannot go stale while the agent works.
+	//
+	// A payload may name a state explicitly, so a turn-start event can arrive
+	// carrying state=stopped. That transition clears the task by design; writing
+	// the prompt afterwards would refill it and leave a dead agent advertising
+	// work it will never do, so nothing is derived when the agent just stopped.
+	if isTurnStart(payload.Event) && payload.Prompt != "" && targetState != StateStopped {
+		task := truncateRunes(payload.Prompt, maxDerivedTaskLen)
+		if err := s.manager.SetAgentTask(ctx, name, task); err != nil {
+			// Non-fatal: the event itself is still worth logging and
+			// broadcasting even if the task line could not be updated.
+			log.Debug("hook task update skipped", "agent", name, "error", err)
 		}
 	}
 
@@ -139,6 +157,20 @@ func (s *AgentService) IngestHookEvent(ctx context.Context, name string, payload
 	return nil
 }
 
+// isTurnStart reports whether an event marks the beginning of a model turn,
+// i.e. the moment the agent is handed something to do. Both events that move an
+// agent to "working" qualify: claude and cursor report UserPromptSubmit, while
+// agy reports PreInvocation. Deriving the task from either means a provider's
+// choice of name does not decide whether its agents get a task line.
+func isTurnStart(ev HookEvent) bool {
+	return ev == HookUserPromptSubmit || ev == HookPreInvocation
+}
+
+// maxDerivedTaskLen bounds the prompt text used as an agent's task line. The
+// task line is a single row in a table and a badge subtitle, so it is cut to
+// something that fits one line rather than to the prompt's own length.
+const maxDerivedTaskLen = 120
+
 // maxToolResponseBytes bounds how much of a tool's response we persist into
 // the event log and broadcast to live subscribers. PostToolUse responses
 // (file contents, command output, MCP results, …) can be arbitrarily large;
@@ -177,6 +209,21 @@ func boundedToolResponse(v any) any {
 		return v
 	}
 	return truncateToRuneBoundary(string(b), maxToolResponseBytes) + toolResponseTruncatedSuffix
+}
+
+// truncateRunes returns s cut to at most max runes, marking a shortened result
+// with an ellipsis. Runes rather than bytes because the result is shown to a
+// person: a task line should be cut to a predictable visible length regardless
+// of how many bytes each character happens to occupy.
+func truncateRunes(s string, max int) string {
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	if max <= 1 {
+		return string(r[:max])
+	}
+	return string(r[:max-1]) + "…"
 }
 
 // truncateToRuneBoundary returns s cut to at most maxBytes bytes without

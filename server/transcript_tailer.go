@@ -37,9 +37,6 @@ const (
 	// transcriptMaxReadPerTick caps the bytes read from one file per tick so a
 	// large backfill can't stall the loop; the remainder is picked up next tick.
 	transcriptMaxReadPerTick = 512 * 1024
-	// transcriptPromptTaskMax bounds the prompt text mirrored into the agent's
-	// task field on a user turn.
-	transcriptPromptTaskMax = 120
 )
 
 // tailCursor tracks how far the tailer has consumed one transcript file.
@@ -314,9 +311,12 @@ func ingestTranscriptActivity(ctx context.Context, agents *agentpkg.AgentService
 	if act.ToolResponse != nil {
 		m["tool_response"] = act.ToolResponse
 	}
+	// Only the prompt is forwarded. Deriving the task line from it is
+	// IngestHookEvent's job, so transcript-mode and hooks-mode providers get an
+	// identical task line from identical input — and setting "task" here would
+	// have had no effect anyway, since ingest reads the prompt.
 	if act.Prompt != "" {
 		m["prompt"] = act.Prompt
-		m["task"] = truncateRunes(act.Prompt, transcriptPromptTaskMax)
 	}
 	if act.Error != "" {
 		m["error"] = act.Error
@@ -336,17 +336,4 @@ func ingestTranscriptActivity(ctx context.Context, agents *agentpkg.AgentService
 		// (e.g. the agent stopped between listing and ingest); log at debug.
 		log.Debug("transcript tailer: ingest failed", "agent", name, "event", act.Event, "error", err)
 	}
-}
-
-// truncateRunes truncates s to at most max runes, appending an ellipsis when
-// it was shortened.
-func truncateRunes(s string, max int) string {
-	r := []rune(s)
-	if len(r) <= max {
-		return s
-	}
-	if max <= 1 {
-		return string(r[:max])
-	}
-	return string(r[:max-1]) + "…"
 }
