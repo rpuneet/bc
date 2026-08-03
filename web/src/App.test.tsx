@@ -93,3 +93,73 @@ describe("HomeGate", () => {
     expect(screen.queryByText("Settings Page")).not.toBeInTheDocument();
   });
 });
+
+/**
+ * "Default view" was saved, displayed, and never read: pick Agents or Insights
+ * and you still landed on Home every time (#3474).
+ */
+describe("HomeGate default view", () => {
+  function renderIndex(defaultView: string, firstRun = false) {
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.includes("/api/onboarding")) return jsonResponse({ firstRun });
+      if (u.includes("/api/settings")) {
+        return jsonResponse({ ui: { theme: "dark", mode: "auto", default_view: defaultView } });
+      }
+      return jsonResponse({});
+    });
+    return render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/" element={<HomeGate honorDefaultView />} />
+          <Route path="/agents" element={<div>Agents Page</div>} />
+          <Route path="/insights" element={<div>Insights Page</div>} />
+          <Route path="/settings" element={<div>Settings Page</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  }
+
+  it("lands on Agents when that is the chosen default", async () => {
+    renderIndex("agents");
+    await waitFor(() => expect(screen.getByText("Agents Page")).toBeTruthy());
+  });
+
+  it("lands on Insights when that is the chosen default", async () => {
+    renderIndex("insights");
+    await waitFor(() => expect(screen.getByText("Insights Page")).toBeTruthy());
+  });
+
+  it("treats an unrecognized value as Home rather than a dead end", async () => {
+    // "dashboard" is an older spelling still sitting in some prefs files.
+    renderIndex("dashboard");
+    await waitFor(() => expect(screen.queryByText("Agents Page")).toBeNull());
+    expect(screen.queryByText("Insights Page")).toBeNull();
+  });
+
+  it("still sends a fresh install to setup, whatever the preference says", async () => {
+    // Being dropped into an unfinished setup matters more than a view choice.
+    renderIndex("agents", true);
+    await waitFor(() => expect(screen.getByText("Settings Page")).toBeTruthy());
+  });
+
+  it("does not override an explicit request for /home", async () => {
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.includes("/api/onboarding")) return jsonResponse({ firstRun: false });
+      if (u.includes("/api/settings")) {
+        return jsonResponse({ ui: { theme: "dark", mode: "auto", default_view: "agents" } });
+      }
+      return jsonResponse({});
+    });
+    render(
+      <MemoryRouter initialEntries={["/home"]}>
+        <Routes>
+          <Route path="/home" element={<HomeGate />} />
+          <Route path="/agents" element={<div>Agents Page</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.queryByText("Agents Page")).toBeNull());
+  });
+});
