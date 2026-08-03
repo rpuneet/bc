@@ -927,6 +927,30 @@ func (m *Manager) DefaultTool() string {
 	return m.defaultTool
 }
 
+// SetDefaultBackend chooses the runtime new agents get when they don't name
+// one, reporting false if no such backend is registered.
+//
+// Which backends exist is decided at construction — whether docker could be
+// reached — while which of them is the default is a user's choice, and the two
+// were previously the same decision: a reachable docker daemon made docker the
+// default whatever the config said.
+func (m *Manager) SetDefaultBackend(name string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.backends[name]; !ok {
+		return false
+	}
+	m.defaultBackend = name
+	return true
+}
+
+// DefaultBackend returns the runtime new agents get when they don't name one.
+func (m *Manager) DefaultBackend() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.defaultBackend
+}
+
 // writeActivityConfig writes the provider's activity configuration into the
 // agent worktree, dispatching on how the provider reports activity:
 //
