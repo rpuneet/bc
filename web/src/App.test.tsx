@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { HomeGate } from "./App";
+import { __resetDefaultViewForTests } from "./utils/defaultView";
 
 const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
 
@@ -99,6 +100,11 @@ describe("HomeGate", () => {
  * and you still landed on Home every time (#3474).
  */
 describe("HomeGate default view", () => {
+  beforeEach(() => {
+    // The entry decision is per document, so it outlives a render tree.
+    __resetDefaultViewForTests("/");
+  });
+
   function renderIndex(defaultView: string, firstRun = false) {
     fetchMock.mockImplementation((url: RequestInfo | URL) => {
       const u = String(url);
@@ -161,5 +167,75 @@ describe("HomeGate default view", () => {
       </MemoryRouter>,
     );
     await waitFor(() => expect(screen.queryByText("Agents Page")).toBeNull());
+  });
+});
+
+/**
+ * The preference decides where the app opens, not where it goes once open. The
+ * navigation's Home link points at "/", so honoring the preference on every
+ * mount of the root route made clicking Home land on Agents — Home became
+ * unreachable, and the back button bounced you forward again (#3556).
+ */
+describe("HomeGate default view only redirects the entry navigation", () => {
+  function mockPrefs(defaultView: string) {
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.includes("/api/onboarding")) return jsonResponse({ firstRun: false });
+      if (u.includes("/api/settings")) {
+        return jsonResponse({ ui: { theme: "dark", mode: "auto", default_view: defaultView } });
+      }
+      return jsonResponse({});
+    });
+  }
+
+  function renderRoot() {
+    return render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/" element={<HomeGate honorDefaultView />} />
+          <Route path="/agents" element={<div>Agents Page</div>} />
+          <Route path="/settings" element={<div>Settings Page</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  }
+
+  it("leaves Home alone when the app was opened somewhere else", async () => {
+    // Someone opened /agents directly and then clicked Home. Nothing about that
+    // is an app launch.
+    __resetDefaultViewForTests("/agents");
+    mockPrefs("agents");
+
+    renderRoot();
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(screen.queryByText("Agents Page")).toBeNull();
+  });
+
+  it("redirects once, then lets Home be reached", async () => {
+    __resetDefaultViewForTests("/");
+    mockPrefs("agents");
+
+    const first = renderRoot();
+    await waitFor(() => expect(screen.getByText("Agents Page")).toBeTruthy());
+    first.unmount();
+
+    // This is the Home click, and the back button: same route, second visit.
+    renderRoot();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(screen.queryByText("Agents Page")).toBeNull();
+  });
+
+  it("counts the decision as made even when the preference is Home", async () => {
+    __resetDefaultViewForTests("/");
+    mockPrefs("home");
+
+    const first = renderRoot();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    first.unmount();
+
+    renderRoot();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(screen.queryByText("Agents Page")).toBeNull();
   });
 });

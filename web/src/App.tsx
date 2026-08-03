@@ -5,6 +5,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { BootGate } from "./components/boot/BootGate";
 import { ThemeProvider } from "./context/ThemeContext";
 import { api } from "./api/client";
+import { shouldApplyDefaultView, markDefaultViewApplied } from "./utils/defaultView";
 
 const Home = lazy(() => import("./views/Home").then((m) => ({ default: m.Home })));
 const Agents = lazy(() => import("./views/Agents").then((m) => ({ default: m.Agents })));
@@ -68,7 +69,10 @@ export function HomeGate({ honorDefaultView = false }: { honorDefaultView?: bool
   }, []);
 
   useEffect(() => {
-    if (!honorDefaultView) return;
+    // Only the entry that opened the app may be redirected. A click on Home, or
+    // a back navigation to "/", is the user saying where they want to be — see
+    // utils/defaultView.
+    if (!honorDefaultView || !shouldApplyDefaultView()) return;
     let cancelled = false;
     api
       .getSettings()
@@ -77,7 +81,10 @@ export function HomeGate({ honorDefaultView = false }: { honorDefaultView?: bool
         // spelling like "dashboard" — means Home, which is what rendering
         // nothing special does.
         const choice = cfg.ui?.default_view ?? "";
-        if (!cancelled) setDefaultRoute(DEFAULT_VIEW_ROUTES[choice] ?? null);
+        const route = DEFAULT_VIEW_ROUTES[choice] ?? null;
+        if (cancelled) return;
+        markDefaultViewApplied();
+        setDefaultRoute(route);
       })
       .catch(() => {
         // A preference is not worth blocking the app over.
