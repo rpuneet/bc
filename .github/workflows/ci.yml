@@ -197,6 +197,15 @@ jobs:
           ./bin/mycel version
           ./bin/mycel up --help > /dev/null
 
+      # The desktop module is only ever compiled by the release workflow, and
+      # `wails build` tolerates an out-of-date go.mod, so it can drift until a
+      # plain `go build ./...` in desktop/ fails while releases keep succeeding.
+      # `-diff` catches that without needing the GTK/WebKit toolchain a real
+      # desktop build would pull in.
+      - name: Verify desktop module is tidy
+        working-directory: desktop
+        run: go mod tidy -diff
+
   # ── Container Scan (main only) ──────────────────────────────────────
   scan:
     name: Container Scan
