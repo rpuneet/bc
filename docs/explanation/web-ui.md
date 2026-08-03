@@ -275,7 +275,9 @@ web/src/  --vite build-->  web/dist/  --cp-->  server/web/dist/  --go:embed-->  
 - `make build-local-mycel` builds the web UI first, then the Go binary — always build the web UI before shipping the binary, or the embedded frontend goes stale.
 - At runtime, `mycel up` serves the SPA at `/`, with API routes under `/api/` taking precedence. Unknown paths fall through to `index.html` so client-side routing works on refresh.
 
-**Dev mode:** `make run-web` starts the Vite dev server with hot reload on <http://localhost:5173>, proxying `/api` to a daemon on its normal port — so `mycel up` in another terminal is all the setup needed. Set `MYCEL_API_PROXY` to point at a daemon somewhere else. 9374 is the daemon's port and the dev server stays off it; sharing it forced the daemon onto a second port and made mycel look like it had two.
+**Dev mode:** `make run-web` starts the Vite dev server with hot reload on <http://localhost:9375>, proxying `/api` to a daemon on its normal port — so `mycel up` in another terminal is all the setup needed. Set `MYCEL_API_PROXY` to point at a daemon somewhere else.
+
+The dev port sits next to the daemon's 9374 rather than on it: sharing 9374 forced the daemon onto a second port and made mycel look like it had two. It is deliberately not Vite's 5173 default, which is the most contested port on any machine running more than one project — and losing it is silent, so you end up reading another project's app while debugging mycel. `strictPort` is on so a collision fails instead of drifting to the next free port.
 
 ---
 
