@@ -12,30 +12,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Removed
+## [0.4.5] - 2026-08-04
 
-- **The `report_status` MCP tool is gone; an agent's task line is now derived
-  from its activity.** *Action required if you have prompts or role
-  instructions that tell agents to call `report_status` — remove them; the tool
-  no longer exists and calls to it will fail.* The task line is now taken from
-  the prompt an agent was given at the start of its turn, for every provider
-  that reports one. Self-reporting made the task line only as accurate as an
-  agent's diligence: one that never called the tool showed nothing, and one that
-  called it once showed that first task all session while the daemon already knew
-  what it had been asked to do. Deriving it also fixed two providers that could
-  never have reported well — the transcript tailer was computing a task from the
-  prompt that ingestion then discarded, and `agy`'s hooks discarded their payload
-  entirely, so no prompt or tool detail ever reached the daemon (#3489).
+Telling the truth. Every surface in 0.4.4 that reported something it had not
+established was either fixed or made honest: agents that were silently reporting
+to a dead address, providers offering actions the daemon refuses, a template
+editor confirming secrets an agent never received, and health that read as
+measured when nothing had been checked.
 
-### Security
+### Added
 
-- **Cross-origin writes are refused.** Any page the user had open in another
-  tab could call the daemon's API — loopback keeps other machines out, not
-  other websites — and `POST /api/tools` accepted an arbitrary `install_cmd`
-  that `POST /api/deps/install` then handed to `sh -c`. State-changing
-  requests now have to come from an origin the daemon serves, from a loopback
-  origin, or from a non-browser client such as the CLI. Reads are unchanged
-  (#3470).
+- **36 built-in agent templates**, and they arrive on upgrade. *You will see new
+  templates appear in `~/.mycel/templates/` the first time 0.4.5 starts.*
+  Templates previously seeded only into a completely empty directory, so no
+  existing workspace could ever receive one added later. Installation is now
+  additive: templates you edited are never overwritten, and one you delete on
+  purpose stays deleted rather than returning at every restart (bookkeeping in
+  `~/.mycel/templates/.builtins.state`). See
+  [Use agent templates](docs/how-to/use-templates.md) (#3554).
+- **A provider that cannot serve a turn is reported.** An agent whose CLI is
+  running but is out of quota, missing an API key, or otherwise unable to answer
+  used to hold its last state behind an empty feed indefinitely. It now goes to
+  `ERROR` with the reason as the first row of its Live feed (#3512).
+- **Readiness warns when `jq` is missing.** Hook payload detail degrades to
+  state-only without it, which was invisible: the Live feed kept working and
+  quietly lost every tool name, input and result (#3493).
 
 ### Changed
 
@@ -51,6 +52,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   starts appending live events. Existing `/timeline` links redirect to Live.
   History beyond Live's initial window is no longer paged in the UI; the full
   record remains available from the activity API (#3485).
+
+### Removed
+
+- **The `report_status` MCP tool is gone; an agent's task line is now derived
+  from its activity.** *Action required if you have prompts or role
+  instructions that tell agents to call `report_status` — remove them; the tool
+  no longer exists and calls to it will fail.* The task line is now taken from
+  the prompt an agent was given at the start of its turn, for every provider
+  that reports one. Self-reporting made the task line only as accurate as an
+  agent's diligence: one that never called the tool showed nothing, and one that
+  called it once showed that first task all session while the daemon already knew
+  what it had been asked to do. Deriving it also fixed two providers that could
+  never have reported well — the transcript tailer was computing a task from the
+  prompt that ingestion then discarded, and `agy`'s hooks discarded their payload
+  entirely, so no prompt or tool detail ever reached the daemon (#3489).
+
+### Fixed
+
+- **Agents no longer report to a dead daemon address.** *Existing agents' hook
+  configs are rewritten on daemon start; the daemon logs how many it refreshed.*
+  Each agent's hooks carried whichever address was current the day it was
+  created, so a daemon on a new port — or the `BC_BCD_ADDR` variable the rename
+  left behind, which nothing sets — meant hooks fired, `curl` failed, and every
+  event was dropped. State still looked plausible because it is derived from
+  what the daemon observes, so the symptom was a Live feed containing nothing but
+  state changes. Hooks now resolve the address when they fire, preferring the
+  address the running daemon publishes over any inherited variable (#3510).
+- **Templates no longer confirm secrets the agent never receives.** *The Secrets
+  and Plugins fields are gone from the template editor.* Both were accepted,
+  displayed back as a chip, and dropped on the floor when an agent was created —
+  the failure surfaced much later, inside the agent, as a tool that could not
+  authenticate. Values saved by an earlier build are still shown, read-only and
+  labeled as inert, and are preserved when you save. The wiring that would make
+  them work is tracked in #3550.
+- **The providers UI offers only the actions the daemon can perform.** Install
+  and Update no longer appear for a provider whose install hint is a download
+  page rather than a command, Remove no longer appears where no uninstaller can
+  be derived — it previously returned HTTP 400 after a two-click destructive
+  confirm — and MCP health reads `—/N checked` until a check has actually run,
+  instead of counting unasked servers as unhealthy and rendering a red `0/N`
+  (#3475).
+- **The Default view preference is read.** Choosing Agents or Insights saved,
+  displayed, and did nothing; the only reader anywhere was a print in
+  `mycel config show`. It now decides where the app opens, and only that — a Home
+  click or a back navigation is never redirected (#3549, #3556).
+- **A gateway message's task line is readable.** An agent prompted through Slack
+  or Telegram showed the raw JSON delivery envelope as its task (#3536).
+- **Reloading an agent's Live feed no longer doubles every tool call.** The
+  historical load emitted one row per event, so a call and its result appeared
+  twice and lost their duration (#3535).
+- **A daemon built without the web UI explains itself** at `/` instead of
+  returning a bare 404 that reads as a broken install (#3541).
+- **`mycel up -d` reports the real PID** rather than `-1` (#3547).
+- **The macOS app bundle carries its version**, so Finder's Get Info no longer
+  shows 0.0.0, and the About page distinguishes the app's version from the
+  daemon's instead of implying they are the same build (#3494, #3505, #3543).
+
+### Security
+
+- **Cross-origin writes are refused.** Any page the user had open in another
+  tab could call the daemon's API — loopback keeps other machines out, not
+  other websites — and `POST /api/tools` accepted an arbitrary `install_cmd`
+  that `POST /api/deps/install` then handed to `sh -c`. State-changing
+  requests now have to come from an origin the daemon serves, from a loopback
+  origin, or from a non-browser client such as the CLI. Reads are unchanged
+  (#3470).
 
 ## [0.4.4] - 2026-08-02
 
