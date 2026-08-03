@@ -376,3 +376,89 @@ func TestIngestHookEvent_StoppedTurnStartLeavesTaskCleared(t *testing.T) {
 		t.Errorf("task = %q, want it cleared for a stopped agent", got)
 	}
 }
+
+// An agent driven through a gateway is handed the platform's whole delivery
+// envelope, so its prompt is JSON and its task line read `{"raw":{"client_m…`.
+// The envelope is what the transport needs; the sentence inside it is what a
+// person typed and the only part worth showing (#3536).
+func TestTaskFromPrompt(t *testing.T) {
+	// Trimmed from a real Slack delivery, keeping the shape and field order.
+	slackEnvelope := `{"raw":{"client_msg_id":"1232B1A4","type":"message",` +
+		`"user":"U0AN7GW037H","text":"Update when you have something"},` +
+		`"timestamp":"2026-08-03T14:36:15Z","channel":"slack:general",` +
+		`"platform":"slack","sender":"[slack] Puneet Rai",` +
+		`"content":"Update when you have something"}`
+
+	tests := []struct {
+		name   string
+		prompt string
+		want   string
+		why    string
+	}{
+		{
+			name:   "a delivery envelope yields the message",
+			prompt: slackEnvelope,
+			want:   "Update when you have something",
+			why:    "the task line should read as the request, not as its transport",
+		},
+		{
+			name:   "an ordinary prompt is untouched",
+			prompt: "fix the login bug",
+			want:   "fix the login bug",
+			why:    "most prompts are not JSON and must pass through unchanged",
+		},
+		{
+			name:   "JSON a person pasted is left alone",
+			prompt: `{"content":"some config value","other":"field"}`,
+			want:   `{"content":"some config value","other":"field"}`,
+			why:    "without a delivery field this is data the agent was given, not an envelope",
+		},
+		{
+			name:   "an envelope with an empty message keeps the whole prompt",
+			prompt: `{"platform":"slack","sender":"someone","content":"   "}`,
+			want:   `{"platform":"slack","sender":"someone","content":"   "}`,
+			why:    "an empty task line is worse than an ugly one",
+		},
+		{
+			name:   "malformed JSON keeps the whole prompt",
+			prompt: `{"platform":"slack","content":"truncated`,
+			want:   `{"platform":"slack","content":"truncated`,
+			why:    "a parse failure must not lose the prompt",
+		},
+		{
+			name:   "a prompt that merely starts with a brace is untouched",
+			prompt: "{ this is not json at all",
+			want:   "{ this is not json at all",
+			why:    "the brace alone means nothing",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := taskFromPrompt(tt.prompt); got != tt.want {
+				t.Errorf("taskFromPrompt() = %q, want %q — %s", got, tt.want, tt.why)
+			}
+		})
+	}
+}
+
+// The derivation runs through ingestion, so the task an agent ends up
+// advertising is the readable one.
+func TestIngestHookEvent_GatewayEnvelopeBecomesAReadableTask(t *testing.T) {
+	mgr := newTestManager(t)
+	mgr.agents["eng-1"] = &Agent{Name: "eng-1", Role: Role("engineer"), State: StateIdle}
+	svc := NewAgentService(mgr, nil, nil)
+
+	payload := HookPayload{
+		Event: HookUserPromptSubmit,
+		Prompt: `{"timestamp":"2026-08-03T14:36:15Z","channel":"slack:general",` +
+			`"platform":"slack","sender":"[slack] Puneet Rai",` +
+			`"content":"review both trackers and make sure main is good"}`,
+	}
+	if err := svc.IngestHookEvent(context.Background(), "eng-1", payload, nil); err != nil {
+		t.Fatalf("IngestHookEvent: %v", err)
+	}
+
+	if got := mgr.agents["eng-1"].Task; got != "review both trackers and make sure main is good" {
+		t.Errorf("task = %q, want the message rather than its envelope", got)
+	}
+}
