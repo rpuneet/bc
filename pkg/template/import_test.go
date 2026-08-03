@@ -76,3 +76,22 @@ func TestFetchImportDoc_HTTPError(t *testing.T) {
 		t.Fatalf("expected error for HTTP 404")
 	}
 }
+
+// A URL scheme that is not http(s) has no business reaching an HTTP client.
+func TestFetchImportDocRejectsANonHTTPScheme(t *testing.T) {
+	for _, raw := range []string{
+		"file:///etc/passwd",
+		"gopher://example.com/1",
+		"ftp://example.com/t.json",
+	} {
+		if _, _, err := FetchImportDoc(context.Background(), nil, raw); err == nil {
+			t.Errorf("FetchImportDoc(%q) = nil error, want a refusal", raw)
+		}
+	}
+}
+
+func TestFetchImportDocRejectsAURLWithNoHost(t *testing.T) {
+	if _, _, err := FetchImportDoc(context.Background(), nil, "http://"); err == nil {
+		t.Error("FetchImportDoc with no host = nil error, want a refusal")
+	}
+}

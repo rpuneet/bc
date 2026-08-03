@@ -127,8 +127,20 @@ func (h *MarketplaceHandler) install(w http.ResponseWriter, r *http.Request) {
 	req.ItemSourceURL = newlineReplacer.Replace(req.ItemSourceURL)
 	req.ItemID = newlineReplacer.Replace(req.ItemID)
 
-	if marketplace.ItemType(req.ItemType) == marketplace.TypeTemplate && h.tmplStore != nil {
-		if err := h.installTemplate(r.Context(), req); err != nil {
+	// A template the daemon already has can be installed outright, which is
+	// worth doing because it needs no agent to be reachable and cannot half
+	// succeed.
+	//
+	// A template from somewhere else deliberately does not go this way. Fetching
+	// a URL out of a request body would make this endpoint — reachable from any
+	// page the browser has open — a way to have the daemon issue requests on the
+	// caller's behalf, to a cloud metadata service or to whatever else is
+	// listening on the loopback interface. The agent imports those itself with
+	// `mycel template import`, where the URL is something a person typed rather
+	// than something a page supplied.
+	if marketplace.ItemType(req.ItemType) == marketplace.TypeTemplate &&
+		h.tmplStore != nil && req.ItemSourceURL == "" {
+		if err := h.installTemplate(req); err != nil {
 			httpError(w, "install template: "+err.Error(), http.StatusBadGateway)
 			return
 		}
@@ -164,30 +176,15 @@ func (h *MarketplaceHandler) install(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, installResponse{Dispatched: dispatched, Errors: sendErrs})
 }
 
-// installTemplate resolves req into a Template and upserts it into the
-// wired template store. When req.ItemSourceURL is set it is fetched as an
-// import document (see pkg/template.FetchImportDoc); otherwise req.ItemName
-// is looked up directly in the store, since the "mycel" marketplace source
-// only ever lists templates that already live there.
-func (h *MarketplaceHandler) installTemplate(ctx context.Context, req installRequest) error {
-	var (
-		t      template.Template
-		prompt string
-	)
-
-	if req.ItemSourceURL != "" {
-		fetched, fetchedPrompt, err := template.FetchImportDoc(ctx, nil, req.ItemSourceURL)
-		if err != nil {
-			return fmt.Errorf("fetch %s: %w", req.ItemSourceURL, err)
-		}
-		t, prompt = fetched, fetchedPrompt
-	} else {
-		existing, existingPrompt, err := h.tmplStore.Get(req.ItemName)
-		if err != nil {
-			return fmt.Errorf("no source URL provided and %q is not a known template: %w", req.ItemName, err)
-		}
-		t, prompt = *existing, existingPrompt
+// installTemplate upserts a template the daemon already holds. Only the local
+// store is consulted: the caller is an HTTP request, and a request must not be
+// able to choose an address for the daemon to fetch (see install).
+func (h *MarketplaceHandler) installTemplate(req installRequest) error {
+	existing, prompt, err := h.tmplStore.Get(req.ItemName)
+	if err != nil {
+		return fmt.Errorf("%q is not a template on this machine: %w", req.ItemName, err)
 	}
+	t := *existing
 	t.Scope = ""
 
 	if _, _, err := h.tmplStore.Get(t.Name); err == nil {

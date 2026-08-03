@@ -536,26 +536,26 @@ func TestMarketplaceHandler_Install_TemplateWritesToStoreDirectly(t *testing.T) 
 	}
 }
 
-func TestMarketplaceHandler_Install_TemplateFromURLWritesToStore(t *testing.T) {
+// The daemon must not fetch an address chosen by a request. This endpoint is
+// reachable from any page the browser has open, so a fetch here is a way to make
+// the daemon issue requests on the caller's behalf — to a cloud metadata service,
+// or to whatever else is listening on loopback. A remote template is imported by
+// the agent instead, from a URL a person typed.
+func TestMarketplaceHandler_Install_TemplateFromAURLIsNotFetchedByTheDaemon(t *testing.T) {
 	dir := t.TempDir()
 	store := template.NewStore(dir)
 	agg := marketplace.NewAggregator(store, &fakeFetcherHandler{})
 
-	doc := template.ImportDoc{
-		Template:     template.Template{Name: "remote-tmpl", Description: "from URL"},
-		SystemPrompt: "remote prompt",
-	}
-	data, err := json.Marshal(doc)
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
+	fetched := false
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fetched = true
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(data)
+		_, _ = w.Write([]byte(`{"name":"remote-tmpl","system_prompt":"remote prompt"}`))
 	}))
 	defer srv.Close()
 
-	h := NewMarketplaceHandler(agg, nil).WithTemplateStore(store)
+	sender := &fakeAgentSender{}
+	h := NewMarketplaceHandler(agg, sender).WithTemplateStore(store)
 	mux := http.NewServeMux()
 	h.Register(mux)
 
@@ -576,13 +576,17 @@ func TestMarketplaceHandler_Install_TemplateFromURLWritesToStore(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
 	}
-
-	got, prompt, err := store.Get("remote-tmpl")
-	if err != nil {
-		t.Fatalf("get template written from URL: %v", err)
+	if fetched {
+		t.Error("the daemon fetched a URL supplied in a request body")
 	}
-	if got.Description != "from URL" || prompt != "remote prompt" {
-		t.Errorf("description=%q prompt=%q, want %q / %q", got.Description, prompt, "from URL", "remote prompt")
+	if _, _, err := store.Get("remote-tmpl"); err == nil {
+		t.Error("a template arrived in the store from a URL the daemon should not have read")
+	}
+	if len(sender.calls) != 1 {
+		t.Fatalf("want the import dispatched to the agent instead, got %d Send calls", len(sender.calls))
+	}
+	if !contains(sender.calls[0].message, "mycel template import") {
+		t.Errorf("expected the agent to be told to import it, got: %s", sender.calls[0].message)
 	}
 }
 
