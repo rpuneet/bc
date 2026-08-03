@@ -435,12 +435,6 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		dto := toDTO(a)
 		dto.Avatar = req.Avatar
 		dto.Template = req.Template
-		// Apply template: write CLAUDE.md and .mcp.json to the agent's worktree.
-		if req.Template != "" && h.tmplStore != nil {
-			if applyErr := h.applyTemplate(svc, a, req.Template, req.Avatar); applyErr != nil {
-				log.Warn("template apply failed", "agent", a.Name, "template", req.Template, "error", applyErr)
-			}
-		}
 		writeJSON(w, http.StatusCreated, dto)
 
 	default:
@@ -1115,82 +1109,6 @@ func (h *AgentHandler) streamOutput(w http.ResponseWriter, r *http.Request, name
 			}
 		}
 	}
-}
-
-// applyTemplate writes template files (CLAUDE.md and .mcp.json) to the agent's
-// worktree. Called after successful agent creation when a template name is provided.
-// svc is the per-request resolved agent service used for worktree-path fallback.
-func (h *AgentHandler) applyTemplate(svc *agent.AgentService, a *agent.Agent, tmplName string, _ *avatarDTO) error {
-	tmpl, prompt, err := h.tmplStore.Get(tmplName)
-	if err != nil {
-		return fmt.Errorf("load template %q: %w", tmplName, err)
-	}
-
-	// Determine worktree path: prefer stored WorktreeDir, fall back to computed.
-	wtDir := a.WorktreeDir
-	if wtDir == "" && svc != nil {
-		wtDir = svc.Manager().WorktreePath(a.Name)
-	}
-	if wtDir == "" {
-		return fmt.Errorf("worktree path not available for agent %q", a.Name)
-	}
-	wtDir = filepath.Clean(wtDir)
-	if strings.Contains(wtDir, "..") {
-		return fmt.Errorf("unsafe worktree path for agent %q", a.Name)
-	}
-
-	if err := os.MkdirAll(wtDir, 0750); err != nil {
-		return fmt.Errorf("ensure worktree dir: %w", err)
-	}
-
-	// Write system prompt as CLAUDE.md when the template has one.
-	if prompt != "" {
-		claudePath := filepath.Join(wtDir, "CLAUDE.md")
-		if writeErr := os.WriteFile(claudePath, []byte(prompt), 0600); writeErr != nil { //nolint:gosec // trusted repo path
-			return fmt.Errorf("write CLAUDE.md: %w", writeErr)
-		}
-		log.Debug("template CLAUDE.md written", "agent", a.Name, "template", tmplName)
-	}
-
-	// Merge template's MCPs into any existing .mcp.json.
-	// The previous behavior emitted empty {url:"",type:""} stubs that
-	// clobbered the role-generated config.  Instead we:
-	//   1. Read the existing file (if any) to preserve real entries.
-	//   2. Insert stub entries only for names that are not already present.
-	// This way the role-generated MCP config is never wiped.
-	if len(tmpl.MCPs) > 0 {
-		mcpPath := filepath.Join(wtDir, ".mcp.json")
-
-		// Read existing config; ignore missing file.
-		existing := agentMCPFile{MCPServers: make(map[string]agentMCPEntry)}
-		if raw, readErr := os.ReadFile(mcpPath); readErr == nil { //nolint:gosec // trusted repo path
-			// Best-effort parse; ignore corrupt files.
-			_ = json.Unmarshal(raw, &existing)
-			if existing.MCPServers == nil {
-				existing.MCPServers = make(map[string]agentMCPEntry)
-			}
-		}
-
-		// Add stub entries only for names not already configured.
-		added := 0
-		for _, mcpName := range tmpl.MCPs {
-			if _, ok := existing.MCPServers[mcpName]; !ok {
-				existing.MCPServers[mcpName] = agentMCPEntry{}
-				added++
-			}
-		}
-
-		b, marshalErr := json.MarshalIndent(existing, "", "  ")
-		if marshalErr != nil {
-			return fmt.Errorf("marshal .mcp.json: %w", marshalErr)
-		}
-		if writeErr := os.WriteFile(mcpPath, b, 0600); writeErr != nil { //nolint:gosec // trusted repo path
-			return fmt.Errorf("write .mcp.json: %w", writeErr)
-		}
-		log.Debug("template .mcp.json merged", "agent", a.Name, "template", tmplName, "added", added, "total", len(existing.MCPServers))
-	}
-
-	return nil
 }
 
 // ── MCP management endpoints ─────────────────────────────────────────────────
