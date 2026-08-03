@@ -12,7 +12,7 @@
   },
   "info": {
     "productName": "mycel",
-    "productVersion": "0.1.0",
+    "productVersion": "0.0.0",
     "copyright": "Copyright © 2026 mycel",
     "comments": "mycel desktop — runs the mycel server and shows the web UI"
   }

@@ -32,6 +32,21 @@ interface ChannelStatus {
 
 const GITHUB_REPO = "rpuneet/mycel";
 
+/**
+ * isReleaseVersion — whether a version string names a published release, which
+ * is the only case where being "behind" the latest tag is meaningful.
+ *
+ * A release build's version is exactly X.Y.Z. Everything else is a source build:
+ * `dev` when no tag was reachable, otherwise the `0.4.5-dev.12.g1a2b3c4` form
+ * from scripts/version.sh. Testing for the absence of a prerelease suffix rather
+ * than for a particular dev-build spelling is deliberate — the previous check
+ * tested for a date-prefixed format and would have started calling source builds
+ * releases the moment that spelling changed (#3212).
+ */
+export function isReleaseVersion(v: string): boolean {
+  return /^\d+\.\d+\.\d+$/.test(v);
+}
+
 /** withTimeout — caps any one channel-check fetch at `ms` so a hung
  *  request (DNS timeout, GitHub API rate-limit holding the socket open,
  *  slow mirror) can't pin the page in the loading state. Resolves the
@@ -201,19 +216,12 @@ export function About() {
           <span className="text-2xl font-semibold text-mycel-text font-mono tabular-nums">
             {health?.version ?? "—"}
           </span>
-          {/* Compare like-with-like. `latestTag` is a semver ("0.3.1"). The
-              daemon's version is either the same shape (release binaries) or
-              a `YYYY.MM.DD.<sha>` dev-build string. Only surface "update
-              available" when both look like semver — for dev builds render a
-              "dev build" chip instead. Fixes #3212. */}
+          {/* Compare like-with-like. `latestTag` is a released version
+              ("0.3.1"), so only a build that claims to *be* a release can
+              meaningfully be behind one. Fixes #3212. */}
           {(() => {
             if (!latestTag || !health?.version) return null;
-            // Semver = up to 3-digit major.minor.patch, optionally followed
-            // by a pre-release or metadata suffix. Rejects the date-hash
-            // dev-build format `YYYY.MM.DD.<sha>` since it starts with a
-            // 4-digit year.
-            const looksLikeSemver = /^\d{1,3}\.\d{1,3}\.\d{1,3}(?:[-+][A-Za-z0-9.]+)?$/.test(health.version);
-            if (!looksLikeSemver) {
+            if (!isReleaseVersion(health.version)) {
               return (
                 <span className="text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 bg-mycel-info-subtle text-mycel-info ring-1 ring-inset ring-mycel-border">
                   dev build

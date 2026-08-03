@@ -303,6 +303,9 @@ automated.
    ```
 
    Use semver: `vMAJOR.MINOR.PATCH`. Alpha/RC allowed: `v0.5.0-alpha`, `v1.0.0-rc.1`.
+   Always annotate (`-a`): `git describe` prefers annotated tags, so a lightweight
+   release tag makes every later source build describe itself against an older
+   release than it actually contains.
 
 Pushing the tag is what triggers the release. **Actions → Release → Run workflow**
 also works and tags for you, but push the tag by hand when you want the released
@@ -353,6 +356,37 @@ Every merge to `main` also publishes `ghcr.io/rpuneet/mycel:main` via `.github/w
 - `v0.x.y` — pre-1.0, any breaking changes allowed, document in release notes
 - `v1.0.0+` — semver discipline: breaking → major, features → minor, fixes → patch
 - Pre-releases: `-alpha`, `-beta`, `-rc.N` suffixes
+
+#### One format, derived from tags
+
+Git tags are the only place a version is written down. Every build derives its
+version from them via `scripts/version.sh`, so a source build and a release build
+report the same shape and anything that compares versions — the About page's
+"update available" check, npm, the Homebrew formula — can compare them directly:
+
+| Build | Version |
+| --- | --- |
+| Clean checkout of a tag | `0.4.4` |
+| 12 commits past a tag | `0.4.5-dev.12.g1a2b3c4` |
+| With uncommitted changes | `0.4.5-dev.12.g1a2b3c4.dirty` |
+| No tags reachable (CI clones at depth 1) | `dev` |
+
+Off a tag the *patch is incremented* and the distance recorded as a pre-release.
+Semver ranks a pre-release below the release it names, so a literal `git describe`
+string like `0.4.4-12-g1a2b3c4` would sort *below* 0.4.4 and make a build twelve
+commits newer look older. This matches how GoReleaser names snapshots.
+
+Consequences worth knowing:
+
+- Only an exact `X.Y.Z` counts as a release. The About page decides between
+  "update available" and the "dev build" chip on that alone.
+- macOS bundle metadata (`CFBundleShortVersionString`) must be plain `X.Y.Z`, so
+  it gets the numeric core only. `desktop/wails.json` holds `0.0.0` as a
+  placeholder; both the Makefile and the release workflow substitute the real
+  value at build time. A version of `0.0.0` on an installed app means it was
+  built by calling `wails build` directly instead of `make build-local-desktop`.
+- Never hardcode a version in a tracked file. `internal/cmd/version_script_test.go`
+  pins the shapes above.
 
 ### Rollback
 
