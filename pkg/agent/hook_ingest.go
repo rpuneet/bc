@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -103,7 +104,7 @@ func (s *AgentService) IngestHookEvent(ctx context.Context, name string, payload
 	// the prompt afterwards would refill it and leave a dead agent advertising
 	// work it will never do, so nothing is derived when the agent just stopped.
 	if isTurnStart(payload.Event) && payload.Prompt != "" && targetState != StateStopped {
-		task := truncateRunes(payload.Prompt, maxDerivedTaskLen)
+		task := truncateRunes(taskFromPrompt(payload.Prompt), maxDerivedTaskLen)
 		if err := s.manager.SetAgentTask(ctx, name, task); err != nil {
 			// Non-fatal: the event itself is still worth logging and
 			// broadcasting even if the task line could not be updated.
@@ -164,6 +165,43 @@ func (s *AgentService) IngestHookEvent(ctx context.Context, name string, payload
 // choice of name does not decide whether its agents get a task line.
 func isTurnStart(ev HookEvent) bool {
 	return ev == HookUserPromptSubmit || ev == HookPreInvocation
+}
+
+// taskFromPrompt returns the part of a prompt worth showing as a task line.
+//
+// Usually that is the whole prompt. But an agent driven through a gateway is
+// handed the platform's entire delivery envelope, so its prompt is JSON, and the
+// task line read `{"raw":{"client_m…` — a correct derivation from something no
+// one wants to read. The sentence a person actually typed is a field inside it
+// (#3536).
+//
+// The envelope is recognized rather than assumed: a JSON object needs a
+// non-empty `content` alongside at least one delivery field to be treated as
+// one. A prompt that merely happens to be JSON is left alone, which matters
+// because pasting JSON to an agent is an ordinary thing to do.
+func taskFromPrompt(prompt string) string {
+	trimmed := strings.TrimSpace(prompt)
+	if !strings.HasPrefix(trimmed, "{") {
+		return prompt
+	}
+
+	var envelope struct {
+		Content  string `json:"content"`
+		Platform string `json:"platform"`
+		Channel  string `json:"channel"`
+		Sender   string `json:"sender"`
+	}
+	if err := json.Unmarshal([]byte(trimmed), &envelope); err != nil {
+		return prompt
+	}
+	content := strings.TrimSpace(envelope.Content)
+	if content == "" {
+		return prompt
+	}
+	if envelope.Platform == "" && envelope.Channel == "" && envelope.Sender == "" {
+		return prompt
+	}
+	return content
 }
 
 // maxDerivedTaskLen bounds the prompt text used as an agent's task line. The
