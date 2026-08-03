@@ -43,6 +43,7 @@ import {
   parseTaskCreate,
   parseTaskListResponse,
   parseTaskUpdate,
+  providerFailureNode,
   summarizeArgs,
   summarizeInternalEvent,
   updateSubagentChild,
@@ -283,6 +284,18 @@ export function useAgentActivity(agentName?: string, options?: UseAgentActivityO
               fullInput: evt.prompt ?? evt.tool_input, fullOutput: null, status: "completed",
               startTime: Date.now(), endTime: Date.now(), children: [],
             });
+            break;
+
+          // The daemon raises this when an agent's provider CLI is running but
+          // cannot serve a turn — no credential, a spent quota, a model the
+          // account can't use. Such an agent reports nothing else, so this row
+          // is the entire explanation for a feed that would otherwise be empty
+          // and a state that would otherwise claim the agent is fine (#3512).
+          case "ProviderFailure":
+            activity.state = "error";
+            activity.nodes.push(
+              providerFailureNode(evt.error ?? evt.message ?? "", Date.now()),
+            );
             break;
 
           case "PreToolUse": {

@@ -47,6 +47,13 @@ const (
 	HookChannelSent    HookEvent = "ChannelSent"
 	HookAgentMessage   HookEvent = "AgentMessage"
 	HookCostUpdate     HookEvent = "CostUpdate"
+	// HookProviderFailure reports that an agent's provider CLI is running but
+	// cannot serve a turn — no credential, a spent quota, a model the account
+	// cannot use. It is raised by the daemon from the agent's own terminal,
+	// which is the only place such a provider says so, and carries the reason
+	// in Error. It is the one event whose absence was indistinguishable from a
+	// healthy quiet agent (#3512).
+	HookProviderFailure HookEvent = "ProviderFailure"
 )
 
 // hookEventStateMap maps hook events to the target agent state.
@@ -64,6 +71,7 @@ var hookEventStateMap = map[HookEvent]State{
 	HookElicitationResult: StateWorking,
 	HookStop:              StateIdle,
 	HookTaskCompleted:     StateDone,
+	HookProviderFailure:   StateError,
 }
 
 // StateForHookEvent returns the target agent State for a hook event.

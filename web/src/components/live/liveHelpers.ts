@@ -298,8 +298,41 @@ export function partitionRunning(nodes: ToolNode[]): { running: ToolNode[]; rest
  * ToolNode shape the live stream builds, so both render through one
  * EventRow.
  */
+/**
+ * The row for an agent whose provider CLI cannot serve a turn.
+ *
+ * Shared by the live stream and the historical load so both render the same
+ * thing. A provider failure is not a tool call, and left to the generic path
+ * its name is guessed from the first word of the reason — a row titled "pi's".
+ * See #3512.
+ */
+export const PROVIDER_FAILURE_LABEL = "Provider unavailable";
+
+export function providerFailureNode(reason: string, startTime: number): ToolNode {
+  const text = reason || "the provider cannot serve a turn";
+  return {
+    id: nextId(),
+    toolName: PROVIDER_FAILURE_LABEL,
+    args: text,
+    fullInput: null,
+    fullOutput: null,
+    startTime,
+    endTime: startTime,
+    status: "failed",
+    error: text,
+    children: [],
+  };
+}
+
 export function activityItemToNode(item: AgentActivityItem): ToolNode {
   const data = (item.data ?? {}) as Record<string, unknown>;
+  if (item.event === "ProviderFailure") {
+    const reason = (typeof data.error === "string" && data.error) || item.message || "";
+    return providerFailureNode(
+      reason,
+      item.timestamp ? new Date(item.timestamp).getTime() : Date.now(),
+    );
+  }
   const dataToolName = typeof data.tool_name === "string" ? data.tool_name : "";
   const toolName = dataToolName || parseHistoricalToolName(item) || item.event || "unknown";
 
