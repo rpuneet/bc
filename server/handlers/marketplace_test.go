@@ -488,16 +488,57 @@ func TestInstall_InjectionStripped(t *testing.T) {
 	}
 }
 
+// A template entry names a template that is already on the machine, so the
+// instruction has to be something an agent can actually run. It used to name
+// `mycel template import`, which has never been a command (#3538).
 func TestComposeInstallMessage_Template(t *testing.T) {
 	req := installRequest{
+		ItemID:     "mycel:engineer",
 		ItemName:   "engineer",
 		ItemType:   "template",
 		ItemSource: "mycel",
 		Agents:     []string{"a"},
 	}
 	msg := composeInstallMessage(req)
-	if !contains(msg, "mycel template import") {
-		t.Errorf("template message should contain 'mycel template import', got:\n%s", msg)
+
+	if !contains(msg, `mycel agent create <agent-name> --template "engineer"`) {
+		t.Errorf("template message should tell the agent to create an agent from the template, got:\n%s", msg)
+	}
+	if contains(msg, "template import") {
+		t.Errorf("template message still names a command that does not exist, got:\n%s", msg)
+	}
+}
+
+// The template's own name is what the flag needs, not the catalog id it is
+// listed under.
+func TestComposeInstallMessage_TemplateStripsTheSourcePrefix(t *testing.T) {
+	msg := composeInstallMessage(installRequest{
+		ItemID:     "mycel:feature-dev",
+		ItemName:   "feature-dev",
+		ItemType:   "template",
+		ItemSource: "mycel",
+		Agents:     []string{"a"},
+	})
+
+	if !contains(msg, `--template "feature-dev"`) {
+		t.Errorf(`want --template "feature-dev" without the catalog prefix, got:\n%s`, msg)
+	}
+	if contains(msg, "mycel:feature-dev") {
+		t.Errorf("the catalog id leaked into the command, got:\n%s", msg)
+	}
+}
+
+// An entry that arrives without an id must still produce a runnable command.
+func TestComposeInstallMessage_TemplateFallsBackToTheName(t *testing.T) {
+	msg := composeInstallMessage(installRequest{
+		ItemName:   "reviewer",
+		ItemType:   "template",
+		ItemSource: "mycel",
+		Agents:     []string{"a"},
+	})
+
+	if !contains(msg, `--template "reviewer"`) {
+		t.Errorf("want the item name used as the template, got:\n%s", msg)
 	}
 }
 

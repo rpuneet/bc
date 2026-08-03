@@ -44,7 +44,12 @@ The exact command an agent runs depends on the entry:
 | MCP server | `claude mcp add "<name>" "<source-url>"` |
 | Skill (openclaw) | `openclaw skills install "<slug>"` |
 | Skill (Claude, GitHub) | `claude plugin marketplace add "<repo-url>"` then `claude plugin install "<name>@<marketplace>"` |
-| Template | `mycel template import "<name>"` |
+| Template | `mycel agent create <agent-name> --template "<name>"` |
+
+Templates are the exception: the `mycel` source lists the templates already on
+this machine (`~/.mycel/templates/`), so there is nothing to fetch. Adding one
+tells the agent how to put it to use — creating an agent from it — rather than
+installing anything.
 
 For a skill sourced from a plugin marketplace, the agent first registers the marketplace and then installs the plugin from it:
 
