@@ -137,7 +137,7 @@ func TestE2E_ListTools(t *testing.T) {
 	want := map[string]bool{
 		"whoami": false, "list_agents": false, "list_channels": false,
 		"read_channel": false, "send_message": false, "send_file": false,
-		"report_status": false, "query_costs": false,
+		"query_costs": false,
 		"spawn_agent": false, "send_to_agent": false, "stop_agent": false,
 		"list_children": false,
 	}
@@ -275,7 +275,6 @@ func TestE2E_ToolErrorsWhenDependencyMissing(t *testing.T) {
 		{Name: "read_channel", Arguments: map[string]any{"channel": "slack:eng"}},
 		{Name: "send_message", Arguments: map[string]any{"channel": "slack:eng", "message": "x"}},
 		{Name: "list_agents"},
-		{Name: "report_status", Arguments: map[string]any{"task": "testing"}},
 		{Name: "query_costs"},
 		{Name: "spawn_agent", Arguments: map[string]any{"role": "engineer"}},
 		{Name: "send_to_agent", Arguments: map[string]any{"agent": "someone", "message": "hi"}},

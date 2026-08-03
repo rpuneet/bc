@@ -34,6 +34,41 @@ stateDiagram-v2
 | stopped | Session terminated |
 | error | Failed to start or unrecoverable |
 
+## The Task Line
+
+Alongside its state, every agent has a one-line task shown in the agents table,
+the dashboard and the TUI. It answers "what is this agent working on".
+
+It is derived, not reported. When a turn starts — `UserPromptSubmit` for claude
+and cursor, `PreInvocation` for agy — the prompt the agent was handed becomes its
+task, truncated to 120 characters. Transcript-mode providers (pi, codex) go
+through the same path: the tailer forwards the parsed user turn's prompt and
+ingestion derives the task from it, so every provider that reports a turn gets an
+identical task line from identical input.
+
+This used to be the agent's own job, via a `report_status` MCP tool. That made
+the task line only as accurate as an agent's diligence: an agent that never
+called it showed nothing, and one that called it once showed that first task for
+the rest of the session while the daemon already knew what it had actually been
+asked to do. Deriving it removes the failure mode entirely — the task cannot go
+stale while an agent works, because it is a property of the observed stream.
+
+Two things do not set the task:
+
+- **Lifecycle labels.** The strings hook commands carry ("Turn complete",
+  "Session ended", "Running tool") describe events, not work. They flow to the
+  activity feed and are never written to the task line — doing so was a real bug
+  (#3259) that clobbered the real task on every turn boundary.
+- **Tool events.** `PreToolUse` fires many times per turn. The task is the turn's
+  subject, not whatever call is in flight; that detail belongs in the Live feed.
+
+`spawn_agent` is the one exception that writes a task directly: a parent hands
+its child a task before that child has run a turn of its own. The child's first
+prompt replaces it.
+
+The task is cleared when an agent stops or restarts, so a dead or fresh agent
+never advertises work from a previous session.
+
 ## Lifecycle Internals
 
 `pkg/agent.Manager` splits agent creation from starting it, so callers can

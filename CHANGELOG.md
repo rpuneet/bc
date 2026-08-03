@@ -12,6 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **The `report_status` MCP tool is gone; an agent's task line is now derived
+  from its activity.** *Action required if you have prompts or role
+  instructions that tell agents to call `report_status` — remove them; the tool
+  no longer exists and calls to it will fail.* The task line is now taken from
+  the prompt an agent was given at the start of its turn, for every provider
+  that reports one. Self-reporting made the task line only as accurate as an
+  agent's diligence: one that never called the tool showed nothing, and one that
+  called it once showed that first task all session while the daemon already knew
+  what it had been asked to do. Deriving it also fixed two providers that could
+  never have reported well — the transcript tailer was computing a task from the
+  prompt that ingestion then discarded, and `agy`'s hooks discarded their payload
+  entirely, so no prompt or tool detail ever reached the daemon (#3489).
+
 ### Security
 
 - **Cross-origin writes are refused.** Any page the user had open in another

@@ -198,3 +198,152 @@ func TestHookPayloadFields_ToolResponseRoundtrip(t *testing.T) {
 		t.Error("hookPayloadFields did not include tool_response")
 	}
 }
+
+// ─── task line derived from the prompt ──────────────────────────────────────
+
+// The task line must come from the activity stream. Before this, the only way
+// an agent's task was ever set was the report_status MCP tool, so an agent that
+// never called it — or forgot to after moving on — showed nothing or something
+// stale while the daemon knew exactly what it had been asked to do.
+func TestIngestHookEvent_UserPromptBecomesTask(t *testing.T) {
+	mgr := newTestManager(t)
+	mgr.agents["eng-1"] = &Agent{Name: "eng-1", Role: Role("engineer"), State: StateIdle}
+	svc := NewAgentService(mgr, nil, nil)
+
+	payload := HookPayload{Event: HookUserPromptSubmit, Prompt: "fix the flaky login test"}
+	if err := svc.IngestHookEvent(context.Background(), "eng-1", payload, nil); err != nil {
+		t.Fatalf("IngestHookEvent: %v", err)
+	}
+
+	if got := mgr.agents["eng-1"].Task; got != "fix the flaky login test" {
+		t.Errorf("task = %q, want the prompt text", got)
+	}
+	// The event still drives the state transition it always did.
+	if got := mgr.agents["eng-1"].State; got != StateWorking {
+		t.Errorf("state = %q, want %q", got, StateWorking)
+	}
+}
+
+// A long prompt is cut to one line's worth of text rather than pushed whole
+// into a table cell.
+func TestIngestHookEvent_LongPromptIsTruncated(t *testing.T) {
+	mgr := newTestManager(t)
+	mgr.agents["eng-1"] = &Agent{Name: "eng-1", Role: Role("engineer"), State: StateIdle}
+	svc := NewAgentService(mgr, nil, nil)
+
+	long := strings.Repeat("a", maxDerivedTaskLen*2)
+	payload := HookPayload{Event: HookUserPromptSubmit, Prompt: long}
+	if err := svc.IngestHookEvent(context.Background(), "eng-1", payload, nil); err != nil {
+		t.Fatalf("IngestHookEvent: %v", err)
+	}
+
+	got := mgr.agents["eng-1"].Task
+	if n := utf8.RuneCountInString(got); n != maxDerivedTaskLen {
+		t.Errorf("task length = %d runes, want %d", n, maxDerivedTaskLen)
+	}
+	if !strings.HasSuffix(got, "…") {
+		t.Error("a truncated task should be marked with an ellipsis")
+	}
+}
+
+// Only a user turn sets the task. Tool events fire many times per turn, and a
+// lifecycle event's canned label ("Turn complete") is not a task — letting
+// either through is how the task line used to get clobbered (#3259).
+func TestIngestHookEvent_OnlyUserPromptSetsTask(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		payload HookPayload
+	}{
+		{"tool call", HookPayload{Event: HookPreToolUse, ToolName: "Bash", Prompt: "ignored"}},
+		{"turn end with canned task", HookPayload{Event: HookStop, Task: "Turn complete"}},
+		{"session start with canned task", HookPayload{Event: HookSessionStart, Task: "Session started"}},
+		{"empty prompt", HookPayload{Event: HookUserPromptSubmit, Prompt: ""}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mgr := newTestManager(t)
+			mgr.agents["eng-1"] = &Agent{
+				Name: "eng-1", Role: Role("engineer"),
+				State: StateWorking, Task: "the real task",
+			}
+			svc := NewAgentService(mgr, nil, nil)
+
+			if err := svc.IngestHookEvent(context.Background(), "eng-1", tc.payload, nil); err != nil {
+				t.Fatalf("IngestHookEvent: %v", err)
+			}
+			// Stop clears the task via the stopped transition; every other
+			// case must leave it exactly as it was.
+			if got := mgr.agents["eng-1"].Task; got != "the real task" {
+				t.Errorf("task = %q, want it left untouched", got)
+			}
+		})
+	}
+}
+
+func TestTruncateRunes(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   string
+		want string
+		max  int
+	}{
+		{"under the cap is unchanged", "short", "short", 10},
+		{"exactly at the cap is unchanged", "12345", "12345", 5},
+		{"over the cap is elided", "123456", "1234…", 5},
+		// Runes, not bytes: a multi-byte string under the rune cap must
+		// survive whole rather than being cut by its byte length.
+		{"multi-byte under the cap", "héllo wörld", "héllo wörld", 11},
+		{"multi-byte over the cap", "héllo wörld", "héllo…", 6},
+		{"cap of one truncates without an ellipsis", "abc", "a", 1},
+		{"cap of zero is empty", "abc", "", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := truncateRunes(tc.in, tc.max); got != tc.want {
+				t.Errorf("truncateRunes(%q, %d) = %q, want %q", tc.in, tc.max, got, tc.want)
+			}
+		})
+	}
+}
+
+// A real claude UserPromptSubmit body carries both the user's prompt and the
+// canned label mycel's hook command merges in. The prompt must survive decoding
+// — a field absent from HookPayload is silently dropped by json.Unmarshal, which
+// is exactly how tool_response went missing — and it must win over the label.
+func TestIngestHookEvent_DecodesPromptFromRawHookBody(t *testing.T) {
+	raw := []byte(`{"session_id":"abc","prompt":"add retries to the uploader",` +
+		`"event":"UserPromptSubmit","state":"working","task":"Processing prompt..."}`)
+	var payload HookPayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if payload.Prompt != "add retries to the uploader" {
+		t.Fatalf("payload.Prompt = %q, want the prompt text", payload.Prompt)
+	}
+
+	mgr := newTestManager(t)
+	mgr.agents["eng-1"] = &Agent{Name: "eng-1", Role: Role("engineer"), State: StateIdle}
+	svc := NewAgentService(mgr, nil, nil)
+
+	if err := svc.IngestHookEvent(context.Background(), "eng-1", payload, raw); err != nil {
+		t.Fatalf("IngestHookEvent: %v", err)
+	}
+	if got := mgr.agents["eng-1"].Task; got != "add retries to the uploader" {
+		t.Errorf("task = %q, want the prompt rather than the canned label", got)
+	}
+}
+
+// agy names its turn-start event PreInvocation. Its agents must get a task line
+// on the same terms as claude's, or removing report_status would leave them with
+// none at all.
+func TestIngestHookEvent_PreInvocationPromptBecomesTask(t *testing.T) {
+	mgr := newTestManager(t)
+	mgr.agents["eng-1"] = &Agent{Name: "eng-1", Role: Role("engineer"), State: StateIdle}
+	svc := NewAgentService(mgr, nil, nil)
+
+	payload := HookPayload{Event: HookPreInvocation, Prompt: "audit the auth middleware"}
+	if err := svc.IngestHookEvent(context.Background(), "eng-1", payload, nil); err != nil {
+		t.Fatalf("IngestHookEvent: %v", err)
+	}
+	if got := mgr.agents["eng-1"].Task; got != "audit the auth middleware" {
+		t.Errorf("task = %q, want the prompt text", got)
+	}
+}

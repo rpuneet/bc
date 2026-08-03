@@ -42,10 +42,14 @@ The sender identity for outbound tools (`send_message`, `send_file`) is derived 
 |------|------|-------------|
 | `whoami` | — | Current agent's identity: name, `display_name`, role, state, `provider`/`model`, its `avatar_url` (AgentCharacter), and a `slack` hint for posting as itself |
 | `list_agents` | role? | List agents with status and role, optionally filtered by role |
-| `report_status` | task | Update the agent's current task line |
 | `query_costs` | agent? | Token usage and cost, for one agent or the whole fleet |
 
-Tool arguments have per-field length caps enforced at handler entry (64KB for message/comment, 256B for channel/sender/role, 4KB for file_path, 1KB for task) since the `/_mcp/*` routes are exempt from the global body-size middleware.
+There is deliberately no tool for reporting status. An agent's task line is
+derived from its activity stream — the prompt it was given on its last turn —
+so it reflects what the agent is actually doing without the agent having to
+remember to publish it. See [Agent Architecture](agents.md).
+
+Tool arguments have per-field length caps enforced at handler entry (64KB for message/comment, 256B for channel/sender/role, 4KB for file_path, 1KB for a spawned agent's task) since the `/_mcp/*` routes are exempt from the global body-size middleware.
 
 ## Agent Identity & Avatar
 
