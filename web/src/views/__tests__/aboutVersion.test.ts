@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isReleaseVersion } from "../About";
+import { isReleaseVersion, sameBuild } from "../About";
 
 /**
  * The About page shows "update available" only when the running build is a
@@ -39,5 +39,35 @@ describe("isReleaseVersion", () => {
   it("rejects a prerelease tag, which is not the latest release", () => {
     expect(isReleaseVersion("0.5.0-rc1")).toBe(false);
     expect(isReleaseVersion("0.1.0-alpha")).toBe(false);
+  });
+});
+
+/**
+ * A build's version can present itself two ways at once: the daemon appends
+ * `.dirty` when its tree had uncommitted changes, and the desktop app's version
+ * is stamped separately. Comparing the raw strings warned of a mismatch between
+ * an app and a daemon built together, from the same tree, in the same minute —
+ * and a warning that cannot be acted on teaches people to ignore the one case
+ * it exists for.
+ */
+describe("sameBuild", () => {
+  it("treats a dirty daemon and its own app as the same build", () => {
+    expect(sameBuild("0.4.5-dev.35.gfbc9a1c", "0.4.5-dev.35.gfbc9a1c.dirty")).toBe(true);
+  });
+
+  it("is not fooled by which side is dirty", () => {
+    expect(sameBuild("0.4.5-dev.35.gfbc9a1c.dirty", "0.4.5-dev.35.gfbc9a1c")).toBe(true);
+  });
+
+  it("still reports the mismatch worth warning about", () => {
+    // A new app talking to a daemon left running from an older build: the whole
+    // reason the comparison exists.
+    expect(sameBuild("0.4.5-dev.35.gfbc9a1c", "0.4.4")).toBe(false);
+    expect(sameBuild("0.4.5-dev.35.gfbc9a1c", "0.4.5-dev.12.g1a2b3c4")).toBe(false);
+  });
+
+  it("holds for identical versions, dirty or not", () => {
+    expect(sameBuild("0.4.4", "0.4.4")).toBe(true);
+    expect(sameBuild("0.4.5-dev.35.gfbc9a1c.dirty", "0.4.5-dev.35.gfbc9a1c.dirty")).toBe(true);
   });
 });

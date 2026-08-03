@@ -48,6 +48,23 @@ export function isReleaseVersion(v: string): boolean {
   return /^\d+\.\d+\.\d+$/.test(v);
 }
 
+/**
+ * sameBuild — whether two version strings name the same build.
+ *
+ * The daemon marks a version `.dirty` when the tree it was built from had
+ * uncommitted changes, and the desktop app's version is stamped separately, so
+ * one build of the same commit can present itself as `0.4.5-dev.35.gfbc9a1c`
+ * and `0.4.5-dev.35.gfbc9a1c.dirty` at once. Comparing the strings then warned
+ * of a mismatch between an app and a daemon that were built together, in the
+ * same minute, from the same tree — a warning that cannot be acted on and that
+ * teaches people to disregard the one case it exists for: a new app talking to
+ * a daemon left running from an older build.
+ */
+export function sameBuild(a: string, b: string): boolean {
+  const core = (v: string) => v.replace(/\.dirty$/, "");
+  return core(a) === core(b);
+}
+
 /** withTimeout — caps any one channel-check fetch at `ms` so a hung
  *  request (DNS timeout, GitHub API rate-limit holding the socket open,
  *  slow mirror) can't pin the page in the loading state. Resolves the
@@ -158,7 +175,9 @@ export function About() {
   // do, every version on this page comes from the daemon while the user is
   // looking at a newer app. Surfacing it is the difference between "my update
   // didn't work" and "my daemon is stale".
-  const appDiffersFromDaemon = Boolean(appVersion && health?.version && appVersion !== health.version);
+  const appDiffersFromDaemon = Boolean(
+    appVersion && health?.version && !sameBuild(appVersion, health.version),
+  );
 
   const channels: ChannelStatus[] = [
     ...(appVersion
@@ -238,7 +257,11 @@ export function About() {
           <span className="text-[11px] uppercase tracking-wider text-mycel-muted">
             {appVersion ? "Daemon" : "Installed"}
           </span>
-          <span className="text-2xl font-semibold text-mycel-text font-mono tabular-nums">
+          {/* A source build's version is long and full of hyphens, and wrapping
+              on one split it into "0.4.5-" / "dev.35.gfbc9a1c.dirty" — two
+              lines that read like two different numbers. It is one identifier,
+              so it is kept on one line and shrunk to fit. */}
+          <span className="text-xl sm:text-2xl font-semibold text-mycel-text font-mono tabular-nums whitespace-nowrap">
             {health?.version ?? "—"}
           </span>
           {appDiffersFromDaemon && (
