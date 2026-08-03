@@ -40,8 +40,6 @@ const createTemplate = (body: {
   description: string;
   system_prompt: string;
   mcps: string[];
-  secrets: string[];
-  plugins: string[];
 }): Promise<Template> =>
   fetch("/api/templates", {
     method: "POST",
@@ -118,8 +116,6 @@ function TemplateDetailPanel({
   const [description, setDescription] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [mcpsRaw, setMcpsRaw] = useState("");
-  const [secretsRaw, setSecretsRaw] = useState("");
-  const [pluginsRaw, setPluginsRaw] = useState("");
 
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({ type: "idle" });
 
@@ -135,8 +131,6 @@ function TemplateDetailPanel({
       setDescription(t.description ?? "");
       setSystemPrompt(t.system_prompt ?? "");
       setMcpsRaw((t.mcps ?? []).join(", "));
-      setSecretsRaw((t.secrets ?? []).join(", "));
-      setPluginsRaw((t.plugins ?? []).join(", "));
     } catch (err) {
       setLoadErr(err instanceof Error ? err.message : "Failed to load");
     } finally {
@@ -162,8 +156,11 @@ function TemplateDetailPanel({
         description: description.trim(),
         system_prompt: systemPrompt,
         mcps: splitComma(mcpsRaw),
-        secrets: splitComma(secretsRaw),
-        plugins: splitComma(pluginsRaw),
+        // Passed through, not edited: these are not applied to agents yet
+        // (#3550). Rebuilding them from a removed field would delete anyone's
+        // stored values on their next save.
+        secrets: detail.secrets ?? [],
+        plugins: detail.plugins ?? [],
       });
       setSaveStatus({ type: "success" });
       setEditing(false);
@@ -291,41 +288,11 @@ function TemplateDetailPanel({
           )}
         </div>
 
-        {/* Secrets */}
-        <div className="space-y-1">
-          <SectionRule label="Secrets" />
-          {editing ? (
-            <input
-              type="text"
-              value={secretsRaw}
-              onChange={(e) => setSecretsRaw(e.target.value)}
-              className="w-full px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
-              placeholder="GITHUB_TOKEN, OPENAI_KEY"
-              aria-label="Secrets (comma-separated)"
-              style={{ fontFamily: MONO }}
-            />
-          ) : (
-            <ChipList items={detail.secrets ?? []} color="yellow" />
-          )}
-        </div>
-
-        {/* Plugins */}
-        <div className="space-y-1">
-          <SectionRule label="Plugins" />
-          {editing ? (
-            <input
-              type="text"
-              value={pluginsRaw}
-              onChange={(e) => setPluginsRaw(e.target.value)}
-              className="w-full px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
-              placeholder="frontend-design"
-              aria-label="Plugins (comma-separated)"
-              style={{ fontFamily: MONO }}
-            />
-          ) : (
-            <ChipList items={detail.plugins ?? []} color="green" />
-          )}
-        </div>
+        {/* Secrets and plugins are not applied to agents yet (#3550), so there
+            is nothing here to edit. Values saved by an earlier build are still
+            shown — hiding them would suggest they had been deleted — labeled
+            with the fact that they are inert. */}
+        <NotAppliedYet secrets={detail.secrets ?? []} plugins={detail.plugins ?? []} />
 
         {/* Actions */}
         <div className="flex items-center justify-between pt-2 border-t border-mycel-border">
@@ -349,8 +316,6 @@ function TemplateDetailPanel({
                     setDescription(detail.description ?? "");
                     setSystemPrompt(detail.system_prompt ?? "");
                     setMcpsRaw((detail.mcps ?? []).join(", "));
-                    setSecretsRaw((detail.secrets ?? []).join(", "));
-                    setPluginsRaw((detail.plugins ?? []).join(", "));
                   }}
                   className="inline-flex items-center h-9 px-3 rounded-md bg-mycel-surface border border-mycel-border text-mycel-text-2 text-sm hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
                 >
@@ -405,8 +370,6 @@ function CreateTemplateForm({
   const [description, setDescription] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [mcpsRaw, setMcpsRaw] = useState("");
-  const [secretsRaw, setSecretsRaw] = useState("");
-  const [pluginsRaw, setPluginsRaw] = useState("");
   const [status, setStatus] = useState<SaveStatus>({ type: "idle" });
 
   const splitComma = (s: string) =>
@@ -427,15 +390,11 @@ function CreateTemplateForm({
         description: description.trim(),
         system_prompt: systemPrompt,
         mcps: splitComma(mcpsRaw),
-        secrets: splitComma(secretsRaw),
-        plugins: splitComma(pluginsRaw),
       });
       setName("");
       setDescription("");
       setSystemPrompt("");
       setMcpsRaw("mycel");
-      setSecretsRaw("");
-      setPluginsRaw("");
       onClose();
       setStatus({ type: "success" });
       setTimeout(() => setStatus({ type: "idle" }), 2000);
@@ -513,34 +472,6 @@ function CreateTemplateForm({
             style={{ fontFamily: MONO }}
           />
         </div>
-        <div className="space-y-1">
-          <label className="block text-sm text-mycel-text" htmlFor="tpl-secrets">
-            Secrets
-          </label>
-          <input
-            id="tpl-secrets"
-            type="text"
-            value={secretsRaw}
-            onChange={(e) => setSecretsRaw(e.target.value)}
-            placeholder="GITHUB_TOKEN"
-            className="w-full px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
-            style={{ fontFamily: MONO }}
-          />
-        </div>
-        <div className="space-y-1 sm:col-span-2">
-          <label className="block text-sm text-mycel-text" htmlFor="tpl-plugins">
-            Plugins
-          </label>
-          <input
-            id="tpl-plugins"
-            type="text"
-            value={pluginsRaw}
-            onChange={(e) => setPluginsRaw(e.target.value)}
-            placeholder="frontend-design"
-            className="w-full px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
-            style={{ fontFamily: MONO }}
-          />
-        </div>
       </div>
 
       <div className="space-y-1">
@@ -608,13 +539,56 @@ function TemplateRow({
       <td className="py-3 px-4">
         <ChipList items={template.mcps ?? []} color="accent" />
       </td>
-      <td className="py-3 px-4">
-        <ChipList items={template.secrets ?? []} color="yellow" />
-      </td>
       <td className="py-3 px-4 text-sm text-mycel-muted">
         {template.description || <span className="text-mycel-muted">{"\u2014"}</span>}
       </td>
     </tr>
+  );
+}
+
+/**
+ * NotAppliedYet — surfaces secrets and plugins that an earlier build let someone
+ * save, and says plainly that they do nothing.
+ *
+ * The editor used to accept both and render a chip per entry, which read as
+ * confirmation: you typed GITHUB_TOKEN, a chip appeared, and the agent never
+ * received it — the failure arrived much later, inside the agent, as a tool that
+ * could not authenticate (#3550). The fields are gone until they work.
+ *
+ * Stored values are still shown, because deleting them from view would suggest
+ * they had been deleted from the template. They are passed through untouched on
+ * save.
+ */
+function NotAppliedYet({ secrets, plugins }: { secrets: string[]; plugins: string[] }) {
+  if (secrets.length === 0 && plugins.length === 0) return null;
+  const named = [
+    secrets.length > 0 ? `${secrets.length} secret${secrets.length === 1 ? "" : "s"}` : null,
+    plugins.length > 0 ? `${plugins.length} plugin${plugins.length === 1 ? "" : "s"}` : null,
+  ]
+    .filter(Boolean)
+    .join(" and ");
+
+  return (
+    <div className="space-y-2 rounded-md border border-mycel-border bg-mycel-surface p-3">
+      <div className="text-xs font-medium text-mycel-warning">Saved but not applied</div>
+      <p className="text-xs text-mycel-muted leading-relaxed">
+        This template records {named}. Agents created from it do not receive them yet, so treat
+        anything here as a note to yourself rather than configuration. It is kept as-is when you
+        save.
+      </p>
+      {secrets.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-[11px] uppercase tracking-wide text-mycel-muted">Secrets</div>
+          <ChipList items={secrets} color="yellow" />
+        </div>
+      )}
+      {plugins.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-[11px] uppercase tracking-wide text-mycel-muted">Plugins</div>
+          <ChipList items={plugins} color="green" />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -764,7 +738,6 @@ export function Templates() {
               <tr className="text-left text-[11px] font-medium text-mycel-muted uppercase tracking-[0.08em]">
                 <th className="py-2.5 pl-4 pr-6 font-medium">Name</th>
                 <th className="py-2.5 px-4 font-medium">MCPs</th>
-                <th className="py-2.5 px-4 font-medium">Secrets</th>
                 <th className="py-2.5 px-4 font-medium">Description</th>
               </tr>
             </thead>

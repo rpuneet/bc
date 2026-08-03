@@ -1,0 +1,9 @@
+{
+  "description": "Turn raw reports into issues someone can act on",
+  "max_cost_usd": 8,
+  "mcps": [
+    "mycel",
+    "github"
+  ],
+  "stuck_timeout_min": 20
+}

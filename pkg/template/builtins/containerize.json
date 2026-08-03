@@ -1,0 +1,7 @@
+{
+  "description": "Make a project build and run in a container properly",
+  "mcps": [
+    "mycel"
+  ],
+  "stuck_timeout_min": 30
+}

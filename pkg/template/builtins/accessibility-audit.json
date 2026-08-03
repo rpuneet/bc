@@ -1,0 +1,8 @@
+{
+  "description": "Find and fix the barriers, starting with the blocking ones",
+  "max_cost_usd": 12,
+  "mcps": [
+    "mycel"
+  ],
+  "stuck_timeout_min": 30
+}

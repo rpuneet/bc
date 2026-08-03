@@ -1,0 +1,7 @@
+{
+  "description": "Break work down, delegate it, and keep track",
+  "mcps": [
+    "mycel"
+  ],
+  "stuck_timeout_min": 25
+}

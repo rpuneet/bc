@@ -149,8 +149,9 @@ func validName(name string) bool {
 		!strings.Contains(name, "/") &&
 		!strings.Contains(name, "\\") &&
 		!strings.Contains(name, "..") &&
-		name != "." &&
-		name != ".."
+		// A dot-prefixed name would let bookkeeping files such as
+		// .builtins.state be read back as templates.
+		!strings.HasPrefix(name, ".")
 }
 
 // Get returns the template and its system prompt markdown content.
@@ -321,54 +322,15 @@ func (s *Store) resolveOwningDir(name string) (string, error) {
 	return "", fmt.Errorf("template %q not found", name)
 }
 
-// SeedDefaults creates the built-in templates when the directory is empty.
-// It is a no-op when the directory already contains templates.
+// SeedDefaults installs the built-in templates into dir.
+//
+// It delegates to EnsureBuiltins, which is additive rather than
+// all-or-nothing: it used to seed four templates only when the directory was
+// completely empty, so anyone who had ever run mycel could never receive a
+// built-in added later. See builtins.go for what it will and will not touch.
 func SeedDefaults(dir string) error {
-	s := NewStore(dir)
-	existing, err := s.List()
-	if err != nil {
-		return err
-	}
-	if len(existing) > 0 {
-		return nil
-	}
-
-	defaults := []Template{
-		{
-			Name:        "feature-dev",
-			Description: "Full-stack feature development",
-			MCPs:        []string{"mycel", "github"},
-		},
-		{
-			Name:        "reviewer",
-			Description: "Code review specialist",
-			MCPs:        []string{"mycel"},
-		},
-		{
-			Name:        "manager",
-			Description: "Task orchestration and delegation",
-			MCPs:        []string{"mycel"},
-		},
-		{
-			Name:        "blank",
-			Description: "Empty starting point",
-			MCPs:        []string{"mycel"},
-		},
-	}
-
-	prompts := map[string]string{
-		"feature-dev": "You are a feature development agent. Your job is to implement features, fix bugs, and write clean, tested code.\n\n## Guidelines\n- Read existing code before modifying\n- Follow existing patterns and conventions\n- Write meaningful tests\n- Keep changes focused and minimal\n- Commit with clear messages\n",
-		"reviewer":    "You are a code review agent. Your job is to review pull requests and provide actionable feedback.\n\n## Review checklist\n- Check for bugs and logic errors\n- Verify error handling\n- Look for security issues\n- Assess test coverage\n- Review code style and consistency\n",
-		"manager":     "You are a task orchestration agent. Your job is to break down work, delegate to other agents, and track progress.\n\n## Guidelines\n- Break large tasks into small, independent pieces\n- Assign work based on agent capabilities\n- Monitor progress and unblock stuck agents\n- Summarize status updates clearly\n",
-		"blank":       "",
-	}
-
-	for _, t := range defaults {
-		if err := s.Create(t, prompts[t.Name], ScopeGlobal); err != nil {
-			return fmt.Errorf("seed template %q: %w", t.Name, err)
-		}
-	}
-	return nil
+	_, err := EnsureBuiltins(dir)
+	return err
 }
 
 // --- internal helpers ---

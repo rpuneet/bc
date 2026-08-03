@@ -1,0 +1,8 @@
+{
+  "description": "Implement a feature end to end, with tests",
+  "mcps": [
+    "mycel",
+    "github"
+  ],
+  "stuck_timeout_min": 45
+}

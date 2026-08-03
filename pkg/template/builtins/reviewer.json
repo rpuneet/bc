@@ -1,0 +1,9 @@
+{
+  "description": "Review a diff and report only what matters",
+  "max_cost_usd": 10,
+  "mcps": [
+    "mycel",
+    "github"
+  ],
+  "stuck_timeout_min": 25
+}
