@@ -379,14 +379,21 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 			// Env holds user-configured environment variables. Values may
 			// contain ${secret:NAME} references, stored verbatim and
 			// resolved against the vault at spawn time.
-			Env      map[string]string `json:"env,omitempty"`
-			Name     string            `json:"name"`
-			Role     string            `json:"role"`
-			Tool     string            `json:"tool"`
-			Model    string            `json:"model,omitempty"`
-			Runtime  string            `json:"runtime_backend"`
-			Parent   string            `json:"parent"`
-			Template string            `json:"template,omitempty"`
+			Env     map[string]string `json:"env,omitempty"`
+			Name    string            `json:"name"`
+			Role    string            `json:"role"`
+			Tool    string            `json:"tool"`
+			Model   string            `json:"model,omitempty"`
+			Runtime string            `json:"runtime_backend"`
+			// RuntimeAlt is the same field under the name the CLI sends.
+			// `mycel agent create --runtime tmux` marshals "runtime", which this
+			// handler did not read, so the flag was accepted and discarded — and
+			// on a machine where docker was reachable the agent silently went
+			// into a container instead. Reading both keeps older installed CLIs
+			// working rather than requiring everyone to upgrade in lockstep.
+			RuntimeAlt string `json:"runtime,omitempty"`
+			Parent     string `json:"parent"`
+			Template   string `json:"template,omitempty"`
 			// Repo is the absolute path of the git repo the agent binds
 			// to. Empty defaults to the repo the daemon was booted against.
 			Repo string `json:"repo,omitempty"`
@@ -406,12 +413,16 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		if role == "" && req.Template != "" {
 			role = "base"
 		}
+		runtimeBackend := req.Runtime
+		if runtimeBackend == "" {
+			runtimeBackend = req.RuntimeAlt
+		}
 		a, err := svc.Create(r.Context(), agent.CreateOptions{
 			Name:     req.Name,
 			Role:     agent.Role(role),
 			Tool:     req.Tool,
 			Model:    req.Model,
-			Runtime:  req.Runtime,
+			Runtime:  runtimeBackend,
 			Parent:   req.Parent,
 			Repo:     req.Repo,
 			Env:      req.Env,

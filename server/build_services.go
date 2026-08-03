@@ -431,8 +431,27 @@ func newAgentManager(h *home.Home) (*agentpkg.Manager, *containerpkg.Backend, st
 		return mgr, nil, reason, nil
 	}
 	mgr := agentpkg.NewManagerWithRuntime(h.AgentsDir(), h.RootDir, be, "docker")
+	applyDefaultRuntime(mgr, runtimeDefault)
 	applyDefaultProvider(mgr, h)
 	return mgr, be, "", nil
+}
+
+// applyDefaultRuntime honors runtime.default, which a reachable docker daemon
+// otherwise overrode.
+//
+// Whether docker could be reached decided both which backends exist and which
+// one is the default, so starting Docker Desktop silently moved every new agent
+// into a container — and container creation then fails outright for any provider
+// without a prebuilt mycel-agent-<tool> image, which is most of them. Docker
+// being available is not a request to use it.
+func applyDefaultRuntime(mgr *agentpkg.Manager, configured string) {
+	if configured == "" || configured == mgr.DefaultBackend() {
+		return
+	}
+	if !mgr.SetDefaultBackend(configured) {
+		log.Warn("configured default runtime is not available — keeping current default",
+			"runtime.default", configured, "using", mgr.DefaultBackend())
+	}
 }
 
 // applyDefaultProvider points the manager at the provider configured as
