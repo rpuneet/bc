@@ -43,6 +43,10 @@ sqlite3 "$MYCEL_DB" "SELECT DISTINCT workspace FROM agents WHERE deleted_at IS N
 echo "== restarting daemon"
 "$BIN" up -d
 sleep 3
-curl -s -m 5 http://127.0.0.1:8080/api/health || true
+# Health-check the address the daemon just published rather than a guessed port.
+# This probed :8080 while `up -d` above listens on 9374 unless overridden, so it
+# reported nothing however well the restart had gone.
+ADDR=$(cat "$HOME/.mycel/run/daemon.addr" 2>/dev/null || echo http://127.0.0.1:9374)
+curl -s -m 5 "${ADDR%/}/api/health" || true
 echo
 echo "done. Restart agent sessions started from the old path."

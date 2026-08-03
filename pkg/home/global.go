@@ -194,9 +194,9 @@ func DaemonLogPath() (string, error) {
 
 // DaemonAddrPath returns the path to the daemon address file
 // (~/.mycel/run/daemon.addr). `mycel up` writes the currently-listening
-// address (scheme + host:port, e.g. "http://127.0.0.1:8080") so the CLI
-// and agents can locate the daemon without requiring MYCEL_DAEMON_ADDR
-// when the daemon runs on a non-default port.
+// address as scheme + host:port — "http://127.0.0.1:9374" for a default
+// listen, or whatever --addr overrode it with — so the CLI and agents can
+// locate the daemon without requiring MYCEL_DAEMON_ADDR.
 func DaemonAddrPath() (string, error) {
 	dir, err := RunDir()
 	if err != nil {

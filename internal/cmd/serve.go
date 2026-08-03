@@ -44,7 +44,7 @@ func RunServer(addr, repoRoot, corsOrigin, apiKey string) error {
 // PID file removed). Used by embedders that own the process lifecycle —
 // e.g. the desktop app, which cancels ctx when the window closes.
 func RunServerCtx(ctx context.Context, addr, repoRoot, corsOrigin, apiKey string) error {
-	// Normalize addr: ":8080" → "127.0.0.1:8080"
+	// Normalize addr: ":9374" → "127.0.0.1:9374"
 	addr = normalizeAddr(addr)
 
 	// Bootstrap-or-load the global mycel state. repoRoot may be empty —
