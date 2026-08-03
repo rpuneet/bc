@@ -237,6 +237,26 @@ See `CLAUDE.md` (or `.claude/CLAUDE.md`) for detailed architecture patterns and 
 
 5. **Review**: Address all review feedback. If your PR changes `internal/cmd/**`, `pkg/**` public API, or `server/**` without a matching update under `docs/**` or the relevant README, the docs-freshness CI check will leave an advisory comment — update the docs or explain why none are needed.
 
+### Changelog entries
+
+**Most PRs should not touch `CHANGELOG.md`.** Release notes are generated from
+commit history by GoReleaser, and because PRs are squash-merged, each PR already
+becomes one grouped line carrying its title and number. Restating every fix in
+the changelog produces a hand-written second copy of that list — and since every
+entry goes at the top of the same file, it is a reliable source of merge
+conflicts between PRs in flight.
+
+Add an entry only when a reader has to *do* something or would be surprised:
+
+- **Security fixes** — what was exposed and what now blocks it.
+- **Breaking changes** — mark the commit `type(scope)!:` as well.
+- **Behavior changes with an upgrade action** — a removed tool or flag, a renamed
+  path, a changed default, a keybinding that moved. State the action explicitly.
+
+Ordinary bug fixes, features, refactors and internal changes need no entry: your
+commit subject is the release note. Make the subject read as a statement to a
+user rather than a note to yourself.
+
 ## Architecture Overview
 
 Key concepts to understand before contributing:

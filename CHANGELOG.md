@@ -1,6 +1,11 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+This file records only what a reader has to act on or would be surprised by:
+security fixes, breaking changes, and behavior changes that carry an upgrade
+action. The full per-change list is generated from commit history at release
+time and published in the [GitHub release notes](https://github.com/rpuneet/mycel/releases)
+— ordinary fixes and features belong there, not here. See
+[CONTRIBUTING.md](CONTRIBUTING.md#changelog-entries).
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -17,45 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   origin, or from a non-browser client such as the CLI. Reads are unchanged
   (#3470).
 
-### Fixed
+### Changed
 
-- **A blank MCP command no longer takes the daemon down.** The tool health
-  check indexed the first field of a stored command without checking there was
-  one, so a whitespace-only entry panicked — on a background goroutine, where
-  no HTTP recovery middleware can help, and again on every 30-second tick
-  because the offending row was still there. The check now reports the tool as
-  misconfigured, and the health pass recovers rather than propagating (#3471).
-- **Agent-spawned children are no longer exempt from guardrails.** `spawn_agent`
-  over MCP had no `template` field, and the guardrail loop skips any agent
-  without one, so every child an agent spawned ran with no cost cap and no stuck
-  detection — the unattended case the guardrails exist for. It now accepts a
-  template and, when none is given, inherits the caller's, so omitting the field
-  cannot silently mean "unguarded" (#3472).
-- **Optional services are manageable again.** The dependency manager UI existed
-  but nothing imported it, so the whole `/api/deps` lifecycle — list, start,
-  stop, stream logs — had no entry point, and the Code tab's "Edit in VS Code"
-  button could never appear, because it only renders while
-  `mycel-code-server` is running. It now sits under Settings → Providers &
-  Tools → Optional Services. The code-server URL also derives its host from the
-  page instead of hardcoding `localhost`, which broke whenever the UI was opened
-  from another machine (#3473).
-- **The CLI no longer contacts WhatsApp on every command.** The WhatsApp adapter
-  negotiated its protocol version in package `init`, and the package is linked
-  into the CLI, so every invocation — `mycel --version` and `mycel --help`
-  included — made an HTTP request to WhatsApp's servers and printed a WhatsApp log
-  line before doing what was asked. The lookup now happens when the adapter
-  actually connects, once per process (#3455).
-- **Tool details report real paths and owners.** An expanded CLI tool row
-  showed "Path: git" — the configured command name under a Path label — and a
-  "Version cmd" box that was just the tool name plus `--version`, both styled
-  like inputs waiting to be filled in. The API now separates `path` (resolved,
-  absolute) from `command` (configured) and infers which package manager owns
-  each tool, following the symlink so a Homebrew binary is attributable. With
-  the owner known, the row names the update command that manager would use
-  instead of saying "copy the command above" with no command above it, and it
-  no longer offers to uninstall OS-provided binaries the backend refuses to
-  touch. The Setup card now appears only while setup is unfinished, rather
-  than permanently restating that the re-run icon exists (#3482).
+- **Optional services moved into the UI.** Starting and stopping
+  `mycel-code-server` and the other `/api/deps` services now lives under
+  Settings → Providers & Tools → Optional Services. The Code tab's "Edit in VS
+  Code" button only appears while code-server is running, so this is where you
+  turn it on (#3473).
 
 ## [0.4.4] - 2026-08-02
 
