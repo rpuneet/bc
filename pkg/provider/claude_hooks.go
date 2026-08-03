@@ -47,9 +47,9 @@ func WriteClaudeHookSettings(repoRoot string) error {
 		return fmt.Errorf("create .claude dir: %w", err)
 	}
 
-	// Hook commands use $MYCEL_DAEMON_ADDR env var (set per-agent based on runtime).
-	// Falls back to localhost for backward compat.
-	daemonAddr := "${MYCEL_DAEMON_ADDR:-http://127.0.0.1:9374}"
+	// Hook commands resolve the daemon per event — see DaemonAddrShell for why
+	// the published address is trusted over the inherited env var.
+	daemonAddr := DaemonAddrShell
 
 	// hookCmd reads the full raw JSON from Claude Code's stdin, merges in
 	// our event/state fields, and POSTs the complete payload to the daemon.

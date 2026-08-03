@@ -106,7 +106,7 @@ state="$2"
 [ "$state" = "` + cursorNoState + `" ] && state=""
 
 raw=$(cat)
-addr="${MYCEL_DAEMON_ADDR:-http://127.0.0.1:9374}"
+addr="` + DaemonAddrShell + `"
 
 payload=$(printf '%s' "$raw" | jq -c \
   --arg event "$event" --arg state "$state" \

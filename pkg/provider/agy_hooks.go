@@ -56,9 +56,9 @@ const agyHookTimeoutSecs = 5
 
 // agyHookCommand builds the shell command an agy hook runs. It merges mycel's
 // event/state fields into the payload agy pipes in on stdin, POSTs the result to
-// the daemon, and prints the JSON result agy expects on stdout. daemonAddr and
-// agentID are resolved at runtime from the MYCEL_DAEMON_ADDR / MYCEL_AGENT_ID
-// environment variables set on the agent session, matching the claude provider.
+// the daemon, and prints the JSON result agy expects on stdout. The agent ID is
+// resolved at runtime from MYCEL_AGENT_ID and the daemon address through
+// DaemonAddrShell, matching the claude provider.
 //
 // It previously discarded stdin (`cat >/dev/null`) and POSTed only the three
 // fields known at generation time. Everything agy reports about a turn — the
@@ -78,7 +78,7 @@ const agyHookTimeoutSecs = 5
 // was asked to do belongs. The task line is derived from the prompt on a turn
 // start; the lifecycle meaning those strings carried is already in state.
 func agyHookCommand(event, state, stdout string) string {
-	const daemonAddr = "${MYCEL_DAEMON_ADDR:-http://127.0.0.1:9374}"
+	const daemonAddr = DaemonAddrShell
 	fallback := fmt.Sprintf(`{\"event\":\"%s\",\"state\":\"%s\"}`, event, state)
 	return fmt.Sprintf(
 		`bash -c 'RAW=$(cat); PAYLOAD=$(echo "$RAW" | jq -c ". + {event:\"%s\",state:\"%s\"}" 2>/dev/null || echo "%s"); `+
