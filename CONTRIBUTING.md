@@ -371,8 +371,8 @@ report the same shape and anything that compares versions — the About page's
 | With uncommitted changes | `0.4.5-dev.12.g1a2b3c4.dirty` |
 | No tags reachable (CI clones at depth 1) | `dev` |
 
-Off a tag the *patch is incremented* and the distance recorded as a prerelease.
-Semver ranks a prerelease below the release it names, so a literal `git describe`
+Off a tag the *patch is incremented* and the distance recorded as a pre-release.
+Semver ranks a pre-release below the release it names, so a literal `git describe`
 string like `0.4.4-12-g1a2b3c4` would sort *below* 0.4.4 and make a build twelve
 commits newer look older. This matches how GoReleaser names snapshots.
 

@@ -248,10 +248,12 @@ jobs:
           LDFLAGS="-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           LDFLAGS="${LDFLAGS} -X github.com/rpuneet/mycel/pkg/gateway/gmail.defaultGoogleClientID=${GOOGLE_OAUTH_CLIENT_ID}"
           LDFLAGS="${LDFLAGS} -X github.com/rpuneet/mycel/pkg/gateway/gmail.defaultGoogleClientSecret=${GOOGLE_OAUTH_CLIENT_SECRET}"
-          # CFBundleShortVersionString must be a plain X.Y.Z, so a prerelease tag
+          # CFBundleShortVersionString must be a plain X.Y.Z, so a pre-release tag
           # (v0.5.0-rc1) contributes only its numeric core to bundle metadata.
           # The full version still reaches the app via -X main.version above.
-          VERSION_CORE=$(printf '%s' "${VERSION}" | cut -d- -f1)
+          # Reduced by the same script the Makefile uses, so a local desktop build
+          # and a released one cannot disagree about an edge case.
+          VERSION_CORE=$(sh ../scripts/version.sh --core "${VERSION}")
           sed -i.bak "s/\"productVersion\": \"[^\"]*\"/\"productVersion\": \"${VERSION_CORE}\"/" wails.json && rm -f wails.json.bak
           case "${{ matrix.os }}" in
             linux)

@@ -67,9 +67,9 @@ LDFLAGS_VERSION = -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.da
 
 # CFBundleShortVersionString has to be a plain X.Y.Z, so the macOS bundle gets
 # the numeric core while the precise build string still reaches the app through
-# -X main.version. Anything unparseable (VERSION=dev) becomes 0.0.0, which reads
-# as "unstamped" rather than as a plausible-looking release number.
-VERSION_CORE = $(shell printf '%s' '$(VERSION)' | awk -F- '{print $$1}' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$$' || echo 0.0.0)
+# -X main.version. The release workflow reduces its tag the same way, through the
+# same script, so the two cannot disagree about an edge case.
+VERSION_CORE = $(shell sh scripts/version.sh --core '$(VERSION)')
 
 # Official mycel builds embed the registered Google "Desktop app" OAuth
 # client so Gmail "Sign in with Google" works zero-setup. GOOGLE_OAUTH_CLIENT_ID

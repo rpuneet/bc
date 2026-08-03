@@ -203,6 +203,42 @@ func TestVersionOutsideGitIsDev(t *testing.T) {
 	}
 }
 
+// TestVersionCoreReducesToXYZ: --core exists because CFBundleShortVersionString
+// rejects anything but X.Y.Z. The Makefile and the release workflow both call it
+// rather than each reducing the version themselves, so this is the one place the
+// edge cases are decided.
+func TestVersionCoreReducesToXYZ(t *testing.T) {
+	tests := []struct {
+		in, want string
+	}{
+		{"0.4.4", "0.4.4"},
+		{"0.4.5-dev.12.g1a2b3c4", "0.4.5"},
+		{"0.4.5-dev.0.g1a2b3c4.dirty", "0.4.5"},
+		{"0.5.0-rc1", "0.5.0"},
+		// No numeric core to salvage: 0.0.0 reads as unstamped, where a
+		// plausible-looking number would have a developer chasing a release that
+		// does not exist.
+		{"dev", "0.0.0"},
+		{"", "0.0.0"},
+		{"garbage", "0.0.0"},
+	}
+
+	abs, err := filepath.Abs(versionScript)
+	if err != nil {
+		t.Fatalf("resolve script: %v", err)
+	}
+	for _, tt := range tests {
+		cmd := exec.CommandContext(t.Context(), "sh", abs, "--core", tt.in) //nolint:gosec // abs resolves the constant versionScript path
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("--core %q: %v\n%s", tt.in, err, out)
+		}
+		if got := strings.TrimSpace(string(out)); got != tt.want {
+			t.Errorf("--core %q = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
 // TestVersionIsAlwaysValidSemver: every shape the script can emit except the
 // "dev" sentinel has to parse as semver, because the About page distinguishes a
 // release from a source build by testing for exactly X.Y.Z and the npm and
