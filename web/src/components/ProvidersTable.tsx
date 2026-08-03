@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ProviderInfo } from "../api/client";
+import { canAutoInstall } from "../utils/providerActions";
 import { formatCost, formatTokens } from "../utils/format";
 import { PROVIDER_LABELS } from "../views/readiness/readiness";
 import { ProviderLogo } from "./ProviderLogo";
@@ -182,7 +183,7 @@ export function ProvidersTable({ providers, search }: Props) {
                 <td className="px-4 py-3 text-right tabular-nums">{formatCost(p.total_cost_usd)}</td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                    {!p.installed && p.install_hint && (
+                    {!p.installed && canAutoInstall(p.install_hint) && (
                       <button
                         type="button"
                         onClick={() => navigate(to)}
@@ -191,7 +192,7 @@ export function ProvidersTable({ providers, search }: Props) {
                         Install
                       </button>
                     )}
-                    {p.installed && p.install_hint && (
+                    {p.installed && canAutoInstall(p.install_hint) && (
                       <button
                         type="button"
                         onClick={() => navigate(to)}
