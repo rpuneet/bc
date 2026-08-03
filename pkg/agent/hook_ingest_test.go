@@ -347,3 +347,32 @@ func TestIngestHookEvent_PreInvocationPromptBecomesTask(t *testing.T) {
 		t.Errorf("task = %q, want the prompt text", got)
 	}
 }
+
+// A payload may name its state explicitly, so a turn-start event can arrive
+// carrying state=stopped. The stopped transition clears the task by design;
+// deriving the prompt afterwards would refill it and leave a dead agent
+// advertising work it will never do.
+func TestIngestHookEvent_StoppedTurnStartLeavesTaskCleared(t *testing.T) {
+	mgr := newTestManager(t)
+	mgr.agents["eng-1"] = &Agent{
+		Name: "eng-1", Role: Role("engineer"),
+		State: StateWorking, Task: "an earlier task",
+	}
+	svc := NewAgentService(mgr, nil, nil)
+
+	payload := HookPayload{
+		Event:  HookUserPromptSubmit,
+		State:  string(StateStopped),
+		Prompt: "this agent is going away",
+	}
+	if err := svc.IngestHookEvent(context.Background(), "eng-1", payload, nil); err != nil {
+		t.Fatalf("IngestHookEvent: %v", err)
+	}
+
+	if got := mgr.agents["eng-1"].State; got != StateStopped {
+		t.Fatalf("state = %q, want %q", got, StateStopped)
+	}
+	if got := mgr.agents["eng-1"].Task; got != "" {
+		t.Errorf("task = %q, want it cleared for a stopped agent", got)
+	}
+}

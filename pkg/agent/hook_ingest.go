@@ -98,10 +98,11 @@ func (s *AgentService) IngestHookEvent(ctx context.Context, name string, payload
 	// the agent has to remember to publish: it updates on every turn, for every
 	// provider that reports one, and it cannot go stale while the agent works.
 	//
-	// This runs after the state transition so a prompt on a stopped agent is
-	// dropped with the transition rather than labeling a dead agent with work
-	// it will never do.
-	if isTurnStart(payload.Event) && payload.Prompt != "" {
+	// A payload may name a state explicitly, so a turn-start event can arrive
+	// carrying state=stopped. That transition clears the task by design; writing
+	// the prompt afterwards would refill it and leave a dead agent advertising
+	// work it will never do, so nothing is derived when the agent just stopped.
+	if isTurnStart(payload.Event) && payload.Prompt != "" && targetState != StateStopped {
 		task := truncateRunes(payload.Prompt, maxDerivedTaskLen)
 		if err := s.manager.SetAgentTask(ctx, name, task); err != nil {
 			// Non-fatal: the event itself is still worth logging and
