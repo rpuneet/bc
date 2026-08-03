@@ -450,7 +450,7 @@ func TestAgyHookCommandForwardsStdin(t *testing.T) {
 	pathEnv, payloadFile := agyCurlRecorder(t)
 
 	cmd := exec.CommandContext(t.Context(), "bash", "-c", //nolint:gosec // running the generated command is the point of the test
-		agyHookCommand("PreInvocation", "working", "Thinking...", "{}"))
+		agyHookCommand("PreInvocation", "working", "{}"))
 	cmd.Env = append(os.Environ(),
 		"PATH="+pathEnv,
 		"MYCEL_AGENT_ID=agent-x",
@@ -499,7 +499,7 @@ func TestAgyHookCommandFallsBackWithoutJQ(t *testing.T) {
 	}
 
 	cmd := exec.CommandContext(t.Context(), "bash", "-c", //nolint:gosec // running the generated command is the point of the test
-		agyHookCommand("Stop", "idle", "Turn complete", "{}"))
+		agyHookCommand("Stop", "idle", "{}"))
 	cmd.Env = append(os.Environ(),
 		"PATH="+jqDir+string(os.PathListSeparator)+pathEnv,
 		"MYCEL_AGENT_ID=agent-x",
@@ -529,16 +529,16 @@ func TestAgyHookCommandFallsBackWithoutJQ(t *testing.T) {
 // Every generated agy command must be a runnable shell program. A quoting slip
 // would make each hook a silent no-op with nothing in the UI to explain it.
 func TestAgyHookCommandsAreValidBash(t *testing.T) {
-	for _, tc := range []struct{ event, state, task, stdout string }{
-		{"PreInvocation", "working", "Thinking...", "{}"},
-		{"PostInvocation", "", "Response received", "{}"},
-		{"Stop", "idle", "Turn complete", "{}"},
-		{"PreToolUse", "", "Running tool", `{"decision":"allow"}`},
-		{"PostToolUse", "", "Tool completed", "{}"},
+	for _, tc := range []struct{ event, state, stdout string }{
+		{"PreInvocation", "working", "{}"},
+		{"PostInvocation", "", "{}"},
+		{"Stop", "idle", "{}"},
+		{"PreToolUse", "", `{"decision":"allow"}`},
+		{"PostToolUse", "", "{}"},
 	} {
 		t.Run(tc.event, func(t *testing.T) {
 			cmd := exec.CommandContext(t.Context(), "bash", "-n", "-c", //nolint:gosec // syntax-checking the generated command is the point of the test
-				agyHookCommand(tc.event, tc.state, tc.task, tc.stdout))
+				agyHookCommand(tc.event, tc.state, tc.stdout))
 			if out, err := cmd.CombinedOutput(); err != nil {
 				t.Errorf("bash -n rejected the %s command: %v\n%s", tc.event, err, out)
 			}
