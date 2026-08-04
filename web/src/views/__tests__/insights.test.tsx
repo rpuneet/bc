@@ -136,7 +136,7 @@ describe("Insights", () => {
 
     // Spend sums the daily ledger inside the window (5.00 + 7.34).
     await waitFor(() => expect(screen.getByText("$12.34")).toBeInTheDocument());
-    expect(screen.getByText(/Spend · last 30d/i)).toBeInTheDocument();
+    expect(screen.getByText(/Estimated spend · last 30d/i)).toBeInTheDocument();
     expect(screen.getByText("Today")).toBeInTheDocument();
     // Today's ledger day (7.34) renders in the Today cell.
     expect(screen.getByText("$7.34")).toBeInTheDocument();

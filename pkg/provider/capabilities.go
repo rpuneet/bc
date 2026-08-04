@@ -67,7 +67,9 @@ type CostEntry struct {
 	OutputTokens     int64
 	CacheReadTokens  int64
 	CacheWriteTokens int64
-	// CostUSD is the provider-priced cost of this entry.
+	// CostUSD is the dollar figure for this entry. Every CostReader today
+	// computes it from a local model rate table × token counts (see
+	// cost.CostBasisPriced). It is not a provider invoice line.
 	CostUSD float64
 }
 

@@ -185,7 +185,7 @@ export function OverviewStrip({
           testId="overview-channels"
         />
         <Cell
-          label="Spend today"
+          label="Estimated spend today"
           value={spend ? formatCost(spend.today) : "—"}
           sub={spend && spend.avg7 > 0 ? `${formatCost(spend.avg7)}/day 7d avg` : undefined}
           to="/insights"

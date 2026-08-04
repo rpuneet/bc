@@ -20,7 +20,7 @@ import { ConfirmButton } from "../components/shared";
 import { ToastContainer, useToast } from "../components/Toast";
 import { ProviderLogo } from "../components/ProviderLogo";
 import { PROVIDER_LABELS } from "./readiness/readiness";
-import { formatCost, formatTokens } from "../utils/format";
+import { costBasisSub, costSpendLabel, formatCost, formatTokens } from "../utils/format";
 
 /* Shared section-heading treatment — a quiet, settled label instead of the
  * tiny shouty all-caps that used to repeat down the page. */
@@ -972,9 +972,17 @@ function MCPSection({
 }
 
 /* ── Stat Tile ── */
-function StatTile({ label, value, icon, accent }: { label: string; value: string; icon: React.ReactNode; accent?: boolean }) {
+function StatTile({
+  label, value, icon, accent, title,
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+  accent?: boolean;
+  title?: string;
+}) {
   return (
-    <div className="rounded border border-mycel-border bg-mycel-surface p-3">
+    <div className="rounded border border-mycel-border bg-mycel-surface p-3" title={title}>
       <div className="flex items-center gap-2 mb-1">
         <span className="text-mycel-muted">{icon}</span>
         <span className="text-[11px] text-mycel-muted uppercase tracking-wider">{label}</span>
@@ -986,15 +994,16 @@ function StatTile({ label, value, icon, accent }: { label: string; value: string
 
 /* ── StatBar (4 tiles) ── */
 function StatBar({ provider }: { provider: ProviderDetailResponse }) {
-  // Models that actually billed — not the provider's curated model list,
+  // Models that have cost history — not the provider's curated model list,
   // which the Models section counts. Two different numbers, so this tile
   // says "used" rather than contradicting that heading.
   const billedModels = provider.cost_by_model ?? [];
   return (
     <div className="grid grid-cols-2 gap-3">
       <StatTile
-        label="Cost"
+        label={costSpendLabel(provider.cost_basis, "cost")}
         value={formatCost(provider.total_cost_usd)}
+        title={costBasisSub(provider.cost_basis)}
         accent
         icon={
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1005,6 +1014,7 @@ function StatBar({ provider }: { provider: ProviderDetailResponse }) {
       <StatTile
         label="Tokens"
         value={formatTokens(provider.total_tokens)}
+        title="mycel agents · input+output (cache separate)"
         icon={
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />

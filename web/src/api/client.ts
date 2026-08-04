@@ -319,6 +319,12 @@ export interface CostSummary {
   total_tokens: number;
   total_cost_usd: number;
   record_count: number;
+  /**
+   * How total_cost_usd was produced. "priced" = local model rate tables
+   * (estimate, not an invoice). "billed" reserved for a future provider
+   * invoice reader.
+   */
+  cost_basis?: "priced" | "billed";
 }
 
 export interface AgentCostSummary {
@@ -553,6 +559,11 @@ export interface ProviderInfo {
   /** Curated model list for UI pickers; empty = no model selection. */
   models?: ModelInfo[];
   total_cost_usd: number;
+  /**
+   * How total_cost_usd was produced. "priced" = local model rate tables.
+   * See CostSummary.cost_basis.
+   */
+  cost_basis?: "priced" | "billed";
   total_tokens: number;
   agent_count: number;
   installed: boolean;
@@ -580,6 +591,8 @@ export interface ProviderDetailResponse {
   version: string;
   status: string;
   total_cost_usd: number;
+  /** See CostSummary.cost_basis. */
+  cost_basis?: "priced" | "billed";
   total_tokens: number;
   agent_count: number;
   installed: boolean;

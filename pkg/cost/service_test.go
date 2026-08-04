@@ -53,6 +53,17 @@ func sampleEntries() []provider.CostEntry {
 	}
 }
 
+func TestEmptySummaryDeclaresPricedBasis(t *testing.T) {
+	svc, _ := newStubService(nil, nil)
+	sum, err := svc.TotalSummary(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.CostBasis != CostBasisPriced {
+		t.Errorf("empty summary cost_basis = %q, want %q", sum.CostBasis, CostBasisPriced)
+	}
+}
+
 func TestTotalSummaryAggregates(t *testing.T) {
 	svc, _ := newStubService(sampleEntries(), nil)
 	sum, err := svc.TotalSummary(context.Background())
@@ -70,6 +81,9 @@ func TestTotalSummaryAggregates(t *testing.T) {
 	}
 	if math.Abs(sum.TotalCostUSD-7.5) > 1e-9 || sum.RecordCount != 4 {
 		t.Errorf("cost/count wrong: %+v", sum)
+	}
+	if sum.CostBasis != CostBasisPriced {
+		t.Errorf("cost_basis = %q, want %q", sum.CostBasis, CostBasisPriced)
 	}
 }
 

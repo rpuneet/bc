@@ -21,6 +21,8 @@ type CostSummary struct {
 	TotalTokens  int64   `json:"total_tokens"`
 	TotalCostUSD float64 `json:"total_cost_usd"`
 	RecordCount  int64   `json:"record_count"`
+	// CostBasis is how TotalCostUSD was produced ("priced" today).
+	CostBasis string `json:"cost_basis,omitempty"`
 }
 
 // CostBudget represents a cost budget configuration.

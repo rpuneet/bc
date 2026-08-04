@@ -5,7 +5,7 @@ import {
 import { api } from "../../api/client";
 import type { AgentCostSummary, DailyCost } from "../../api/client";
 import { usePolling } from "../../hooks/usePolling";
-import { formatCost } from "../../utils/format";
+import { formatCost, costSpendLabel } from "../../utils/format";
 import { ACCENT, AX, TICK, TT_STYLE, fmtShortDate, stripAgentPrefix } from "../insights/chrome";
 import { HomeModule, todayKey } from "./Module";
 
@@ -14,11 +14,12 @@ import { HomeModule, todayKey } from "./Module";
    Insights chart tokens and honest-chart rules (zero-filled days, no
    smoothing, today emphasized):
 
-     • Spend — last 7 days, daily bars (UTC ledger days).
+     • Estimated spend — last 7 days, daily bars (UTC ledger days).
      • Top agents — today's top-5 spenders as a proportional bar list.
 
-   Data refreshes on a 60s interval via the existing cost endpoints
-   (`/costs/daily`, `/costs/agents?since=<today>`).
+   Dollars are model-table priced (not provider billing). Data refreshes
+   on a 60s interval via the existing cost endpoints (`/costs/daily`,
+   `/costs/agents?since=<today>`).
 ─────────────────────────────────────────────────────────────────── */
 
 const DAY_MS = 86_400_000;
@@ -70,11 +71,11 @@ export function CostCharts() {
   return (
     <>
       <HomeModule
-        label="Spend · 7 days"
+        label={`${costSpendLabel()} · 7 days`}
         to="/insights"
         toLabel="insights"
         testId="home-cost-daily"
-        trailing={<span className="text-[10px] text-mycel-muted tabular-nums">daily · UTC</span>}
+        trailing={<span className="text-[10px] text-mycel-muted tabular-nums">daily · UTC · estimated</span>}
       >
         {data === null ? (
           <div className="py-4 text-center text-[11px] text-mycel-muted">Loading…</div>
@@ -102,7 +103,7 @@ export function CostCharts() {
                 contentStyle={TT_STYLE}
                 cursor={{ fill: "var(--mycel-surface-hover)", fillOpacity: 0.5 }}
                 labelFormatter={(v) => fmtShortDate(String(v))}
-                formatter={(v) => [formatCost(Number(v ?? 0)), "Spend"]}
+                formatter={(v) => [formatCost(Number(v ?? 0)), costSpendLabel()]}
               />
               <Bar dataKey="cost" radius={[2, 2, 0, 0]} isAnimationActive={false}>
                 {series.map((d) => (

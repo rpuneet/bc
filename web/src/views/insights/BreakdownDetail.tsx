@@ -20,7 +20,7 @@ import type {
   AgentCostDetail, AgentCostSummary, ModelCostSummary,
 } from "../../api/client";
 import { fmtTokens } from "../../components/shared/stats-primitives";
-import { formatCost } from "../../utils/format";
+import { formatCost, costSpendLabel } from "../../utils/format";
 import { ACCENT, TICK, AX, TT_STYLE, fmtShortDate } from "./chrome";
 import { TokenCompositionStrip } from "./TokenPanel";
 
@@ -181,7 +181,7 @@ export function AgentDetail({
   return (
     <Shell>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <DetailStat label="Spend" value={formatCost(summary?.total_cost_usd ?? 0)} sub="this period" />
+        <DetailStat label={costSpendLabel()} value={formatCost(summary?.total_cost_usd ?? 0)} sub="this period · estimated" />
         <DetailStat
           label="Tokens"
           value={fmtTokens(summary?.total_tokens ?? 0)}
@@ -200,7 +200,7 @@ export function AgentDetail({
       </div>
 
       <div>
-        <SectionLabel trailing={windowLabel}>Spend over time</SectionLabel>
+        <SectionLabel trailing={windowLabel}>Estimated spend over time</SectionLabel>
         {failed ? (
           <div className="py-6 text-center text-sm text-mycel-muted">Could not load the agent ledger</div>
         ) : detail === null ? (
@@ -249,7 +249,7 @@ export function ModelDetail({ model }: { model: ModelCostSummary | undefined }) 
   return (
     <Shell>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <DetailStat label="Spend" value={formatCost(model.total_cost_usd)} sub="this period" />
+        <DetailStat label={costSpendLabel()} value={formatCost(model.total_cost_usd)} sub="this period · estimated" />
         <DetailStat
           label="Tokens"
           value={fmtTokens(model.total_tokens)}

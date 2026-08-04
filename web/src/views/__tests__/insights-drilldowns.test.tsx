@@ -293,7 +293,7 @@ describe("breakdown drill-down", () => {
       ),
     );
     // Period-scoped stats from the breakdown fetch + the link row.
-    await waitFor(() => expect(screen.getByText("Spend over time")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Estimated spend over time")).toBeInTheDocument());
     expect(screen.getByRole("link", { name: /Open agent/ })).toHaveAttribute(
       "href",
       "/agents/bot-1",
@@ -319,7 +319,7 @@ describe("breakdown drill-down", () => {
   it("restores an expanded breakdown row from the URL hash", async () => {
     setHash("#row=agent%3Amycel-ab12cd-bot-1");
     renderInsights();
-    await waitFor(() => expect(screen.getByText("Spend over time")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Estimated spend over time")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Collapse bot-1" })).toBeInTheDocument();
   });
 });
