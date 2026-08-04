@@ -486,7 +486,7 @@ func TestIngestHookEvent_StopPersistsCursorUsage(t *testing.T) {
 	}
 
 	path := filepath.Join(mgr.agentsRoot(), "cursor-agent", "session", "cursor", "usage.jsonl")
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) //nolint:gosec // test path under the temp agents root
 	if err != nil {
 		t.Fatalf("usage file missing: %v", err)
 	}
