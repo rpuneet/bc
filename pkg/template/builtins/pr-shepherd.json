@@ -1,9 +1,0 @@
-{
-  "description": "Keep a pull request merge-ready until it lands",
-  "max_cost_usd": 10,
-  "mcps": [
-    "mycel",
-    "github"
-  ],
-  "stuck_timeout_min": 25
-}

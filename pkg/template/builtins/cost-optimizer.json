@@ -1,8 +1,0 @@
-{
-  "description": "Cut spend without quietly cutting reliability",
-  "max_cost_usd": 15,
-  "mcps": [
-    "mycel"
-  ],
-  "stuck_timeout_min": 30
-}

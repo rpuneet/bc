@@ -825,7 +825,7 @@ function SettingsTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) 
           setTemplates(names);
           if (names.length > 0) {
             const nonBlank = names.filter((t) => t !== "blank");
-            setSelectedTemplate(nonBlank[0] ?? names[0] ?? "feature-dev");
+            setSelectedTemplate(nonBlank[0] ?? names[0] ?? "blank");
           }
         }
       })

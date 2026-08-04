@@ -80,7 +80,7 @@ interface RepoCandidate {
 type Provider = "claude" | "agy" | "cursor" | "codex" | "pi";
 type Runtime = "docker" | "tmux";
 
-const DEFAULT_TEMPLATES = ["feature-dev", "reviewer", "manager", "blank"];
+const DEFAULT_TEMPLATES = ["blank"];
 const VALID_PROVIDERS = new Set<string>(["claude", "agy", "cursor", "codex", "pi"]);
 const VALID_RUNTIMES = new Set<string>(["docker", "tmux"]);
 
@@ -98,7 +98,7 @@ export function CreateAgentModal({
   defaultCloneFrom = "",
 }: CreateAgentModalProps) {
   const [name, setName] = useState(() => generateName(existingNames));
-  const [template, setTemplate] = useState("feature-dev");
+  const [template, setTemplate] = useState("blank");
   const [templates, setTemplates] = useState<string[]>(DEFAULT_TEMPLATES);
   const [provider, setProvider] = useState<Provider>("claude");
   // Model for the selected provider. "" = provider default (no flag).
@@ -206,7 +206,7 @@ export function CreateAgentModal({
     if (open && !prevOpenRef.current) {
       const newName = generateName(existingNames);
       setName(newName);
-      setTemplate("feature-dev");
+      setTemplate("blank");
       setProvider("claude");
       setModel("");
       setRuntime("docker");

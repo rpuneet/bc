@@ -1,7 +1,0 @@
-{
-  "description": "Collect data politely and reliably",
-  "mcps": [
-    "mycel"
-  ],
-  "stuck_timeout_min": 30
-}

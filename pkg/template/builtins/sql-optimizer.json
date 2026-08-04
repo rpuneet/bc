@@ -1,7 +1,0 @@
-{
-  "description": "Make slow queries fast, with the plan to prove it",
-  "mcps": [
-    "mycel"
-  ],
-  "stuck_timeout_min": 30
-}

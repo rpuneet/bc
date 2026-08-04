@@ -254,10 +254,48 @@ func EnsureBuiltins(dir string) ([]string, error) {
 }
 
 // WithdrawnBuiltins returns names that used to ship and must not return.
-// Empty until a release actually drops templates (#3552); the hook exists so
-// EnsureBuiltins can express removal without a silent embed delete.
+// The 35 task-prompt templates from v0.4.5 are withdrawn in #3552; only
+// blank remains embedded as a thin single-agent starting point. Names stay
+// listed here so EnsureBuiltins can remove unedited copies from existing
+// workspaces after the embed files are gone.
 func WithdrawnBuiltins() []string {
-	return nil
+	return []string{
+		"accessibility-audit",
+		"api-designer",
+		"backend-service",
+		"bug-fix",
+		"changelog",
+		"ci-fixer",
+		"containerize",
+		"cost-optimizer",
+		"data-pipeline",
+		"db-migration",
+		"dependency-upgrade",
+		"devops-infra",
+		"docs-writer",
+		"feature-dev",
+		"frontend-ui",
+		"i18n",
+		"integration-builder",
+		"issue-triage",
+		"legacy-archaeologist",
+		"manager",
+		"ml-experiment",
+		"observability",
+		"oncall-responder",
+		"perf-optimizer",
+		"pr-shepherd",
+		"refactor",
+		"release-manager",
+		"researcher",
+		"reviewer",
+		"scraper",
+		"security-audit",
+		"spec-writer",
+		"sql-optimizer",
+		"test-writer",
+		"type-tightener",
+	}
 }
 
 func installShippedBuiltin(dir, name, shipHash string, state *builtinState) error {

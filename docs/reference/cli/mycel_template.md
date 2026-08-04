@@ -10,7 +10,7 @@ Templates are stored in ~/.mycel/templates/ (user-global).
 
 Examples:
   mycel template list                    # List all templates
-  mycel template show feature-dev        # Show template details
+  mycel template show blank        # Show template details
   mycel template create my-template      # Scaffold a new template
   mycel template import ./my-tmpl.json   # Import a template from a file
   mycel template delete my-template      # Delete a template

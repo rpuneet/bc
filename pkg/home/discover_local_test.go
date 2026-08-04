@@ -93,6 +93,31 @@ func TestScanLocalBadRoot(t *testing.T) {
 	}
 }
 
+func TestScanLocalSkipsTCCProtectedHomeFolders(t *testing.T) {
+	root := t.TempDir()
+	mkRepo(t, filepath.Join(root, "Music", "album-repo"))
+	mkRepo(t, filepath.Join(root, "Pictures", "photo-repo"))
+	mkRepo(t, filepath.Join(root, "Downloads", "dl-repo"))
+	mkRepo(t, filepath.Join(root, "Projects", "real"))
+
+	out, err := ScanLocal(context.Background(), ScanOptions{Root: root, Depth: 3})
+	if err != nil {
+		t.Fatalf("ScanLocal: %v", err)
+	}
+	names := map[string]bool{}
+	for _, c := range out {
+		names[c.Name] = true
+	}
+	if !names["real"] {
+		t.Error("expected Projects/real")
+	}
+	for _, bad := range []string{"album-repo", "photo-repo", "dl-repo"} {
+		if names[bad] {
+			t.Errorf("TCC-protected folder leaked candidate %q", bad)
+		}
+	}
+}
+
 func TestGithubURLFromRemote(t *testing.T) {
 	cases := []struct {
 		in, want string

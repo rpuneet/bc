@@ -12,6 +12,9 @@ type Template struct {
 	ToolPolicies     *ToolPolicies `json:"tool_policies,omitempty"`
 	Name             string        `json:"name"`
 	Description      string        `json:"description,omitempty"`
+	// Label distinguishes a single-agent template from a multi-agent system
+	// (#3552). Values: "single-agent", "multi-agent". Empty means unlabeled.
+	Label            string        `json:"label,omitempty"`
 	SystemPromptFile string        `json:"system_prompt_file,omitempty"`
 	Scope            Scope         `json:"scope,omitempty"`
 	MCPs             []string      `json:"mcps,omitempty"`

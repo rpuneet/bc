@@ -1,7 +1,0 @@
-{
-  "description": "Design an HTTP interface before it is built",
-  "mcps": [
-    "mycel"
-  ],
-  "stuck_timeout_min": 30
-}

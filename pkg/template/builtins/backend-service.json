@@ -1,7 +1,0 @@
-{
-  "description": "Build a service that fails in ways you chose",
-  "mcps": [
-    "mycel"
-  ],
-  "stuck_timeout_min": 40
-}

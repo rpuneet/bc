@@ -1,7 +1,0 @@
-{
-  "description": "Wire a third-party API in so it fails politely",
-  "mcps": [
-    "mycel"
-  ],
-  "stuck_timeout_min": 35
-}

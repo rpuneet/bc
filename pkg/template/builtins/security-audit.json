@@ -1,8 +1,0 @@
-{
-  "description": "Find defects an attacker could actually use",
-  "mcps": [
-    "mycel",
-    "github"
-  ],
-  "stuck_timeout_min": 35
-}

@@ -1,5 +1,6 @@
 {
-  "description": "Empty starting point",
+  "description": "Empty starting point — write the prompt yourself",
+  "label": "single-agent",
   "mcps": [
     "mycel"
   ],

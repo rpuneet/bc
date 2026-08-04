@@ -44,6 +44,15 @@ var skipDirs = map[string]struct{}{
 	".venv":        {},
 	"venv":         {},
 	"Library":      {}, // macOS
+	// TCC-protected home folders on macOS. Probing them (even for .git)
+	// pops Music / Photos / Documents / Downloads permission dialogs.
+	"Music":        {},
+	"Pictures":     {},
+	"Movies":       {},
+	"Desktop":      {},
+	"Documents":    {},
+	"Downloads":    {},
+	"Public":       {},
 	".Trash":       {},
 	"Caches":       {},
 	".cache":       {},

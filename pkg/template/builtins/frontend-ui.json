@@ -1,7 +1,0 @@
-{
-  "description": "Build interface work that holds up on real devices",
-  "mcps": [
-    "mycel"
-  ],
-  "stuck_timeout_min": 35
-}

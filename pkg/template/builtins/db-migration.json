@@ -1,7 +1,0 @@
-{
-  "description": "Write a schema migration you could reverse at 3am",
-  "mcps": [
-    "mycel"
-  ],
-  "stuck_timeout_min": 30
-}
