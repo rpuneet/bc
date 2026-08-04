@@ -168,6 +168,9 @@ func TestMarketplaceHandler_Install_DispatchesToAgents(t *testing.T) {
 	if resp.Dispatched != 2 {
 		t.Errorf("want dispatched=2, got %d", resp.Dispatched)
 	}
+	if resp.Status != "dispatched" {
+		t.Errorf("want status=dispatched, got %q", resp.Status)
+	}
 	if len(sender.calls) != 2 {
 		t.Fatalf("want 2 Send calls, got %d", len(sender.calls))
 	}
@@ -499,6 +502,9 @@ func TestMarketplaceHandler_Install_TemplateWritesToStoreDirectly(t *testing.T) 
 	}
 	if resp.Dispatched != 1 {
 		t.Errorf("want dispatched=1, got %d", resp.Dispatched)
+	}
+	if resp.Status != "installed" {
+		t.Errorf("want status=installed for local template, got %q", resp.Status)
 	}
 
 	got, prompt, err := store.Get("engineer")
