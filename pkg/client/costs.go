@@ -16,13 +16,12 @@ type CostSummary struct {
 	AgentID      string  `json:"agent_id,omitempty"`
 	TeamID       string  `json:"team_id,omitempty"`
 	Model        string  `json:"model,omitempty"`
+	CostBasis    string  `json:"cost_basis,omitempty"` // how TotalCostUSD was produced ("priced" today)
 	InputTokens  int64   `json:"input_tokens"`
 	OutputTokens int64   `json:"output_tokens"`
 	TotalTokens  int64   `json:"total_tokens"`
 	TotalCostUSD float64 `json:"total_cost_usd"`
 	RecordCount  int64   `json:"record_count"`
-	// CostBasis is how TotalCostUSD was produced ("priced" today).
-	CostBasis string `json:"cost_basis,omitempty"`
 }
 
 // CostBudget represents a cost budget configuration.

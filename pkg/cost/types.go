@@ -94,10 +94,15 @@ const (
 // via CacheReadTokens / CacheWriteTokens — they are priced at a fraction of
 // input tokens and lumping them into the total makes it meaningless (cache
 // reads dominate by 1000x in agentic workloads).
+//
+// CostBasis is how TotalCostUSD was produced. Always CostBasisPriced until
+// a billed reader exists; UIs must label priced dollars as estimates
+// rather than invoices.
 type Summary struct {
 	AgentID          string  `json:"agent_id,omitempty"`
 	TeamID           string  `json:"team_id,omitempty"`
 	Model            string  `json:"model,omitempty"`
+	CostBasis        string  `json:"cost_basis"`
 	InputTokens      int64   `json:"input_tokens"`
 	OutputTokens     int64   `json:"output_tokens"`
 	CacheReadTokens  int64   `json:"cache_read_tokens"`
@@ -105,10 +110,6 @@ type Summary struct {
 	TotalTokens      int64   `json:"total_tokens"`
 	TotalCostUSD     float64 `json:"total_cost_usd"`
 	RecordCount      int64   `json:"record_count"`
-	// CostBasis is how TotalCostUSD was produced. Always CostBasisPriced
-	// until a billed reader exists; UIs must label priced dollars as
-	// estimates rather than invoices.
-	CostBasis string `json:"cost_basis"`
 }
 
 // DailyCost represents aggregated cost data for a single day.
