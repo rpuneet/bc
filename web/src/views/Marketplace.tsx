@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -11,6 +12,11 @@ import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { ExternalLink } from "../components/ExternalLink";
 import { useHeaderSlot } from "../context/HeaderSlotContext";
+
+// How many cards to mount at once. The full catalog is ~1.5k items; mounting
+// all of them costs ~19k DOM nodes and ~60ms/keystroke (#3453). Page in
+// chunks so search stays snappy without a virtualization library.
+const PAGE_SIZE = 48;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -504,11 +510,15 @@ function ItemCard({ item }: { item: MarketplaceItem }) {
 export function Marketplace() {
   const [typeFilter, setTypeFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
+  // Search is client-side over the (type/source-filtered) catalog so typing
+  // does not re-fetch or re-mount the full list on every keystroke (#3453).
   const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const fetcher = useCallback(
-    () => fetchMarketplace(typeFilter, sourceFilter, query),
-    [typeFilter, sourceFilter, query],
+    () => fetchMarketplace(typeFilter, sourceFilter, ""),
+    [typeFilter, sourceFilter],
   );
 
   const {
@@ -518,6 +528,26 @@ export function Marketplace() {
   } = usePolling<MarketplaceItem[]>(
     fetcher,
     60_000, // refresh every minute; catalog is cached server-side for 1h
+  );
+
+  const filtered = useMemo(() => {
+    if (!items) return null;
+    const q = deferredQuery.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((item) => {
+      const hay = `${item.name} ${item.description ?? ""} ${item.id}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [items, deferredQuery]);
+
+  // Reset the page window whenever the visible set's identity changes.
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [typeFilter, sourceFilter, deferredQuery]);
+
+  const visible = useMemo(
+    () => (filtered ? filtered.slice(0, visibleCount) : null),
+    [filtered, visibleCount],
   );
 
   const totalSources = useMemo(() => {
@@ -537,6 +567,8 @@ export function Marketplace() {
 
   const inputCls =
     "px-2 py-1.5 text-sm rounded-md border border-mycel-border bg-mycel-bg text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent";
+
+  const filtering = Boolean(typeFilter || sourceFilter || query);
 
   return (
     <div className="flex flex-col gap-4 p-4 max-w-4xl mx-auto w-full">
@@ -572,30 +604,42 @@ export function Marketplace() {
         </div>
       )}
 
-      {!loading && items && items.length === 0 && (
+      {!loading && filtered && filtered.length === 0 && (
         <EmptyState
           title="No items found"
           description={
-            query || typeFilter || sourceFilter
+            filtering
               ? "Try clearing your filters."
               : "The catalog is empty or all sources are unavailable."
           }
         />
       )}
 
-      {items && items.length > 0 && (
+      {visible && visible.length > 0 && filtered && (
         <>
           <p className="text-xs text-mycel-muted px-0.5">
-            {items.length} item{items.length !== 1 ? "s" : ""}
-            {typeFilter || sourceFilter || query ? " (filtered)" : ""}
+            {filtered.length} item{filtered.length !== 1 ? "s" : ""}
+            {filtering ? " (filtered)" : ""}
+            {visible.length < filtered.length
+              ? ` · showing ${visible.length}`
+              : ""}
           </p>
           <AnimatePresence mode="popLayout">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {items.map((item) => (
+              {visible.map((item) => (
                 <ItemCard key={item.id} item={item} />
               ))}
             </div>
           </AnimatePresence>
+          {visible.length < filtered.length && (
+            <button
+              type="button"
+              onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+              className="self-center px-3 py-1.5 text-xs rounded-md border border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-accent transition-colors"
+            >
+              Show more ({filtered.length - visible.length} remaining)
+            </button>
+          )}
         </>
       )}
     </div>
