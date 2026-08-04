@@ -144,10 +144,13 @@ build-local-mycel: build-local-web ## Build mycel (embeds web UI, server)
 # About This Mac while the binary inside reports the true version. The release
 # workflow does the same substitution.
 build-local-desktop: build-local-web ## Build desktop app for the host OS (requires wails CLI)
+	# Refuse the silent Wails "W" fallback when appicon.png is missing (#3605).
+	sh scripts/check-desktop-icon.sh
 	cd desktop && cp wails.json wails.json.orig && \
 		trap 'mv -f wails.json.orig wails.json' EXIT INT TERM && \
 		sed -i.bak 's/"productVersion": "[^"]*"/"productVersion": "$(VERSION_CORE)"/' wails.json && rm -f wails.json.bak && \
 		wails build -ldflags "$(LDFLAGS_VERSION) $(LDFLAGS_GMAIL)"
+	sh scripts/check-desktop-icon.sh --packaged
 
 
 # =============================================================================

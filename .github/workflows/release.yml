@@ -229,6 +229,10 @@ jobs:
         shell: bash
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
 
+      - name: Guard desktop app icon
+        # Wails substitutes its default "W" when appicon.png is missing (#3605).
+        run: sh scripts/check-desktop-icon.sh
+
       - name: Build desktop app
         shell: bash
         working-directory: desktop
@@ -263,6 +267,10 @@ jobs:
               # darwin/amd64 cross-builds on Apple Silicon runners; others are native
               wails build -platform "$PLATFORM" -ldflags "$LDFLAGS" ;;
           esac
+
+      - name: Verify packaged darwin icon
+        if: matrix.os == 'darwin'
+        run: sh scripts/check-desktop-icon.sh --packaged
 
       # ── macOS code-signing + notarization (gated on secrets) ───────────
       # An unsigned .app is refused by Gatekeeper on every machine but the one
