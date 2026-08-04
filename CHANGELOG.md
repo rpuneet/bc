@@ -12,6 +12,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-08-05
+
+Blueprints that create agents, not prompts that describe them. Templates compose,
+declare credentials, and provision degraded-but-honest agents when secrets are
+missing. Session names, reconciler, and the desktop app stop lying about which
+workspace is live. macOS desktop downloads remain **UNSIGNED** until a Developer
+ID certificate is available (#3561); Windows remains unsigned (#3577).
+
+### Security
+
+- **Marketplace install no longer fetches a URL from the request body.** That path
+  let any page open in the browser aim the daemon at loopback or cloud metadata.
+  Installs resolve local templates only; remote imports go through
+  `mycel template import` with a URL a person typed (#3428).
+
+### Removed
+
+- **The `openclaw` provider and ClawHub skills source are gone.** *Action required
+  if any agent still has `tool: openclaw` — create fails with that tool named
+  instead of falling through to another provider.* ClawHub marketplace rows that
+  installed via `openclaw skills install` are removed with it (#3585, #3587).
+- **The 36 task-prompt built-in templates are withdrawn.** *On upgrade,
+  `EnsureBuiltins` removes shipped versions you have not edited and installs the
+  starter persona set instead.* Edited copies are kept. See
+  [Use agent templates](docs/how-to/use-templates.md) (#3552, #3599, #3607).
+
+### Changed
+
+- **tmux sessions are `mycel-<agent>`, not `mycel-<hash>-<agent>`.** Legacy sessions
+  are renamed on daemon startup so running agents are adopted rather than
+  orphaned (#3583, #3584).
+- **A MycelHome-only daemon is valid.** No default repo is a soft banner on Create
+  Agent, not an empty-state gate that pretends the daemon is broken (#3569,
+  #3609, #3613).
+- **Cost dollars from model tables are labeled estimated**, not billed — Cursor
+  Insights now has tokens, not silent wrong invoices (#3594, #3596).
+
+### Fixed
+
+- **Role-cache concurrent map fatal** that killed the daemon under concurrent
+  requests (#3565, #3566).
+- **Template prompts and MCPs** reach the provider that will run them, and survive
+  restart (#3567, #3568).
+- **Desktop app** adopts the workspace the last daemon published (#3569, #3579).
+- **Stopped-but-alive sessions** resume to idle instead of staying dead in the UI
+  (#3570, #3588, #3591, #3592).
+
 ## [0.4.5] - 2026-08-04
 
 Telling the truth. Every surface in 0.4.4 that reported something it had not
