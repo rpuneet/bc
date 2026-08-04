@@ -150,9 +150,11 @@ export function CreateAgentModal({
             .filter((n): n is string => n !== null);
           if (names.length > 0) {
             setTemplates(names);
-            setTemplate((prev) =>
-              names.includes(prev) ? prev : names.includes("blank") ? "blank" : names[0],
-            );
+            setTemplate((prev) => {
+              if (names.includes(prev)) return prev;
+              if (names.includes("blank")) return "blank";
+              return names[0]!;
+            });
           }
         }
       })
@@ -211,9 +213,11 @@ export function CreateAgentModal({
     if (open && !prevOpenRef.current) {
       const newName = generateName(existingNames);
       setName(newName);
-      setTemplate((prev) =>
-        templates.includes(prev) ? prev : templates.includes("blank") ? "blank" : (templates[0] ?? ""),
-      );
+      setTemplate((prev) => {
+        if (templates.includes(prev)) return prev;
+        if (templates.includes("blank")) return "blank";
+        return templates[0] ?? "";
+      });
       setProvider("claude");
       setModel("");
       setRuntime("docker");
