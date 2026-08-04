@@ -33,9 +33,11 @@ type templateRequest struct { //nolint:govet // field order matches JSON/API con
 	Secrets          []string               `json:"secrets,omitempty"`
 	Plugins          []string               `json:"plugins,omitempty"`
 	ContextFiles     []string               `json:"context_files,omitempty"`
+	Composes         []string               `json:"composes,omitempty"`
 	Name             string                 `json:"name"`
 	Description      string                 `json:"description,omitempty"`
 	Label            string                 `json:"label,omitempty"`
+	Provider         string                 `json:"provider,omitempty"`
 	SystemPrompt     *string                `json:"system_prompt,omitempty"`
 	SystemPromptFile string                 `json:"system_prompt_file,omitempty"`
 	MaxCostUSD       float64                `json:"max_cost_usd,omitempty"`
@@ -47,6 +49,8 @@ func (req *templateRequest) toTemplate() template.Template {
 		Name:             req.Name,
 		Description:      req.Description,
 		Label:            req.Label,
+		Provider:         req.Provider,
+		Composes:         req.Composes,
 		SystemPromptFile: req.SystemPromptFile,
 		MCPs:             req.MCPs,
 		Secrets:          req.Secrets,
@@ -88,6 +92,10 @@ func (h *TemplateHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 
 		t := req.toTemplate()
+		if err := t.Validate(); err != nil {
+			httpError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		prompt := ""
 		if req.SystemPrompt != nil {
 			prompt = *req.SystemPrompt
@@ -114,11 +122,41 @@ func (h *TemplateHandler) list(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// byName handles GET/PUT/DELETE /api/templates/{name}.
+// byName handles GET/PUT/DELETE /api/templates/{name} and
+// GET /api/templates/{name}/expand (blueprint composition preview, #3558).
 func (h *TemplateHandler) byName(w http.ResponseWriter, r *http.Request) {
 	store := h.store
-	name := strings.TrimPrefix(r.URL.Path, "/api/templates/")
-	if name == "" {
+	path := strings.TrimPrefix(r.URL.Path, "/api/templates/")
+	if path == "" {
+		httpError(w, "template name required", http.StatusBadRequest)
+		return
+	}
+
+	// /api/templates/{name}/expand
+	if name, ok := strings.CutSuffix(path, "/expand"); ok {
+		if r.Method != http.MethodGet {
+			methodNotAllowed(w)
+			return
+		}
+		if name == "" || strings.Contains(name, "/") {
+			httpError(w, "template name required", http.StatusBadRequest)
+			return
+		}
+		result, err := template.Expand(store, name)
+		if err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				httpError(w, err.Error(), http.StatusNotFound)
+				return
+			}
+			httpError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+		return
+	}
+
+	name := path
+	if strings.Contains(name, "/") {
 		httpError(w, "template name required", http.StatusBadRequest)
 		return
 	}
@@ -157,6 +195,10 @@ func (h *TemplateHandler) byName(w http.ResponseWriter, r *http.Request) {
 		}
 
 		t := req.toTemplate()
+		if err := t.Validate(); err != nil {
+			httpError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		if err := store.Update(name, t, prompt); err != nil {
 			if strings.Contains(err.Error(), "not found") {
 				httpError(w, err.Error(), http.StatusNotFound)
