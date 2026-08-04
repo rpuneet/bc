@@ -217,7 +217,7 @@ type agentDTO struct { //nolint:govet // field order matches JSON/API contract
 // createResponse is returned by POST /api/agents. For a single-agent create it
 // looks like agentDTO (Agents omitted). For a multi-agent blueprint it also
 // lists every leaf under Agents and the Team name (#3558 provision).
-type createResponse struct {
+type createResponse struct { //nolint:govet // embeds agentDTO JSON contract; alignment secondary
 	agentDTO
 	Agents  []agentDTO `json:"agents,omitempty"`
 	Missing []string   `json:"missing,omitempty"`
@@ -477,7 +477,7 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 
 			team := req.Name
 			if !multi {
-				team = "" // preserve prior single-agent behaviour (no team)
+				team = "" // preserve prior single-agent behavior (no team)
 			}
 			tmplName := leaf
 			if tmplName == "" {

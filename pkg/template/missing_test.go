@@ -15,12 +15,12 @@ func TestFilterMissing(t *testing.T) {
 		t.Fatalf("got %v, want [NEED]", got)
 	}
 
-	if got := FilterMissing(nil, vault); got != nil {
-		t.Fatalf("empty declared: got %v", got)
+	if empty := FilterMissing(nil, vault); empty != nil {
+		t.Fatalf("empty declared: got %v", empty)
 	}
 
-	got = FilterMissing([]string{"A", "B"}, nil)
-	if len(got) != 2 || got[0] != "A" || got[1] != "B" {
-		t.Fatalf("nil vault: got %v, want [A B]", got)
+	allMissing := FilterMissing([]string{"A", "B"}, nil)
+	if len(allMissing) != 2 || allMissing[0] != "A" || allMissing[1] != "B" {
+		t.Fatalf("nil vault: got %v, want [A B]", allMissing)
 	}
 }
