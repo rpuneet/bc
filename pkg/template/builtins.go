@@ -18,11 +18,10 @@ import (
 // the same layout the store writes, so adding one is adding two files and
 // reviewing one is reading the prompt a user would read.
 //
-// The metadata only sets fields that something actually honors: description,
-// mcps, and the two guardrails enforced in server/guardrails.go. Secrets,
-// plugins, tool policies and context files are accepted by the API and not yet
-// applied to agents, so a built-in that set them would be making the same
-// promise the template editor was removed for (#3550).
+// Metadata that ships must be fields the daemon honors: description, label,
+// provider, composes, mcps, secrets, plugins, and guardrails (#3550 / #3558).
+// Tool policies, context files, and system_prompt_file stay off built-ins
+// until something actually reads them (#3575).
 //
 //go:embed builtins/*.json builtins/*.md
 var builtinFS embed.FS
@@ -254,10 +253,10 @@ func EnsureBuiltins(dir string) ([]string, error) {
 }
 
 // WithdrawnBuiltins returns names that used to ship and must not return.
-// The 35 task-prompt templates from v0.4.5 are withdrawn in #3552; only
-// blank remains embedded as a thin single-agent starting point. Names stay
-// listed here so EnsureBuiltins can remove unedited copies from existing
-// workspaces after the embed files are gone.
+// The 35 task-prompt templates from v0.4.5 are withdrawn in #3552. blank plus
+// the #3558 starter personas ship instead. Names stay listed here so
+// EnsureBuiltins can remove unedited copies from existing workspaces after
+// the embed files are gone.
 //
 //nolint:misspell // "archaeologist" is the historical shipped template name
 func WithdrawnBuiltins() []string {

@@ -1,0 +1,8 @@
+{
+  "description": "Turns goals into scoped specs and acceptance criteria",
+  "label": "single-agent",
+  "provider": "claude",
+  "mcps": ["mycel"],
+  "max_cost_usd": 20,
+  "stuck_timeout_min": 30
+}

@@ -11,9 +11,27 @@ import (
 
 func TestBuiltinsAreWellFormed(t *testing.T) {
 	names := BuiltinNames()
-	// #3552: only blank ships; the rest are withdrawn.
-	if len(names) != 1 || names[0] != "blank" {
-		t.Fatalf("expected only blank to ship, got %v", names)
+	want := map[string]bool{
+		"blank":             true,
+		"engineering-team":  true,
+		"product-manager":   true,
+		"software-engineer": true,
+		"software-testing":  true,
+		"trade-analyst":     true,
+		"trader":            true,
+		"travel-agent":      true,
+	}
+	if len(names) != len(want) {
+		t.Fatalf("expected %d shipped built-ins, got %d: %v", len(want), len(names), names)
+	}
+	for _, name := range names {
+		if !want[name] {
+			t.Fatalf("unexpected built-in %q (shipped=%v)", name, names)
+		}
+		delete(want, name)
+	}
+	if len(want) > 0 {
+		t.Fatalf("missing shipped built-ins %v", want)
 	}
 
 	for _, name := range names {
@@ -30,20 +48,49 @@ func TestBuiltinsAreWellFormed(t *testing.T) {
 		if len(tmpl.MCPs) == 0 {
 			t.Errorf("built-in %q declares no MCPs", name)
 		}
-		if tmpl.Label != "single-agent" {
-			t.Errorf("built-in %q label = %q, want single-agent", name, tmpl.Label)
+		if err := tmpl.Validate(); err != nil {
+			t.Errorf("built-in %q Validate: %v", name, err)
 		}
-		_ = prompt // blank may be empty by design
-
-		// Fields the daemon accepts and does not yet apply must stay empty, or a
-		// built-in would make exactly the promise the template editor stopped
-		// making (#3550).
-		if len(tmpl.Secrets) > 0 || len(tmpl.Plugins) > 0 {
-			t.Errorf("built-in %q sets secrets/plugins, which are not applied to agents yet", name)
+		switch tmpl.Label {
+		case LabelSingleAgent, LabelMultiAgent:
+		default:
+			t.Errorf("built-in %q label = %q, want single-agent or multi-agent", name, tmpl.Label)
 		}
+		if len(tmpl.Composes) > 0 && tmpl.Label != LabelMultiAgent {
+			t.Errorf("built-in %q composes %v but label=%q", name, tmpl.Composes, tmpl.Label)
+		}
+		if name != "blank" && name != "engineering-team" && strings.TrimSpace(prompt) == "" {
+			t.Errorf("built-in %q has an empty prompt", name)
+		}
+		// Fields nothing reads must stay empty (#3575).
 		if tmpl.ToolPolicies != nil || len(tmpl.ContextFiles) > 0 || tmpl.SystemPromptFile != "" {
 			t.Errorf("built-in %q sets a field nothing reads", name)
 		}
+	}
+}
+
+func TestEngineeringTeamExpandsToLeafPersonas(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := EnsureBuiltins(dir); err != nil {
+		t.Fatalf("EnsureBuiltins: %v", err)
+	}
+	got, err := Expand(NewStore(dir), "engineering-team")
+	if err != nil {
+		t.Fatalf("Expand: %v", err)
+	}
+	want := map[string]bool{
+		"software-engineer": true,
+		"software-testing":  true,
+		"product-manager":   true,
+	}
+	if len(got.Leaves) != len(want) {
+		t.Fatalf("leaves=%v, want %d entries", got.Leaves, len(want))
+	}
+	for _, leaf := range got.Leaves {
+		if !want[leaf] {
+			t.Fatalf("unexpected leaf %q in %v", leaf, got.Leaves)
+		}
+		delete(want, leaf)
 	}
 }
 
@@ -53,8 +100,8 @@ func TestWithdrawnBuiltinsListsTheRetiredTaskPrompts(t *testing.T) {
 		t.Fatalf("expected the retired library listed for withdraw, got %d", len(got))
 	}
 	for _, n := range got {
-		if n == "blank" {
-			t.Fatal("blank must keep shipping; it is not withdrawn")
+		if n == "blank" || n == "trader" || n == "engineering-team" {
+			t.Fatalf("%q must keep shipping; it is not withdrawn", n)
 		}
 	}
 	// Spot-check names that CreateAgentModal used to hardcode.
