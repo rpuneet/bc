@@ -353,10 +353,8 @@ export function CreateAgentModal({
         name?: string;
         agents?: { name: string }[];
       };
-      const primary =
-        body.agents && body.agents.length > 0
-          ? body.agents[0].name
-          : (body.name ?? trimmed);
+      const firstLeaf = body.agents?.[0]?.name;
+      const primary = firstLeaf || body.name || trimmed;
       // Wire the selected app channel subscriptions — best effort; the
       // agent exists either way and the Config tab can fix any misses.
       if (appChannels.size > 0) {
