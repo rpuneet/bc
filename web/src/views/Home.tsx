@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useAgentActivity } from "../hooks/useAgentActivity";
 import { EmptyState } from "../components/EmptyState";
-import { useWorkspace } from "../hooks/useWorkspace";
 import type { FilterType } from "../components/live/liveTypes";
 import { flattenNodes, nodeMatchesSearch } from "../components/live/liveHelpers";
 import { AgentCard, AgentDrillDown } from "../components/live/LiveRenderers";
@@ -150,8 +148,6 @@ function PresenceLine({
 }
 
 export function Home() {
-  const navigate = useNavigate();
-  const { loaded: workspaceLoaded, hasWorkspace } = useWorkspace();
   const [paused, setPaused] = useState(false);
   const { activities, tasks, rawEventsRef, connected, reconnecting, eventCount, pausedCount } = useAgentActivity(undefined, { paused });
   const [typeFilter, setTypeFilter] = useState<FilterType>("all");
@@ -489,21 +485,6 @@ export function Home() {
           rawEvents={drillDownRawEvents}
           tasks={tasks}
           onBack={() => setDrillDownAgent(null)}
-        />
-      </div>
-    );
-  }
-
-  // #3569 leftover: a daemon with no workspace must not look like a working fleet.
-  if (workspaceLoaded && !hasWorkspace) {
-    return (
-      <div className="flex flex-col h-full min-h-0 p-6 items-center justify-center">
-        <EmptyState
-          icon="!"
-          title="No workspace"
-          description="This daemon is running but is not anchored to a repository. New agents have no default repo to work in. From a project directory run mycel up (or mycel up --workspace /path/to/repo)."
-          actionLabel="Open Settings"
-          onAction={() => navigate("/settings")}
         />
       </div>
     );
