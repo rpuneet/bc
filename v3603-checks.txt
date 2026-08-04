@@ -1,0 +1,5 @@
+build: 0.4.6-dev.21.g93206c2
+1 Templates Secrets/Plugins editable: PASS (edit mode textboxes with values)
+1 no 'Saved but not applied': PASS (absent from DOM + binary UI strings; only in unit test negation)
+2 Guardrails max_cost/stuck on template: PASS (spinbuttons 5 / 30)
+3 Agent Settings Guardrails from template: PASS ($5.00 / 30 min from blank)
