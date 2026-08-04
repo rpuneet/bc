@@ -119,10 +119,17 @@ func (h *StatsHandler) systemInfo(w http.ResponseWriter, r *http.Request) {
 
 	hostname, _ := os.Hostname() //nolint:errcheck // best-effort
 
+	workspace := ""
+	if h.h != nil {
+		workspace = h.h.RootDir
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"hostname": hostname,
-		"os":       runtime.GOOS,
-		"arch":     runtime.GOARCH,
+		"hostname":      hostname,
+		"os":            runtime.GOOS,
+		"arch":          runtime.GOARCH,
+		"workspace":     workspace,
+		"has_workspace": workspace != "",
 	})
 }
 

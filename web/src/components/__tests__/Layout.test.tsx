@@ -21,7 +21,7 @@ function mockApi(hostname: string | null) {
     const u = String(url);
     if (u.includes("/api/system/info")) {
       if (hostname === null) return Promise.reject(new Error("network down"));
-      return jsonResponse({ hostname, os: "darwin", arch: "arm64" });
+      return jsonResponse({ hostname, os: "darwin", arch: "arm64", workspace: "/tmp/ws", has_workspace: true });
     }
     if (u.includes("/api/health")) return jsonResponse({ status: "ok" });
     return jsonResponse([]);

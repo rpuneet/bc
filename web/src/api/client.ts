@@ -1483,7 +1483,14 @@ export const api = {
   /** Daemon health incl. degraded-service reasons (e.g. docker runtime fallback). */
   getHealth: () => request<HealthReport>("/health"),
 
-  getSystemInfo: () => request<{ hostname: string; os: string; arch: string }>("/system/info"),
+  getSystemInfo: () =>
+    request<{
+      hostname: string;
+      os: string;
+      arch: string;
+      workspace?: string;
+      has_workspace?: boolean;
+    }>("/system/info"),
   /** Autodetected host package managers (brew/apt/npm/…) with versions. */
   getPackageManagers: () =>
     request<PackageManagersResponse>("/system/package-managers"),
