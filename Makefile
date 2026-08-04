@@ -67,7 +67,7 @@ GO ?= go
 
 REGISTRY ?= mycel
 IMAGE_TAG ?= latest
-AGENT_PROVIDERS := claude agy codex cursor openclaw pi
+AGENT_PROVIDERS := claude agy codex cursor pi
 
 LDFLAGS_VERSION = -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
 

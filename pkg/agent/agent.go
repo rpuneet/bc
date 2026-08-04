@@ -960,7 +960,7 @@ func (m *Manager) DefaultBackend() string {
 //   - transcript mode (pi, codex): nothing to write. The daemon tails the
 //     session file the provider already keeps; it needs no cooperation from the
 //     agent.
-//   - none (openclaw): nothing to write, because nothing would read it.
+//   - none: nothing to write, because nothing would read it.
 //
 // A tool absent from the registry gets Claude hook settings. That is the useful
 // default rather than a guess: an unknown tool is most often a wrapper around a
@@ -968,8 +968,8 @@ func (m *Manager) DefaultBackend() string {
 //
 // Only providers that declare no ActivitySource at all fall through to that
 // default. Before, every provider that was not hooks-mode did, which wrote
-// .claude/settings.json into pi, codex, cursor and openclaw worktrees where no
-// process ever read it.
+// .claude/settings.json into pi, codex and cursor worktrees where no process
+// ever read it.
 func (m *Manager) writeActivityConfig(toolName, wtDir, agentName string) error {
 	if toolName != "" && m.providerRegistry != nil {
 		if p, ok := m.providerRegistry.Get(toolName); ok {
@@ -1306,7 +1306,16 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	if toolName != "" {
 		// Restarts use the STORED model so the agent keeps running on
 		// the model it was created with.
-		if cmd, ok := m.getAgentCommand(toolName, name, resume, sessionID, existing.Model); ok {
+		cmd, ok := m.getAgentCommand(toolName, name, resume, sessionID, existing.Model)
+		if !ok && existing.Tool != "" {
+			// The agent names a provider mycel no longer has — a removed one, or
+			// a typo in the stored record. Falling through to the default command
+			// would start a *different* provider in this agent's worktree and
+			// report it as running, so say so instead.
+			m.mu.Unlock()
+			return nil, fmt.Errorf("agent %s was created with tool %q, which is no longer supported; available tools: %v", name, existing.Tool, m.listAvailableTools())
+		}
+		if ok {
 			agentCmd = cmd
 		}
 	}

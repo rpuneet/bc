@@ -41,16 +41,16 @@ graph TB
 
 ## Docker Image Hierarchy
 
-All agent images share a common base. Provider-specific images add only the CLI tool. Ground truth: `docker/` and the Makefile (`REGISTRY ?= mycel`, `AGENT_PROVIDERS := claude gemini codex cursor openclaw`).
+All agent images share a common base. Provider-specific images add only the CLI tool. Ground truth: `docker/` and the Makefile (`REGISTRY ?= mycel`, `AGENT_PROVIDERS := claude agy codex cursor pi`).
 
 ```mermaid
 graph TD
     U[ubuntu:24.04] --> BASE[mycel-agent-base]
     BASE --> CLAUDE[mycel-agent-claude]
-    BASE --> GEMINI[mycel-agent-gemini]
+    BASE --> AGY[mycel-agent-agy]
     BASE --> CODEX[mycel-agent-codex]
     BASE --> CURSOR[mycel-agent-cursor]
-    BASE --> OPENCLAW[mycel-agent-openclaw]
+    BASE --> PI[mycel-agent-pi]
     CLAUDE --> INFRA[mycel-agent-infra]
 
     TS[timescale/timescaledb:2.19.1-pg17] --> BCDB[mycel-db]
@@ -61,7 +61,7 @@ graph TD
 | Image | Dockerfile | Purpose |
 |-------|-----------|---------|
 | `mycel-agent-base` | `docker/Dockerfile.base` | Shared developer tooling for all agents |
-| `mycel-agent-claude/gemini/codex/cursor/openclaw` | `docker/Dockerfile.<provider>` | Base + one provider CLI |
+| `mycel-agent-claude/agy/codex/cursor/pi` | `docker/Dockerfile.<provider>` | Base + one provider CLI |
 | `mycel-agent-infra` | `docker/Dockerfile.infra` | Extends claude with infra tooling |
 | `mycel-daemon` | `docker/Dockerfile.daemon` | Multi-stage: bun builds the web UI, Go 1.25.11 builds the binary |
 | `mycel-db` | `docker/Dockerfile.db` | TimescaleDB (`POSTGRES_USER=mycel`, `POSTGRES_DB=mycel`, password at runtime), seeds `docker/db/init.sql` |

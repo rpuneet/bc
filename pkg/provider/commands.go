@@ -13,8 +13,8 @@ package provider
 //
 // Each list is drawn from the provider CLI's own documented subcommands/flags
 // — see each provider file's header comment for the source of truth. Providers
-// whose CLI genuinely lacks a category (e.g. OpenClaw has no --model flag)
-// simply omit it rather than showing a dead control.
+// whose CLI genuinely lacks a category (Codex has no model flag: the model is
+// chosen in-session) simply omit it rather than showing a dead control.
 //
 // Claude's Commands() lives in claude.go alongside its other richer wiring.
 
@@ -72,18 +72,5 @@ func (p *CursorProvider) Commands() []Command {
 		{Name: "resume", Command: "cursor-agent --resume <id>", Description: "Resume a session", Args: "<session-id>"},
 		{Name: "version", Command: "cursor-agent --version", Description: "Show version"},
 		{Name: "help", Command: "cursor-agent --help", Description: "Show CLI help"},
-	}
-}
-
-// Commands returns the curated CLI command list for OpenClaw.
-// OpenClaw drives model selection in the TUI or via per-agent routing, so no
-// --model flag is surfaced (see the provider header comment).
-func (p *OpenclawProvider) Commands() []Command {
-	return []Command{
-		{Name: "tui", Command: "openclaw tui --local", Description: "Start the local TUI agent", Interactive: true},
-		{Name: "session", Command: "openclaw tui --local --session <key>", Description: "Reattach to a session", Args: "<session-key>"},
-		{Name: "agents add", Command: "openclaw agents add --model <provider/model>", Description: "Add a routed agent with a model", Args: "<provider/model>"},
-		{Name: "version", Command: "openclaw --version", Description: "Show version"},
-		{Name: "help", Command: "openclaw --help", Description: "Show help"},
 	}
 }

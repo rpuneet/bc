@@ -34,7 +34,7 @@ function canonical(name: string): string {
 }
 
 /* Which providers have a real vector mark (vs. the monogram fallback). */
-const KNOWN = new Set(["claude", "codex", "cursor", "gemini", "agy", "aider", "openclaw", "pi"]);
+const KNOWN = new Set(["claude", "codex", "cursor", "gemini", "agy", "aider", "pi"]);
 
 export function hasProviderMark(name: string): boolean {
   return KNOWN.has(canonical(name));
@@ -140,15 +140,6 @@ function Mark({ id, kind, s }: { id: string; kind: string; s: number }) {
         <svg {...common} stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
           <path d="M5.5 7.5 10 12l-4.5 4.5" />
           <path d="M12.5 16.5h6" opacity={0.75} />
-        </svg>
-      );
-
-    /* OpenClaw — three talon strokes. */
-    case "openclaw":
-      return (
-        <svg {...common} stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
-          <path d="M7 4.5c-1.6 3.2-2 6.8-1 10.5M12 4c-.9 3.6-.9 7.4 0 11M17 4.5c1.6 3.2 2 6.8 1 10.5" opacity={0.9} />
-          <path d="M6.4 15.5c1.4 2.4 3.4 3.8 5.6 3.8s4.2-1.4 5.6-3.8" />
         </svg>
       );
 
