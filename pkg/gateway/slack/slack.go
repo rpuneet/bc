@@ -31,6 +31,7 @@ type Adapter struct {
 	channelMap     map[string]string
 	userCache      map[string]slackUser
 	botUserID      string
+	botID          string
 	appToken       string
 	botToken       string
 	botName        string
@@ -87,6 +88,7 @@ func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification))
 		return fmt.Errorf("slack: auth test failed: %w", err)
 	}
 	a.botUserID = authResp.UserID
+	a.botID = authResp.BotID
 	a.botName = authResp.User
 	if a.botName == "" {
 		a.botName = authResp.Team
@@ -94,7 +96,7 @@ func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification))
 	a.chatMu.Lock()
 	a.connected = true
 	a.chatMu.Unlock()
-	log.Info("slack: connected", "bot_user_id", a.botUserID, "bot_name", a.botName, "team", authResp.Team)
+	log.Info("slack: connected", "bot_user_id", a.botUserID, "bot_id", a.botID, "bot_name", a.botName, "team", authResp.Team)
 
 	// Discover channels the bot is in
 	if err := a.discoverChannels(ctx); err != nil {
@@ -350,22 +352,15 @@ func (a *Adapter) handleEventsAPI(event slackevents.EventsAPIEvent, rawPayload j
 
 // handleMessageEvent processes a single message event.
 func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent, rawPayload json.RawMessage) {
-	// Bot-impersonation posts (subtype="bot_message" with a Username
-	// override) are how mycel agents publish to Slack via the shared
-	// bot token. We let those through so other agents — and the
-	// channel feed — see them. The notify layer's self-skip
-	// (pkg/notify/service.go) prevents the sender from receiving
-	// their own message back.
-	//
-	// CRITICAL: only honor `Username` when the event also came from
-	// our own bot user. Other apps in the same workspace can post
-	// with any `username` override they like, and treating that as
-	// agent identity would let any installed app impersonate
-	// `zen-zebra` / `lucid-meerkat`. Pinning on `ev.User == botUserID`
-	// makes the impersonation token-bound: only callers holding our
-	// own bot token can route as an agent.
+	// CRITICAL: only honor `Username` when the event also came from our own bot.
+	// Check BotID for bot_message events, User for regular messages.
 	if ev.SubType == "bot_message" {
-		if ev.User != a.botUserID || ev.Username == "" {
+		// For bot_message events, check BotID first, then fall back to User
+		botID := ev.BotID
+		if botID == "" {
+			botID = ev.User
+		}
+		if botID != a.botID || ev.Username == "" {
 			return
 		}
 	} else {
@@ -420,10 +415,10 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent, rawPayload js
 
 	// Resolve user name + avatar. For bot_message posts the impersonation
 	// Username is the sender — the gate above already verified the
-	// event came from our own bot user, so Username is trusted.
+	// event came from our own bot, so Username is trusted.
 	sender := ev.User
 	senderAvatar := ""
-	if ev.SubType == "bot_message" && ev.User == a.botUserID && ev.Username != "" {
+	if ev.SubType == "bot_message" && (ev.BotID == a.botID || ev.User == a.botUserID) && ev.Username != "" {
 		sender = ev.Username
 	} else if a.api != nil {
 		a.chatMu.RLock()
