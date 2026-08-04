@@ -8,8 +8,9 @@ export type WorkspaceInfo = {
 };
 
 /**
- * Whether the daemon is serving a real workspace directory.
- * Empty means agents have nowhere to default their repos (#3569 leftover).
+ * Whether the daemon has a default repo for new agents.
+ * Empty is normal — mycel up boots against MycelHome alone; agents bind
+ * their own repo paths. The quiet banner only hints at Create Agent.
  */
 export function useWorkspace(): WorkspaceInfo {
   const [info, setInfo] = useState<WorkspaceInfo>({
@@ -31,7 +32,7 @@ export function useWorkspace(): WorkspaceInfo {
         });
       })
       .catch(() => {
-        // A probe failure must not claim "no workspace" — that would lie about
+        // A probe failure must not claim "no default repo" — that would lie about
         // a working daemon that simply could not answer this call.
         if (!cancelled) {
           setInfo({ workspace: "", hasWorkspace: true, loaded: true });

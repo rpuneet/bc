@@ -207,17 +207,14 @@ func DaemonAddrPath() (string, error) {
 	return filepath.Join(dir, globalDaemonAddrName), nil
 }
 
-// DaemonWorkspacePath returns the path to the file recording which workspace
-// the daemon is serving (~/.mycel/run/workspace), or an empty line when it is
-// serving none.
+// DaemonWorkspacePath returns the path to the file recording which default
+// repo (if any) the daemon last published (~/.mycel/run/workspace), or an
+// empty line when it is serving MycelHome only.
 //
-// A daemon's workspace is not cosmetic: tmux session names include a hash of it
-// so two workspaces cannot collide, so a process that guesses a different
-// workspace cannot find the sessions of the agents already running. The desktop
-// app has no way to guess — launched from Finder its working directory is `/` —
-// and reading a directory it was never told about is how every agent came to be
-// listed as running and none could be attached to (#3569). Publishing it here
-// lets the next process adopt the workspace instead of inventing one.
+// After #3584, tmux session names no longer hash this path — agents are
+// mycel-<name> globally. The file remains useful so the desktop app can
+// adopt the last default repo for Create Agent prefill (#3569), not as a
+// hard requirement to run the daemon.
 func DaemonWorkspacePath() (string, error) {
 	dir, err := RunDir()
 	if err != nil {
