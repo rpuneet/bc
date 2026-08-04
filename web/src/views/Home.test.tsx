@@ -45,6 +45,17 @@ function agent(name: string, state: string) {
 function mockAgentsApi(list: ReturnType<typeof agent>[]) {
   fetchMock.mockImplementation((url: string) => {
     if (url.includes("/agents")) return jsonResponse(list);
+    // Home gates on has_workspace (#3569). Default mocks must look like a
+    // real workspace or every test collapses into the empty-state page.
+    if (url.includes("/system/info")) {
+      return jsonResponse({
+        hostname: "test",
+        os: "darwin",
+        arch: "arm64",
+        workspace: "/tmp/ws",
+        has_workspace: true,
+      });
+    }
     return jsonResponse([]);
   });
 }
