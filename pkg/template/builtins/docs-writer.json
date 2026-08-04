@@ -1,8 +1,0 @@
-{
-  "description": "Write documentation that matches the code",
-  "max_cost_usd": 10,
-  "mcps": [
-    "mycel"
-  ],
-  "stuck_timeout_min": 25
-}

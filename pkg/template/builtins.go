@@ -254,10 +254,50 @@ func EnsureBuiltins(dir string) ([]string, error) {
 }
 
 // WithdrawnBuiltins returns names that used to ship and must not return.
-// Empty until a release actually drops templates (#3552); the hook exists so
-// EnsureBuiltins can express removal without a silent embed delete.
+// The 35 task-prompt templates from v0.4.5 are withdrawn in #3552; only
+// blank remains embedded as a thin single-agent starting point. Names stay
+// listed here so EnsureBuiltins can remove unedited copies from existing
+// workspaces after the embed files are gone.
+//
+//nolint:misspell // "archaeologist" is the historical shipped template name
 func WithdrawnBuiltins() []string {
-	return nil
+	return []string{
+		"accessibility-audit",
+		"api-designer",
+		"backend-service",
+		"bug-fix",
+		"changelog",
+		"ci-fixer",
+		"containerize",
+		"cost-optimizer",
+		"data-pipeline",
+		"db-migration",
+		"dependency-upgrade",
+		"devops-infra",
+		"docs-writer",
+		"feature-dev",
+		"frontend-ui",
+		"i18n",
+		"integration-builder",
+		"issue-triage",
+		"legacy-archaeologist",
+		"manager",
+		"ml-experiment",
+		"observability",
+		"oncall-responder",
+		"perf-optimizer",
+		"pr-shepherd",
+		"refactor",
+		"release-manager",
+		"researcher",
+		"reviewer",
+		"scraper",
+		"security-audit",
+		"spec-writer",
+		"sql-optimizer",
+		"test-writer",
+		"type-tightener",
+	}
 }
 
 func installShippedBuiltin(dir, name, shipHash string, state *builtinState) error {
@@ -294,8 +334,14 @@ func withdrawOwnedBuiltin(dir, name string, state *builtinState) error {
 	if diskHash != recorded {
 		return nil // user edited after we wrote it
 	}
-	_ = os.Remove(filepath.Join(dir, name+".json"))
-	_ = os.Remove(filepath.Join(dir, name+".md"))
+	jsonPath := filepath.Join(dir, name+".json")
+	mdPath := filepath.Join(dir, name+".md")
+	if rmErr := os.Remove(jsonPath); rmErr != nil && !errors.Is(rmErr, fs.ErrNotExist) {
+		return fmt.Errorf("withdraw %q json: %w", name, rmErr)
+	}
+	if rmErr := os.Remove(mdPath); rmErr != nil && !errors.Is(rmErr, fs.ErrNotExist) {
+		return fmt.Errorf("withdraw %q markdown: %w", name, rmErr)
+	}
 	delete(state.Hashes, name)
 	return nil
 }

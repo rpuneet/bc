@@ -1,7 +1,6 @@
 package template
 
 import (
-	"encoding/json"
 	"errors"
 	"io/fs"
 	"os"
@@ -12,8 +11,9 @@ import (
 
 func TestBuiltinsAreWellFormed(t *testing.T) {
 	names := BuiltinNames()
-	if len(names) < 30 {
-		t.Fatalf("expected a real library of built-ins, got %d", len(names))
+	// #3552: only blank ships; the rest are withdrawn.
+	if len(names) != 1 || names[0] != "blank" {
+		t.Fatalf("expected only blank to ship, got %v", names)
 	}
 
 	for _, name := range names {
@@ -30,11 +30,10 @@ func TestBuiltinsAreWellFormed(t *testing.T) {
 		if len(tmpl.MCPs) == 0 {
 			t.Errorf("built-in %q declares no MCPs", name)
 		}
-		// blank is deliberately empty; everything else earns its place by
-		// carrying a prompt worth applying.
-		if name != "blank" && len(strings.TrimSpace(prompt)) < 200 {
-			t.Errorf("built-in %q has a prompt too thin to be production-ready (%d chars)", name, len(prompt))
+		if tmpl.Label != "single-agent" {
+			t.Errorf("built-in %q label = %q, want single-agent", name, tmpl.Label)
 		}
+		_ = prompt // blank may be empty by design
 
 		// Fields the daemon accepts and does not yet apply must stay empty, or a
 		// built-in would make exactly the promise the template editor stopped
@@ -45,6 +44,26 @@ func TestBuiltinsAreWellFormed(t *testing.T) {
 		if tmpl.ToolPolicies != nil || len(tmpl.ContextFiles) > 0 || tmpl.SystemPromptFile != "" {
 			t.Errorf("built-in %q sets a field nothing reads", name)
 		}
+	}
+}
+
+func TestWithdrawnBuiltinsListsTheRetiredTaskPrompts(t *testing.T) {
+	got := WithdrawnBuiltins()
+	if len(got) < 30 {
+		t.Fatalf("expected the retired library listed for withdraw, got %d", len(got))
+	}
+	for _, n := range got {
+		if n == "blank" {
+			t.Fatal("blank must keep shipping; it is not withdrawn")
+		}
+	}
+	// Spot-check names that CreateAgentModal used to hardcode.
+	want := map[string]bool{"feature-dev": true, "reviewer": true, "manager": true}
+	for _, n := range got {
+		delete(want, n)
+	}
+	if len(want) > 0 {
+		t.Fatalf("withdrawn list missing %v", want)
 	}
 }
 
@@ -128,8 +147,8 @@ func TestEnsureBuiltinsUpgradesWhenHashStillMatches(t *testing.T) {
 	// the files to a stale body while leaving the recorded hash pointing at
 	// those "old" bytes — the next EnsureBuiltins must treat them as ours
 	// and replace with the embed.
-	name := "feature-dev"
-	staleJSON := []byte(`{"name":"feature-dev","description":"stale","mcps":["bc"]}` + "\n")
+	name := "blank"
+	staleJSON := []byte(`{"name":"blank","description":"stale","mcps":["bc"]}` + "\n")
 	staleMD := []byte("old prompt that referenced bc\n")
 	staleHash := builtinContentHash(staleJSON, string(staleMD))
 	if err := os.WriteFile(filepath.Join(dir, name+".json"), staleJSON, 0o600); err != nil {
@@ -188,13 +207,13 @@ func TestEnsureBuiltinsDoesNotUpgradeAnEditEvenWithARecordedHash(t *testing.T) {
 		t.Fatalf("install: %v", err)
 	}
 
-	name := "feature-dev"
+	name := "blank"
 	state, err := readBuiltinState(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// User edits after install: disk hash diverges from recorded.
-	edit := []byte(`{"name":"feature-dev","description":"my edit","mcps":["mycel"]}` + "\n")
+	edit := []byte(`{"name":"blank","description":"my edit","mcps":["mycel"]}` + "\n")
 	if werr := os.WriteFile(filepath.Join(dir, name+".json"), edit, 0o600); werr != nil {
 		t.Fatal(werr)
 	}
@@ -227,7 +246,7 @@ func TestEnsureBuiltinsWithdrawsAnOwnedBuiltin(t *testing.T) {
 	if _, err := EnsureBuiltins(dir); err != nil {
 		t.Fatalf("install: %v", err)
 	}
-	name := "feature-dev"
+	name := "blank"
 	state, err := readBuiltinState(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -252,6 +271,41 @@ func TestEnsureBuiltinsWithdrawsAnOwnedBuiltin(t *testing.T) {
 	}
 }
 
+func TestEnsureBuiltinsWithdrawsRetiredTaskPrompts(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir)
+
+	// Simulate a v0.4.5 workspace that still has an unedited feature-dev
+	// with a recorded hash matching the on-disk bytes.
+	jsonBytes := []byte(`{"description":"Implement a feature","mcps":["mycel"]}` + "\n")
+	md := "old feature-dev prompt\n"
+	hash := builtinContentHash(jsonBytes, md)
+	if err := os.WriteFile(filepath.Join(dir, "feature-dev.json"), jsonBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "feature-dev.md"), []byte(md), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	state := builtinState{
+		Installed: []string{"feature-dev"},
+		Hashes:    map[string]string{"feature-dev": hash},
+	}
+	if err := writeBuiltinState(dir, state); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := EnsureBuiltins(dir); err != nil {
+		t.Fatalf("EnsureBuiltins: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "feature-dev.json")); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatal("retired feature-dev should have been withdrawn")
+	}
+	// blank should still install for this workspace.
+	if _, _, err := s.Get("blank"); err != nil {
+		t.Fatalf("blank should still ship: %v", err)
+	}
+}
+
 func TestEnsureBuiltinsRespectsADeletedTemplate(t *testing.T) {
 	dir := t.TempDir()
 	if _, err := EnsureBuiltins(dir); err != nil {
@@ -259,7 +313,7 @@ func TestEnsureBuiltinsRespectsADeletedTemplate(t *testing.T) {
 	}
 
 	s := NewStore(dir)
-	if err := s.Delete("scraper", ScopeGlobal); err != nil {
+	if err := s.Delete("blank", ScopeGlobal); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
 
@@ -270,48 +324,12 @@ func TestEnsureBuiltinsRespectsADeletedTemplate(t *testing.T) {
 		t.Fatalf("second run: %v", err)
 	}
 	for _, n := range added {
-		if n == "scraper" {
+		if n == "blank" {
 			t.Fatal("reinstalled a template the user deleted")
 		}
 	}
-	if _, _, err := s.Get("scraper"); err == nil {
+	if _, _, err := s.Get("blank"); err == nil {
 		t.Fatal("deleted template came back")
-	}
-}
-
-func TestEnsureBuiltinsAddsATemplateShippedLater(t *testing.T) {
-	dir := t.TempDir()
-
-	// Simulate a workspace created by an older build: only the four originals,
-	// recorded as installed.
-	s := NewStore(dir)
-	old := []string{"feature-dev", "reviewer", "manager", "blank"}
-	for _, n := range old {
-		if err := s.Create(Template{Name: n, Description: "old", MCPs: []string{"mycel"}}, "old\n", ScopeGlobal); err != nil {
-			t.Fatalf("seed %q: %v", n, err)
-		}
-	}
-	raw, err := json.Marshal(builtinState{Installed: old})
-	if err != nil {
-		t.Fatalf("marshal state: %v", err)
-	}
-	if writeErr := os.WriteFile(filepath.Join(dir, builtinStateFile), raw, 0o600); writeErr != nil {
-		t.Fatalf("write state: %v", writeErr)
-	}
-
-	added, err := EnsureBuiltins(dir)
-	if err != nil {
-		t.Fatalf("EnsureBuiltins: %v", err)
-	}
-	if len(added) == 0 {
-		t.Fatal("an existing workspace received no new built-ins — the old seeding bug")
-	}
-	for _, n := range added {
-		for _, o := range old {
-			if n == o {
-				t.Errorf("re-added pre-existing template %q", n)
-			}
-		}
 	}
 }
 
@@ -340,6 +358,6 @@ func TestSeedDefaultsInstallsTheBuiltins(t *testing.T) {
 		t.Fatalf("List: %v", err)
 	}
 	if len(list) != len(BuiltinNames()) {
-		t.Fatalf("SeedDefaults installed %d of %d", len(list), len(BuiltinNames()))
+		t.Fatalf("SeedDefaults left %d templates, want %d", len(list), len(BuiltinNames()))
 	}
 }

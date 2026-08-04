@@ -1,7 +1,0 @@
-{
-  "description": "Measure first, then optimize what the measurement showed",
-  "mcps": [
-    "mycel"
-  ],
-  "stuck_timeout_min": 40
-}

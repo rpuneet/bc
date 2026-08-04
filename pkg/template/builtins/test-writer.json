@@ -1,7 +1,0 @@
-{
-  "description": "Add tests where coverage is thin, not where it is easy",
-  "mcps": [
-    "mycel"
-  ],
-  "stuck_timeout_min": 30
-}

@@ -1,7 +1,0 @@
-{
-  "description": "Make the system explain itself in production",
-  "mcps": [
-    "mycel"
-  ],
-  "stuck_timeout_min": 30
-}

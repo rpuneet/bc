@@ -1,7 +1,0 @@
-{
-  "description": "Remove the escape hatches without breaking callers",
-  "mcps": [
-    "mycel"
-  ],
-  "stuck_timeout_min": 30
-}

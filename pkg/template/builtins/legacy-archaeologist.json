@@ -1,8 +1,0 @@
-{
-  "description": "Understand code nobody remembers, before changing it",
-  "mcps": [
-    "mycel",
-    "github"
-  ],
-  "stuck_timeout_min": 35
-}

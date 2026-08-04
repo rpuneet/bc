@@ -63,6 +63,20 @@ var skipDirs = map[string]struct{}{
 	".terraform":   {},
 }
 
+// tccHomeDirs are macOS home-folder basenames that trigger TCC permission
+// dialogs when probed (Music → Music access, Pictures → Photos, …). They
+// are skipped only when the path is exactly $HOME/<name>, so a project
+// named Music under ~/Projects is still discoverable.
+var tccHomeDirs = map[string]struct{}{
+	"Music":     {},
+	"Pictures":  {},
+	"Movies":    {},
+	"Desktop":   {},
+	"Documents": {},
+	"Downloads": {},
+	"Public":    {},
+}
+
 // Candidate describes one discovered repository.
 type Candidate struct {
 	Path              string `json:"path"`
@@ -124,6 +138,7 @@ func ScanLocal(ctx context.Context, opts ScanOptions) ([]Candidate, error) {
 	for k := range opts.SkipDirs {
 		skip[k] = struct{}{}
 	}
+	userHome, _ := os.UserHomeDir() //nolint:errcheck // empty home disables TCC home skips
 
 	var out []Candidate
 	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
@@ -152,6 +167,14 @@ func ScanLocal(ctx context.Context, opts ScanOptions) ([]Candidate, error) {
 			if path != root {
 				if _, ok := skip[d.Name()]; ok {
 					return fs.SkipDir
+				}
+				// Skip TCC-protected $HOME children only (not Projects/Music).
+				if userHome != "" {
+					if _, ok := tccHomeDirs[d.Name()]; ok {
+						if filepath.Clean(path) == filepath.Join(userHome, d.Name()) {
+							return fs.SkipDir
+						}
+					}
 				}
 			}
 			if level > depth {

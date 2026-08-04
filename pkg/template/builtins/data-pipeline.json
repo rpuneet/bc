@@ -1,7 +1,0 @@
-{
-  "description": "Move and reshape data so a rerun is safe",
-  "mcps": [
-    "mycel"
-  ],
-  "stuck_timeout_min": 40
-}

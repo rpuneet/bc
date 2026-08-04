@@ -12,6 +12,8 @@ import { useHeaderSlot } from "../context/HeaderSlotContext";
 interface Template {
   name: string;
   description: string;
+  /** "single-agent" | "multi-agent" — see #3552. */
+  label?: string;
   mcps: string[];
   secrets: string[];
   plugins: string[];
@@ -535,6 +537,9 @@ function TemplateRow({
         style={{ fontFamily: MONO }}
       >
         {template.name}
+        {template.label ? (
+          <span className="ml-2 text-xs font-normal text-mycel-muted">{template.label}</span>
+        ) : null}
       </td>
       <td className="py-3 px-4">
         <ChipList items={template.mcps ?? []} color="accent" />

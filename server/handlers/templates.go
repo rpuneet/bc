@@ -35,6 +35,7 @@ type templateRequest struct { //nolint:govet // field order matches JSON/API con
 	ContextFiles     []string               `json:"context_files,omitempty"`
 	Name             string                 `json:"name"`
 	Description      string                 `json:"description,omitempty"`
+	Label            string                 `json:"label,omitempty"`
 	SystemPrompt     *string                `json:"system_prompt,omitempty"`
 	SystemPromptFile string                 `json:"system_prompt_file,omitempty"`
 	MaxCostUSD       float64                `json:"max_cost_usd,omitempty"`
@@ -45,6 +46,7 @@ func (req *templateRequest) toTemplate() template.Template {
 	return template.Template{
 		Name:             req.Name,
 		Description:      req.Description,
+		Label:            req.Label,
 		SystemPromptFile: req.SystemPromptFile,
 		MCPs:             req.MCPs,
 		Secrets:          req.Secrets,

@@ -207,7 +207,7 @@ func TestSeedDefaultsIdempotent(t *testing.T) {
 	if listErr != nil {
 		t.Fatal(listErr)
 	}
-	if len(list1) < 3 {
+	if len(list1) < 1 {
 		t.Fatalf("seed produced %d defaults", len(list1))
 	}
 
@@ -230,7 +230,7 @@ func TestSeedDefaultsWritesNoScopeOnDisk(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Read raw JSON and ensure "scope" is not present on disk.
-	data, err := os.ReadFile(filepath.Join(dir, "feature-dev.json")) //nolint:gosec // test path under t.TempDir
+	data, err := os.ReadFile(filepath.Join(dir, "blank.json")) //nolint:gosec // test path under t.TempDir
 	if err != nil {
 		t.Fatal(err)
 	}

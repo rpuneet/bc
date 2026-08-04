@@ -1,8 +1,0 @@
-{
-  "description": "Write a spec someone could build from without asking you",
-  "max_cost_usd": 10,
-  "mcps": [
-    "mycel"
-  ],
-  "stuck_timeout_min": 25
-}

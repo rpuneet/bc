@@ -1,9 +1,0 @@
-{
-  "description": "Update dependencies and prove nothing broke",
-  "max_cost_usd": 12,
-  "mcps": [
-    "mycel",
-    "github"
-  ],
-  "stuck_timeout_min": 30
-}
