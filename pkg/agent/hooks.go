@@ -54,6 +54,15 @@ const (
 	// in Error. It is the one event whose absence was indistinguishable from a
 	// healthy quiet agent (#3512).
 	HookProviderFailure HookEvent = "ProviderFailure"
+	// HookAwaitingInput reports that an agent's provider CLI is holding a
+	// prompt open and will not proceed until a person answers it. It is raised
+	// by the daemon from the agent's terminal for providers that have no hook
+	// for this (see provider.QuestionDetector) and carries the question in
+	// Message (#3582).
+	HookAwaitingInput HookEvent = "AwaitingInput"
+	// HookInputProvided reports that the prompt an agent was holding open is
+	// gone, so whatever it asked has been answered.
+	HookInputProvided HookEvent = "InputProvided"
 )
 
 // hookEventStateMap maps hook events to the target agent state.
@@ -72,6 +81,8 @@ var hookEventStateMap = map[HookEvent]State{
 	HookStop:              StateIdle,
 	HookTaskCompleted:     StateDone,
 	HookProviderFailure:   StateError,
+	HookAwaitingInput:     StateStuck,
+	HookInputProvided:     StateWorking,
 }
 
 // StateForHookEvent returns the target agent State for a hook event.
@@ -127,11 +138,17 @@ type HookPayload struct {
 	Sender       string    `json:"sender,omitempty"`
 	SubagentType string    `json:"subagent_type,omitempty"`
 	Message      string    `json:"message,omitempty"`
-	File         string    `json:"file,omitempty"`
-	Mentions     []string  `json:"mentions,omitempty"`
-	CostUSD      float64   `json:"cost_usd,omitempty"`
-	InputTokens  int64     `json:"input_tokens,omitempty"`
-	OutputTokens int64     `json:"output_tokens,omitempty"`
+	// NotificationType is claude's own classification of a Notification event
+	// (permission_prompt, idle_prompt, elicitation_dialog, …). It is what
+	// separates a notification meaning "someone has to answer me" from one that
+	// is merely news, so it decides whether the event moves the agent to stuck
+	// — see waiting.go.
+	NotificationType string   `json:"notification_type,omitempty"`
+	File             string   `json:"file,omitempty"`
+	Mentions         []string `json:"mentions,omitempty"`
+	CostUSD          float64  `json:"cost_usd,omitempty"`
+	InputTokens      int64    `json:"input_tokens,omitempty"`
+	OutputTokens     int64    `json:"output_tokens,omitempty"`
 }
 
 // The Claude Code hook-settings writer that generates .claude/settings.json

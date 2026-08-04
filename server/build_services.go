@@ -332,6 +332,16 @@ func buildServicesFromHome(ctx context.Context, globals *Globals, h *home.Home) 
 		runSessionReconciler(svcCtx, agentSvc)
 	}()
 
+	// Provider question monitor — flags agents whose provider CLI is holding a
+	// prompt open for a person. Providers that report this through a hook are
+	// handled during ingestion; this covers the ones (cursor) that report it
+	// nowhere but their own screen.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		runProviderQuestionMonitor(svcCtx, agentSvc)
+	}()
+
 	// Notify service (channel subscriptions + delivery).
 	var notifyService *notifypkg.Service
 	if ns, err := notifypkg.OpenStore(wsDB, wsDriver); err != nil {
