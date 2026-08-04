@@ -71,6 +71,7 @@ func createAgentsTable(d *db.DB) error {
 			memory_mb     INTEGER NOT NULL DEFAULT 0,
 			ttl           INTEGER NOT NULL DEFAULT 0,
 			template      TEXT,
+			missing_secrets TEXT NOT NULL DEFAULT '',
 			created_at    TEXT,
 			stopped_at    TEXT,
 			deleted_at    TEXT,
@@ -147,6 +148,7 @@ func ensureAgentColumns(ctx context.Context, d *db.DB) error {
 		{"cpus", "ALTER TABLE agents ADD COLUMN cpus REAL NOT NULL DEFAULT 0"},
 		{"memory_mb", "ALTER TABLE agents ADD COLUMN memory_mb INTEGER NOT NULL DEFAULT 0"},
 		{"template", "ALTER TABLE agents ADD COLUMN template TEXT"},
+		{"missing_secrets", "ALTER TABLE agents ADD COLUMN missing_secrets TEXT NOT NULL DEFAULT ''"},
 	} {
 		if have[add.col] {
 			continue
@@ -164,6 +166,13 @@ func (s *SQLiteStore) Save(ctx context.Context, a *Agent) error {
 	if err != nil {
 		return fmt.Errorf("marshal children: %w", err)
 	}
+	missingSecrets, err := json.Marshal(a.MissingSecrets)
+	if err != nil {
+		return fmt.Errorf("marshal missing_secrets: %w", err)
+	}
+	if a.MissingSecrets == nil {
+		missingSecrets = []byte("[]")
+	}
 	envVars, err := marshalEnv(a.Env)
 	if err != nil {
 		return fmt.Errorf("marshal env: %w", err)
@@ -180,8 +189,8 @@ func (s *SQLiteStore) Save(ctx context.Context, a *Agent) error {
 		 worktree_dir, log_file, env_file, env_vars, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
 		 runtime_backend, session_id, created_at, stopped_at, deleted_at,
-		 started_at, updated_at, repo, model, cpus, memory_mb, template)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 started_at, updated_at, repo, model, cpus, memory_mb, template, missing_secrets)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		a.Name, string(a.Role), string(a.State),
 		nullStr(a.Tool), nullStr(a.ParentID), nullStr(a.Team), nullStr(a.Task),
 		nullStr(a.Session), a.Workspace,
@@ -192,7 +201,7 @@ func (s *SQLiteStore) Save(ctx context.Context, a *Agent) error {
 		nullStr(a.RuntimeBackend), nullStr(a.SessionID),
 		formatTime(createdAt), nullTime(a.StoppedAt), nullTime(a.DeletedAt),
 		formatTime(a.StartedAt), formatTime(now), a.Repo, a.Model, a.CPUs, a.MemoryMB,
-		nullStr(a.Template),
+		nullStr(a.Template), string(missingSecrets),
 	)
 	return err
 }
@@ -318,8 +327,8 @@ func (s *SQLiteStore) SaveAll(ctx context.Context, agents map[string]*Agent) err
 		 worktree_dir, log_file, env_file, env_vars, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
 		 runtime_backend, session_id, created_at, stopped_at, deleted_at,
-		 started_at, updated_at, repo, model, cpus, memory_mb, template)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		 started_at, updated_at, repo, model, cpus, memory_mb, template, missing_secrets)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
@@ -330,6 +339,13 @@ func (s *SQLiteStore) SaveAll(ctx context.Context, agents map[string]*Agent) err
 		children, err := json.Marshal(a.Children)
 		if err != nil {
 			return fmt.Errorf("marshal children for %s: %w", a.Name, err)
+		}
+		missingSecrets, err := json.Marshal(a.MissingSecrets)
+		if err != nil {
+			return fmt.Errorf("marshal missing_secrets for %s: %w", a.Name, err)
+		}
+		if a.MissingSecrets == nil {
+			missingSecrets = []byte("[]")
 		}
 		envVars, err := marshalEnv(a.Env)
 		if err != nil {
@@ -350,7 +366,7 @@ func (s *SQLiteStore) SaveAll(ctx context.Context, agents map[string]*Agent) err
 			nullStr(a.RuntimeBackend), nullStr(a.SessionID),
 			formatTime(createdAt), nullTime(a.StoppedAt), nullTime(a.DeletedAt),
 			formatTime(a.StartedAt), formatTime(now), a.Repo, a.Model, a.CPUs, a.MemoryMB,
-			nullStr(a.Template),
+			nullStr(a.Template), string(missingSecrets),
 		)
 		if err != nil {
 			return fmt.Errorf("save agent %s: %w", a.Name, err)
@@ -412,13 +428,14 @@ const agentSelectCols = `SELECT name, role, state, tool, parent_id, team, task, 
 	       worktree_dir, log_file, env_file, env_vars, hooked_work, children,
 	       is_root, crash_count, last_crash_time, recovered_from,
 	       runtime_backend, session_id, created_at, stopped_at, deleted_at,
-	       started_at, updated_at, repo, model, cpus, memory_mb, template`
+	       started_at, updated_at, repo, model, cpus, memory_mb, template, missing_secrets`
 
 func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	var a Agent
 	var role, state string
 	var tool, parentID, team, task, session, worktreeDir, logFile, envFile, hookedWork, childrenJSON *string
 	var lastCrashTime, recoveredFrom, runtimeBackend, sessionID, template *string
+	var missingSecretsJSON string
 	var repo, model, envVars string
 	var createdAt, stoppedAt, deletedAt *string
 	var startedAt, updatedAt string
@@ -432,7 +449,7 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 		&worktreeDir, &logFile, &envFile, &envVars, &hookedWork, &childrenJSON,
 		&isRoot, &crashCount, &lastCrashTime, &recoveredFrom,
 		&runtimeBackend, &sessionID, &createdAt, &stoppedAt, &deletedAt,
-		&startedAt, &updatedAt, &repo, &model, &cpus, &memoryMB, &template,
+		&startedAt, &updatedAt, &repo, &model, &cpus, &memoryMB, &template, &missingSecretsJSON,
 	)
 	if err != nil {
 		return nil, err
@@ -463,6 +480,9 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	a.CPUs = cpus
 	a.MemoryMB = memoryMB
 	a.Template = deref(template)
+	if missingSecretsJSON != "" && missingSecretsJSON != "[]" {
+		_ = json.Unmarshal([]byte(missingSecretsJSON), &a.MissingSecrets) //nolint:errcheck // best-effort
+	}
 
 	if childrenJSON != nil && *childrenJSON != "" {
 		_ = json.Unmarshal([]byte(*childrenJSON), &a.Children) //nolint:errcheck // best-effort

@@ -396,11 +396,15 @@ type Agent struct {
 	// MaxCostUSD / StuckTimeoutMin by this name at check time rather than
 	// copying the limits onto the agent row, so template edits apply to
 	// already-running agents without a respawn.
-	Template      string     `json:"template,omitempty"`
-	LastCrashTime *time.Time `json:"last_crash_time,omitempty"`
-	Role          Role       `json:"role"`
-	State         State      `json:"state"`
-	Children      []string   `json:"children,omitempty"`
+	Template string `json:"template,omitempty"`
+	// MissingSecrets lists template-declared secrets that were absent from
+	// the vault at create time (#3558). Surfaced as health "degraded"; the
+	// agent still runs. Cleared when secrets arrive (refresh path).
+	MissingSecrets []string   `json:"missing_secrets,omitempty"`
+	LastCrashTime  *time.Time `json:"last_crash_time,omitempty"`
+	Role           Role       `json:"role"`
+	State          State      `json:"state"`
+	Children       []string   `json:"children,omitempty"`
 	// CPUs is a per-agent Docker CPU cap (cores, e.g. 1.5). Zero means
 	// inherit the fleet default (prefs runtime.docker.cpus). Enforced only
 	// for the Docker runtime — tmux agents run unconstrained on the host.
@@ -1095,6 +1099,9 @@ type SpawnOptions struct {
 	// Recorded on the agent row so the guardrail loop can look up
 	// MaxCostUSD / StuckTimeoutMin at check time. Empty disables guardrails.
 	Template string
+	// MissingSecrets is recorded at create when declared template secrets
+	// are absent from the vault (#3558 create-degraded).
+	MissingSecrets []string
 }
 
 // SpawnAgent creates and starts a new agent.
@@ -1576,6 +1583,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		Children:       []string{},
 		IsRoot:         role == RoleRoot,
 		Template:       opts.Template,
+		MissingSecrets: append([]string{}, opts.MissingSecrets...),
 		CreatedAt:      now,
 		StartedAt:      now,
 		UpdatedAt:      now,
@@ -2394,6 +2402,7 @@ func (m *Manager) GetAgent(name string) *Agent {
 	// Return a copy to avoid data races
 	copy := *a
 	copy.Children = append([]string{}, a.Children...)
+	copy.MissingSecrets = append([]string{}, a.MissingSecrets...)
 	return &copy
 }
 
@@ -2445,6 +2454,7 @@ func (m *Manager) ListAgents() []*Agent {
 	for _, a := range m.agents {
 		copy := *a
 		copy.Children = append([]string{}, a.Children...)
+		copy.MissingSecrets = append([]string{}, a.MissingSecrets...)
 		agents = append(agents, &copy)
 	}
 
@@ -2478,6 +2488,7 @@ func (m *Manager) ListChildren(parentID string) []*Agent {
 			// Return copy to avoid data races
 			copy := *child
 			copy.Children = append([]string{}, child.Children...)
+			copy.MissingSecrets = append([]string{}, child.MissingSecrets...)
 			children = append(children, &copy)
 		}
 	}
@@ -2507,6 +2518,7 @@ func (m *Manager) collectDescendants(parentID string, result *[]*Agent) {
 			// Return copy to avoid data races
 			copy := *child
 			copy.Children = append([]string{}, child.Children...)
+			copy.MissingSecrets = append([]string{}, child.MissingSecrets...)
 			*result = append(*result, &copy)
 			m.collectDescendants(childID, result)
 		}
@@ -2530,6 +2542,7 @@ func (m *Manager) GetParent(agentID string) *Agent {
 	// Return copy to avoid data races
 	copy := *parent
 	copy.Children = append([]string{}, parent.Children...)
+	copy.MissingSecrets = append([]string{}, parent.MissingSecrets...)
 	return &copy
 }
 
@@ -2544,6 +2557,7 @@ func (m *Manager) ListByRole(role Role) []*Agent {
 			// Return copy to avoid data races
 			copy := *a
 			copy.Children = append([]string{}, a.Children...)
+			copy.MissingSecrets = append([]string{}, a.MissingSecrets...)
 			agents = append(agents, &copy)
 		}
 	}

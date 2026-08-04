@@ -268,6 +268,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 				ah.SetTemplateStore(template.NewStore(templatesDir))
 			}
 		}
+		if svc.Secrets != nil {
+			ah.SetSecretPresence(handlers.NewVaultPresence(svc.Secrets))
+		}
 		ah.SetTerminalHandler(handlers.NewTerminalHandler(svc.Agents, cfg.CORSOrigin))
 		ah.Register(mux)
 	}
@@ -447,7 +450,11 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		if migrErr := migrateRolesToTemplates(svc.Home.RolesDir(), templatesDir); migrErr != nil {
 			log.Warn("migrate roles to templates", "error", migrErr)
 		}
-		handlers.NewTemplateHandler(tmplStore).Register(mux)
+		th := handlers.NewTemplateHandler(tmplStore)
+		if svc.Secrets != nil {
+			th.SetSecretPresence(handlers.NewVaultPresence(svc.Secrets))
+		}
+		th.Register(mux)
 
 		// Marketplace — live catalog aggregating MCP registry, GitHub, vendor skill
 		// sources (Claude/Gemini), and local templates. Template

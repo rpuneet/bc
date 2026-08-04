@@ -100,6 +100,7 @@ type AgentHandler struct {
 	terminal   *TerminalHandler
 	statsStore *stats.Store
 	tmplStore  *template.Store
+	secrets    template.SecretPresence
 	broker     *agentEventBroker
 }
 
@@ -123,6 +124,12 @@ func NewAgentHandler(svc *agent.AgentService, costs *cost.Service, home *home.Ho
 // SetTemplateStore sets the template store used during agent creation.
 func (h *AgentHandler) SetTemplateStore(store *template.Store) {
 	h.tmplStore = store
+}
+
+// SetSecretPresence wires the vault used to disclose missing template secrets
+// at create / expand time (#3558 create-degraded).
+func (h *AgentHandler) SetSecretPresence(v template.SecretPresence) {
+	h.secrets = v
 }
 
 // SetStatsStore sets the stats store for resource metrics enrichment.
@@ -179,30 +186,41 @@ type agentDTO struct { //nolint:govet // field order matches JSON/API contract
 	// Env holds the agent's configured environment variables. Values
 	// with ${secret:NAME} references are returned as the reference —
 	// resolved values never leave the daemon.
-	Env          map[string]string `json:"env,omitempty"`
-	Tool         string            `json:"tool,omitempty"`
-	Model        string            `json:"model,omitempty"`
-	Session      string            `json:"session,omitempty"`
-	State        string            `json:"state"`
-	Task         string            `json:"task,omitempty"`
-	Team         string            `json:"team,omitempty"`
-	Name         string            `json:"name"`
-	Runtime      string            `json:"runtime_backend,omitempty"`
-	Role         string            `json:"role"`
-	Template     string            `json:"template,omitempty"`
-	SessionID    string            `json:"session_id,omitempty"`
-	ParentID     string            `json:"parent_id,omitempty"`
-	ID           string            `json:"id,omitempty"`
-	Repo         string            `json:"repo,omitempty"`
-	MCPServers   []string          `json:"mcp_servers,omitempty"`
-	Children     []string          `json:"children,omitempty"`
-	TotalCostUSD float64           `json:"total_cost_usd"`
-	TotalTokens  int64             `json:"total_tokens"`
+	Env      map[string]string `json:"env,omitempty"`
+	Tool     string            `json:"tool,omitempty"`
+	Model    string            `json:"model,omitempty"`
+	Session  string            `json:"session,omitempty"`
+	State    string            `json:"state"`
+	Task     string            `json:"task,omitempty"`
+	Team     string            `json:"team,omitempty"`
+	Name     string            `json:"name"`
+	Runtime  string            `json:"runtime_backend,omitempty"`
+	Role     string            `json:"role"`
+	Template string            `json:"template,omitempty"`
+	// MissingSecrets lists declared template secrets absent at create (#3558).
+	MissingSecrets []string `json:"missing_secrets,omitempty"`
+	SessionID      string   `json:"session_id,omitempty"`
+	ParentID       string   `json:"parent_id,omitempty"`
+	ID             string   `json:"id,omitempty"`
+	Repo           string   `json:"repo,omitempty"`
+	MCPServers     []string `json:"mcp_servers,omitempty"`
+	Children       []string `json:"children,omitempty"`
+	TotalCostUSD   float64  `json:"total_cost_usd"`
+	TotalTokens    int64    `json:"total_tokens"`
 	// CPUs / MemoryMB are the agent's per-agent Docker resource caps (0 =
 	// inherit the fleet default). Surfaced so the Insights resource panel
 	// can total configured caps without a per-agent config fetch.
 	CPUs     float64 `json:"cpus,omitempty"`
 	MemoryMB int64   `json:"memory_mb,omitempty"`
+}
+
+// createResponse is returned by POST /api/agents. For a single-agent create it
+// looks like agentDTO (Agents omitted). For a multi-agent blueprint it also
+// lists every leaf under Agents and the Team name (#3558 provision).
+type createResponse struct { //nolint:govet // embeds agentDTO JSON contract; alignment secondary
+	agentDTO
+	Agents  []agentDTO `json:"agents,omitempty"`
+	Missing []string   `json:"missing,omitempty"`
 }
 
 // agentStatsDTO holds resource metrics included when ?include=stats is set.
@@ -219,28 +237,30 @@ type agentStatsDTO struct {
 
 func toDTO(a *agent.Agent) agentDTO {
 	return agentDTO{
-		ID:         a.ID,
-		Name:       a.Name,
-		Role:       string(a.Role),
-		State:      string(a.State),
-		Task:       a.Task,
-		Team:       a.Team,
-		Tool:       a.Tool,
-		Model:      a.Model,
-		Runtime:    a.RuntimeBackend,
-		Session:    a.Session,
-		SessionID:  a.SessionID,
-		ParentID:   a.ParentID,
-		Children:   a.Children,
-		CreatedAt:  a.CreatedAt,
-		StartedAt:  a.StartedAt,
-		UpdatedAt:  a.UpdatedAt,
-		StoppedAt:  a.StoppedAt,
-		ArchivedAt: a.ArchivedAt,
-		Repo:       a.Repo,
-		Env:        a.Env,
-		CPUs:       a.CPUs,
-		MemoryMB:   a.MemoryMB,
+		ID:             a.ID,
+		Name:           a.Name,
+		Role:           string(a.Role),
+		State:          string(a.State),
+		Task:           a.Task,
+		Team:           a.Team,
+		Tool:           a.Tool,
+		Model:          a.Model,
+		Runtime:        a.RuntimeBackend,
+		Session:        a.Session,
+		SessionID:      a.SessionID,
+		ParentID:       a.ParentID,
+		Children:       a.Children,
+		CreatedAt:      a.CreatedAt,
+		StartedAt:      a.StartedAt,
+		UpdatedAt:      a.UpdatedAt,
+		StoppedAt:      a.StoppedAt,
+		ArchivedAt:     a.ArchivedAt,
+		Repo:           a.Repo,
+		Env:            a.Env,
+		CPUs:           a.CPUs,
+		MemoryMB:       a.MemoryMB,
+		Template:       a.Template,
+		MissingSecrets: a.MissingSecrets,
 	}
 }
 
@@ -417,29 +437,112 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		if runtimeBackend == "" {
 			runtimeBackend = req.RuntimeAlt
 		}
-		a, err := svc.Create(r.Context(), agent.CreateOptions{
-			Name:     req.Name,
-			Role:     agent.Role(role),
-			Tool:     req.Tool,
-			Model:    req.Model,
-			Runtime:  runtimeBackend,
-			Parent:   req.Parent,
-			Repo:     req.Repo,
-			Env:      req.Env,
-			Template: req.Template,
-		})
-		if err != nil {
-			httpError(w, err.Error(), http.StatusBadRequest)
+
+		// Blueprint provision (#3558): expand composes into leaf agents.
+		leaves := []string{req.Template}
+		if req.Template != "" && h.tmplStore != nil {
+			expanded, expErr := template.Expand(h.tmplStore, req.Template)
+			if expErr != nil {
+				if strings.Contains(expErr.Error(), "not found") {
+					httpError(w, expErr.Error(), http.StatusNotFound)
+					return
+				}
+				httpError(w, expErr.Error(), http.StatusBadRequest)
+				return
+			}
+			if len(expanded.Leaves) > 0 {
+				leaves = expanded.Leaves
+			}
+		}
+		multi := len(leaves) > 1
+		if multi && req.Name == "" {
+			httpError(w, "name is required when creating a multi-agent blueprint", http.StatusBadRequest)
 			return
 		}
-		dto := toDTO(a)
+
+		created := make([]*agent.Agent, 0, len(leaves))
+		var unionMissing []string
+		for _, leaf := range leaves {
+			agentName := leafAgentName(req.Name, leaf, multi)
+			tool := req.Tool
+			var leafSecrets []string
+			if h.tmplStore != nil && leaf != "" {
+				if t, _, gErr := h.tmplStore.Get(leaf); gErr == nil && t != nil {
+					tool = leafTool(req.Tool, t.Provider)
+					leafSecrets = t.Secrets
+				}
+			}
+			missing := template.FilterMissing(leafSecrets, h.secrets)
+			unionMissing = unionStringSlice(unionMissing, missing)
+
+			team := req.Name
+			if !multi {
+				team = "" // preserve prior single-agent behavior (no team)
+			}
+			tmplName := leaf
+			if tmplName == "" {
+				tmplName = req.Template
+			}
+			a, err := svc.Create(r.Context(), agent.CreateOptions{
+				Name:           agentName,
+				Role:           agent.Role(role),
+				Tool:           tool,
+				Model:          req.Model,
+				Runtime:        runtimeBackend,
+				Parent:         req.Parent,
+				Repo:           req.Repo,
+				Env:            req.Env,
+				Team:           team,
+				Template:       tmplName,
+				MissingSecrets: missing,
+			})
+			if err != nil {
+				httpError(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			created = append(created, a)
+		}
+
+		primary := created[0]
+		dto := toDTO(primary)
 		dto.Avatar = req.Avatar
-		dto.Template = req.Template
-		writeJSON(w, http.StatusCreated, dto)
+		if dto.Template == "" {
+			dto.Template = req.Template
+		}
+		resp := createResponse{agentDTO: dto, Missing: unionMissing}
+		if multi {
+			resp.Team = req.Name
+			resp.Agents = make([]agentDTO, 0, len(created))
+			for _, a := range created {
+				d := toDTO(a)
+				resp.Agents = append(resp.Agents, d)
+			}
+		}
+		writeJSON(w, http.StatusCreated, resp)
 
 	default:
 		methodNotAllowed(w)
 	}
+}
+
+func unionStringSlice(a, b []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, s := range a {
+		if s == "" || seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	for _, s := range b {
+		if s == "" || seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
+	}
+	return out
 }
 
 // agentHTTPStatus maps domain errors from pkg/agent to the appropriate HTTP
@@ -906,6 +1009,9 @@ func (h *AgentHandler) health(w http.ResponseWriter, r *http.Request) {
 		case !health.TmuxAlive:
 			health.Status = "unhealthy"
 			health.ErrorMessage = "tmux session not found"
+		case len(a.MissingSecrets) > 0:
+			health.Status = "degraded"
+			health.ErrorMessage = fmt.Sprintf("missing secrets: %s", strings.Join(a.MissingSecrets, ", "))
 		case !health.StateFresh:
 			health.Status = "degraded"
 			health.ErrorMessage = fmt.Sprintf("state stale (%s since last update)", health.StaleDuration)

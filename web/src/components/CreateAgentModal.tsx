@@ -349,15 +349,21 @@ export function CreateAgentModal({
         setSubmitting(false);
         return;
       }
+      const body = await res.json().catch(() => ({})) as {
+        name?: string;
+        agents?: { name: string }[];
+      };
+      const firstLeaf = body.agents?.[0]?.name;
+      const primary = firstLeaf || body.name || trimmed;
       // Wire the selected app channel subscriptions — best effort; the
       // agent exists either way and the Config tab can fix any misses.
       if (appChannels.size > 0) {
         await Promise.allSettled(
-          [...appChannels].map((channel) => api.subscribe(channel, trimmed, false)),
+          [...appChannels].map((channel) => api.subscribe(channel, primary, false)),
         );
       }
       onClose();
-      navigate(`/agents/${encodeURIComponent(trimmed)}`);
+      navigate(`/agents/${encodeURIComponent(primary)}`);
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : "Failed to create agent");
       setSubmitting(false);
