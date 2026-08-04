@@ -30,6 +30,7 @@ mycel agent create [name] [flags]
       --parent string     Parent agent ID
       --role string       Agent role (default: base)
       --runtime string    Runtime backend override: tmux or docker
+      --task string       Initial task recorded on the agent and delivered after spawn
       --team string       Team name (alphanumeric)
       --template string   Template name from ~/.mycel/templates/ (e.g. base, engineer)
       --tool string       Agent tool (agy, claude, codex, cursor, pi)
