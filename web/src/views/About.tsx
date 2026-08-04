@@ -88,10 +88,15 @@ async function fetchHealth(): Promise<Health | null> {
 
 async function fetchLatestGhRelease(): Promise<GhRelease | null> {
   try {
-    const r = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`);
-    if (!r.ok) return null;
-    const j = (await r.json()) as GhRelease;
-    return j;
+    const r = await fetch("/api/releases/latest");
+    // Status 503 with status == "rate_limited" means GitHub rate-limited us.
+    // Status 503 with status == "error" means we couldn't reach GitHub.
+    // Both cases return null so the UI shows "unknown" state for the tile.
+    if (!r.ok) {
+      return null;
+    }
+    const j = (await r.json()) as { tag_name: string; html_url: string; published_at: string };
+    return { tag_name: j.tag_name, html_url: j.html_url, published_at: j.published_at };
   } catch {
     return null;
   }

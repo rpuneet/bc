@@ -484,6 +484,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	sh.Register(mux)
 
+	// GitHub release check with server-side caching (#3578)
+	handlers.NewReleaseHandler().Register(mux)
+
 	// Agent-facing MCP server (streamable HTTP), mounted at /_mcp/{agent}.
 	// The path segment is the trusted sender identity for agent tools.
 	if svc.Home != nil {
