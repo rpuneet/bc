@@ -48,11 +48,11 @@ type CreateOptions struct {
 	// Values may contain ${secret:NAME} references; they are stored
 	// verbatim and resolved against the vault at spawn time.
 	Env     map[string]string
+	EnvFile string
 	Name    string
 	Role    Role
 	Tool    string
 	Model   string // provider model identifier; empty uses the provider default
-	EnvFile string
 	Runtime string
 	Parent  string
 	Team    string
@@ -63,13 +63,13 @@ type CreateOptions struct {
 	// Recorded on the agent row so the guardrail loop can enforce the
 	// template's MaxCostUSD / StuckTimeoutMin. Empty disables guardrails.
 	Template string
-	// MissingSecrets is set when creating from a template whose declared
-	// secrets are absent (#3558 create-degraded).
-	MissingSecrets []string
 	// Task is an optional initial task (#3589). Recorded on the agent row
 	// and delivered as the first message after the bootstrap delay so the
 	// provider CLI has drawn its prompt.
 	Task string
+	// MissingSecrets is set when creating from a template whose declared
+	// secrets are absent (#3558 create-degraded).
+	MissingSecrets []string
 }
 
 // StartOptions configures agent start behavior.
