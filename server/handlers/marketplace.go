@@ -83,9 +83,10 @@ type installRequest struct { //nolint:govet // field order matches JSON/API cont
 // installResponse is returned on success (HTTP 200).
 //
 // Status is "installed" when the daemon completed the install itself (local
-// templates), or "dispatched" when it only sent an instruction to agents
-// (#3571). Callers must not treat dispatched as installed — that lie is how
-// failed installs used to look successful.
+// templates, or Claude official skills into ~/.mycel/plugins.json), or
+// "dispatched" when it only sent an instruction to agents (#3571 / #3016).
+// Callers must not treat dispatched as installed — that lie is how failed
+// installs used to look successful.
 // Errors lists per-agent failures so the caller can surface which agents were
 // not reached; a non-empty Errors slice alongside Dispatched>0 indicates a
 // partial success.
@@ -101,6 +102,8 @@ type installResponse struct { //nolint:govet // field order matches API contract
 // For TypeTemplate items with a template store wired (WithTemplateStore),
 // the install writes directly to the global template store — a
 // deterministic action that does not depend on any agent being reachable.
+// Official Claude skills (SourceClaude) are recorded the same way into
+// ~/.mycel/plugins.json so blueprints can reference them (#3016).
 // Every other item type falls back to the original behavior: composing a
 // clear install-instruction message and dispatching it to each named agent
 // via the existing AgentSender (same code path as POST /api/agents/{name}/send),
@@ -154,6 +157,24 @@ func (h *MarketplaceHandler) install(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, installResponse{
 			Status:     "installed",
 			Message:    "Template written to the local store.",
+			Dispatched: len(req.Agents),
+		})
+		return
+	}
+
+	// Official Claude skills: record locally so a blueprint Plugins entry can
+	// name them without hoping an agent runs `claude plugin install` (#3016).
+	// Other skill sources still dispatch — their install needs a CLI/repo the
+	// daemon cannot safely fetch from a browser-supplied URL.
+	if marketplace.ItemType(req.ItemType) == marketplace.TypeSkill &&
+		marketplace.Source(req.ItemSource) == marketplace.SourceClaude {
+		if err := marketplace.InstallClaudePlugin(req.ItemName, req.ItemSourceURL, ""); err != nil {
+			httpError(w, "install skill: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, installResponse{
+			Status:     "installed",
+			Message:    "Claude skill recorded in the local plugins registry. Add its name to a template's plugins list to apply it on spawn.",
 			Dispatched: len(req.Agents),
 		})
 		return

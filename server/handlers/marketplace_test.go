@@ -144,12 +144,13 @@ func TestMarketplaceHandler_Install_DispatchesToAgents(t *testing.T) {
 	mux := http.NewServeMux()
 	h.Register(mux)
 
+	// Non-Claude skills still dispatch — only SourceClaude installs locally (#3016).
 	body := `{
-		"item_id":         "claude:fetch-tool",
+		"item_id":         "github:acme/fetch-tool",
 		"item_name":       "fetch-tool",
-		"item_source_url": "https://github.com/anthropics/skills/tree/main/skills/fetch",
+		"item_source_url": "https://github.com/acme/fetch-tool",
 		"item_type":       "skill",
-		"item_source":     "claude",
+		"item_source":     "github",
 		"agents":          ["alpha", "beta"]
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/api/marketplace/install", bytes.NewBufferString(body))
@@ -689,4 +690,45 @@ func TestComposeInstallMessage_TemplateFromElsewhereIsImportedFirst(t *testing.T
 // contains is a helper for substring checks.
 func contains(s, sub string) bool {
 	return bytes.Contains([]byte(s), []byte(sub))
+}
+
+func TestMarketplaceHandler_Install_ClaudeSkillWritesLocally(t *testing.T) {
+	t.Setenv("MYCEL_HOME", t.TempDir())
+
+	// No sender: local Claude skill install must not need an agent.
+	h := NewMarketplaceHandler(newTestAggregator(t, nil), nil)
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	body := `{
+		"item_id": "claude:pdf",
+		"item_name": "pdf",
+		"item_type": "skill",
+		"item_source": "claude",
+		"item_source_url": "https://github.com/anthropics/skills/tree/main/skills/pdf",
+		"agents": ["alpha"]
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/api/marketplace/install", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp installResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Status != "installed" {
+		t.Fatalf("want status=installed, got %q (%s)", resp.Status, resp.Message)
+	}
+
+	list, err := marketplace.ListInstalledPlugins()
+	if err != nil {
+		t.Fatalf("ListInstalledPlugins: %v", err)
+	}
+	if len(list) != 1 || list[0].Name != "pdf" {
+		t.Fatalf("plugins = %+v", list)
+	}
 }
