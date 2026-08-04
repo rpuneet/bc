@@ -530,16 +530,39 @@ func (s *AgentService) publishEvent(eventType string, data map[string]any) {
 	})
 }
 
+// sessionStartGrace is how long after starting an agent is exempt from session
+// reconciliation. An agent is registered before its session is up, so a sweep
+// that lands in that window would find no session and stop an agent that is in
+// the middle of starting.
+const sessionStartGrace = 30 * time.Second
+
+// sessionGoneReason is recorded as the agent's task so the reason is visible
+// where the state is, rather than only in an event nobody is watching.
+const sessionGoneReason = "session ended without stopping — the agent was not running"
+
 // SyncSessions reconciles in-memory agent state with actual runtime sessions.
-// For each agent that is not already stopped or in error, it checks whether
-// the underlying tmux/docker session still exists. If the session is gone it
-// marks the agent as stopped.
-// Returns the total number of agents inspected (synced) and the number that
-// were transitioned to stopped (stopped).
+//
+// State is derived from what an agent reports, so an agent whose session dies
+// without a final event keeps the state it last reported — forever. It is listed
+// as working, its badge says working, and only the terminal tab admits there is
+// no pty behind it (#3570). A "working" agent that cannot possibly be working is
+// worse than an error, because it suppresses the question.
+//
+// An agent whose session has vanished is moved to stopped, with the reason
+// recorded as its task. Terminal states are left alone: stopped and error have
+// nothing to reconcile, and done says the agent finished, which is worth more
+// than restating that its session is gone.
+//
+// Returns the number of agents inspected and the number moved to stopped.
 func (s *AgentService) SyncSessions(ctx context.Context) (synced, stopped int) {
 	agents := s.manager.ListAgents()
+	now := time.Now()
 	for _, a := range agents {
-		if a.State == StateStopped || a.State == StateError {
+		switch a.State {
+		case StateStopped, StateError, StateDone:
+			continue
+		}
+		if !a.StartedAt.IsZero() && now.Sub(a.StartedAt) < sessionStartGrace {
 			continue
 		}
 		synced++
@@ -547,12 +570,12 @@ func (s *AgentService) SyncSessions(ctx context.Context) (synced, stopped int) {
 		if rt.HasSession(ctx, a.Name) {
 			continue
 		}
-		// Session gone — mark stopped.
-		if err := s.manager.UpdateAgentState(ctx, a.Name, StateStopped, ""); err != nil {
+		if err := s.manager.UpdateAgentState(ctx, a.Name, StateStopped, sessionGoneReason); err != nil {
 			log.Warn("sync: failed to update agent state", "agent", a.Name, "error", err)
 			continue
 		}
 		stopped++
+		log.Info("agent had no session behind it — marked stopped", "agent", a.Name, "was", string(a.State))
 		s.publishEvent("agent.state_changed", map[string]any{
 			"name":   a.Name,
 			"state":  string(StateStopped),

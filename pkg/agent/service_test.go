@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 )
 
 // mockEventPublisher records published events.
@@ -410,5 +411,73 @@ func TestAgentService_ArchiveRefusesRunning(t *testing.T) {
 	}
 	if mgr.agents["stopped"].ArchivedAt == nil {
 		t.Error("stopped agent should have ArchivedAt set after Archive")
+	}
+}
+
+// SyncSessions is what stops an agent being reported as working when nothing is
+// running behind it. The test manager's tmux prefix is unique per run, so no
+// agent here has a session — which is exactly the condition being reconciled.
+func TestSyncSessionsStopsAnAgentWithNoSession(t *testing.T) {
+	mgr := newTestManager(t)
+	mgr.agents["working"] = &Agent{Name: "working", State: StateWorking, Task: "refactoring", Children: []string{}}
+	mgr.agents["idle"] = &Agent{Name: "idle", State: StateIdle, Children: []string{}}
+	mgr.agents["stuck"] = &Agent{Name: "stuck", State: StateStuck, Children: []string{}}
+
+	pub := &mockEventPublisher{}
+	svc := NewAgentService(mgr, pub, nil)
+
+	synced, stopped := svc.SyncSessions(context.Background())
+	if synced != 3 || stopped != 3 {
+		t.Fatalf("synced=%d stopped=%d, want 3 and 3", synced, stopped)
+	}
+	for _, name := range []string{"working", "idle", "stuck"} {
+		if got := mgr.GetAgent(name).State; got != StateStopped {
+			t.Errorf("%s state = %q, want stopped", name, got)
+		}
+	}
+	// The reason has to be somewhere the user looks, not only in an event.
+	if task := mgr.GetAgent("working").Task; !strings.Contains(task, "session ended") {
+		t.Errorf("task = %q, want it to explain that the session ended", task)
+	}
+}
+
+// Terminal states are the agent's own account of how it finished. Stopped and
+// error have nothing to reconcile, and overwriting done with stopped would
+// replace "it completed" with "its session is gone", which says less.
+func TestSyncSessionsLeavesTerminalStatesAlone(t *testing.T) {
+	mgr := newTestManager(t)
+	mgr.agents["done"] = &Agent{Name: "done", State: StateDone, Children: []string{}}
+	mgr.agents["failed"] = &Agent{Name: "failed", State: StateError, Children: []string{}}
+	mgr.agents["halted"] = &Agent{Name: "halted", State: StateStopped, Children: []string{}}
+
+	svc := NewAgentService(mgr, nil, nil)
+
+	synced, stopped := svc.SyncSessions(context.Background())
+	if synced != 0 || stopped != 0 {
+		t.Errorf("synced=%d stopped=%d, want 0 and 0", synced, stopped)
+	}
+	if got := mgr.GetAgent("done").State; got != StateDone {
+		t.Errorf("done agent became %q", got)
+	}
+}
+
+// An agent is registered before its session exists, so a sweep landing in that
+// window must not stop an agent that is still starting.
+func TestSyncSessionsSparesAnAgentThatJustStarted(t *testing.T) {
+	mgr := newTestManager(t)
+	mgr.agents["starting"] = &Agent{
+		Name:      "starting",
+		State:     StateWorking,
+		StartedAt: time.Now(),
+		Children:  []string{},
+	}
+
+	svc := NewAgentService(mgr, nil, nil)
+
+	if synced, stopped := svc.SyncSessions(context.Background()); synced != 0 || stopped != 0 {
+		t.Errorf("synced=%d stopped=%d, want the starting agent skipped", synced, stopped)
+	}
+	if got := mgr.GetAgent("starting").State; got != StateWorking {
+		t.Errorf("state = %q, want working", got)
 	}
 }
