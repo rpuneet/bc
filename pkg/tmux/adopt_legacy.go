@@ -24,10 +24,17 @@ var legacySessionName = regexp.MustCompile(`^([0-9a-f]{6})-(.+)$`)
 // nothing, and report an agent as gone while tmux still had it. Renaming keeps
 // the process alive — tmux rename-session only changes the label.
 //
+// knownAgent reports whether a name belongs to an agent mycel has. It settles a
+// genuine ambiguity: an agent may legally be *named* "13c6e9-fast-crane", whose
+// session is "mycel-13c6e9-fast-crane" under the current scheme and identical in
+// shape to a legacy name. Renaming it would hand its session to a different
+// agent, so the name is checked before the shape. Pass nil only where no
+// registry is available, which falls back to shape alone.
+//
 // Returns the number of sessions adopted. Errors are logged and skipped rather
 // than returned: one session that cannot be renamed must not stop the rest from
 // being found.
-func (m *Manager) AdoptLegacySessions(ctx context.Context) int {
+func (m *Manager) AdoptLegacySessions(ctx context.Context, knownAgent func(string) bool) int {
 	sessions, err := m.listAllSessionNames(ctx)
 	if err != nil {
 		log.Warn("could not list tmux sessions to adopt older ones — agents from a previous version may appear stopped", "error", err)
@@ -39,11 +46,25 @@ func (m *Manager) AdoptLegacySessions(ctx context.Context) int {
 		if len(full) <= len(m.SessionPrefix) || full[:len(m.SessionPrefix)] != m.SessionPrefix {
 			continue
 		}
-		match := legacySessionName.FindStringSubmatch(full[len(m.SessionPrefix):])
+		suffix := full[len(m.SessionPrefix):]
+		match := legacySessionName.FindStringSubmatch(suffix)
 		if match == nil {
 			continue
 		}
 		agent := match[2]
+
+		// The whole suffix naming a real agent means this is that agent's current
+		// session, not a legacy one, whatever it looks like.
+		if knownAgent != nil && knownAgent(suffix) {
+			continue
+		}
+		// And a remainder that names no agent is nothing to adopt: renaming it
+		// would only invent a session for an agent mycel does not have.
+		if knownAgent != nil && !knownAgent(agent) {
+			log.Debug("leaving a session that looks legacy but names no agent mycel has", "session", full)
+			continue
+		}
+
 		want := m.SessionName(agent)
 
 		// A session already under the new name is the one the daemon will use, so

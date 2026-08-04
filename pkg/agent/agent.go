@@ -2388,6 +2388,15 @@ func (m *Manager) GetAgent(name string) *Agent {
 	return &copy
 }
 
+// HasAgent reports whether an agent by this name is registered. Cheaper than
+// GetAgent when only existence matters, and it copies nothing.
+func (m *Manager) HasAgent(name string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	_, exists := m.agents[name]
+	return exists
+}
+
 // SetArchived stamps (or clears) ArchivedAt on an in-memory agent and
 // persists the whole agent map. Returns an error if the named agent is
 // missing. Safe to call concurrently — uses m.mu for write serialization.

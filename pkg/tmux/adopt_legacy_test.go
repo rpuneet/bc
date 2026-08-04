@@ -80,6 +80,11 @@ func (s *tmuxStub) renamed() []string {
 	return out
 }
 
+// noRegistry stands for "no agent registry available", which makes adoption
+// decide on the session name alone. Tests that pass it are asserting the shape
+// rules; the registry's part is covered separately below.
+var noRegistry func(string) bool
+
 func stubManager(sessions ...string) (*Manager, *tmuxStub) {
 	stub := &tmuxStub{sessions: map[string]bool{}}
 	for _, s := range sessions {
@@ -95,7 +100,7 @@ func stubManager(sessions ...string) (*Manager, *tmuxStub) {
 func TestAdoptRenamesARepoScopedSession(t *testing.T) {
 	m, stub := stubManager("mycel-13c6e9-fast-crane")
 
-	if n := m.AdoptLegacySessions(t.Context()); n != 1 {
+	if n := m.AdoptLegacySessions(t.Context(), noRegistry); n != 1 {
 		t.Fatalf("adopted %d sessions, want 1", n)
 	}
 
@@ -112,7 +117,7 @@ func TestAdoptRenamesARepoScopedSession(t *testing.T) {
 func TestAdoptKeepsTheWholeAgentName(t *testing.T) {
 	m, stub := stubManager("mycel-13c6e9-bright-finch-2")
 
-	if n := m.AdoptLegacySessions(t.Context()); n != 1 {
+	if n := m.AdoptLegacySessions(t.Context(), noRegistry); n != 1 {
 		t.Fatalf("adopted %d sessions, want 1", n)
 	}
 	if !stub.sessions["mycel-bright-finch-2"] {
@@ -125,11 +130,11 @@ func TestAdoptKeepsTheWholeAgentName(t *testing.T) {
 func TestAdoptIsIdempotent(t *testing.T) {
 	m, stub := stubManager("mycel-13c6e9-fast-crane")
 
-	m.AdoptLegacySessions(t.Context())
+	m.AdoptLegacySessions(t.Context(), noRegistry)
 	first := len(stub.renamed())
 
 	m.invalidateCache()
-	if n := m.AdoptLegacySessions(t.Context()); n != 0 {
+	if n := m.AdoptLegacySessions(t.Context(), noRegistry); n != 0 {
 		t.Errorf("second run adopted %d sessions, want 0", n)
 	}
 	if len(stub.renamed()) != first {
@@ -142,7 +147,7 @@ func TestAdoptIsIdempotent(t *testing.T) {
 func TestAdoptLeavesADuplicateAlone(t *testing.T) {
 	m, stub := stubManager("mycel-13c6e9-fast-crane", "mycel-fast-crane")
 
-	if n := m.AdoptLegacySessions(t.Context()); n != 0 {
+	if n := m.AdoptLegacySessions(t.Context(), noRegistry); n != 0 {
 		t.Errorf("adopted %d sessions, want 0 when the new name is taken", n)
 	}
 	if got := stub.renamed(); len(got) != 0 {
@@ -158,7 +163,7 @@ func TestAdoptLeavesADuplicateAlone(t *testing.T) {
 func TestAdoptTouchesNothingElse(t *testing.T) {
 	m, stub := stubManager("mycel-fast-crane", "bc-13c6e9-old", "my-editor", "mycel-agent")
 
-	if n := m.AdoptLegacySessions(t.Context()); n != 0 {
+	if n := m.AdoptLegacySessions(t.Context(), noRegistry); n != 0 {
 		t.Errorf("adopted %d sessions, want 0", n)
 	}
 	if got := stub.renamed(); len(got) != 0 {
@@ -176,7 +181,7 @@ func TestAdoptIgnoresSomethingThatIsNotAHash(t *testing.T) {
 		"mycel-abcdef",             // no agent after it
 	} {
 		m, stub := stubManager(session)
-		if n := m.AdoptLegacySessions(t.Context()); n != 0 {
+		if n := m.AdoptLegacySessions(t.Context(), noRegistry); n != 0 {
 			t.Errorf("%s: adopted %d, want 0", session, n)
 		}
 		if got := stub.renamed(); len(got) != 0 {
@@ -190,7 +195,7 @@ func TestAdoptContinuesPastAFailedRename(t *testing.T) {
 	m, stub := stubManager("mycel-13c6e9-fast-crane", "mycel-13c6e9-cool-otter")
 	stub.failNext = true
 
-	if n := m.AdoptLegacySessions(t.Context()); n != 1 {
+	if n := m.AdoptLegacySessions(t.Context(), noRegistry); n != 1 {
 		t.Errorf("adopted %d sessions, want 1 of the two", n)
 	}
 }
@@ -199,7 +204,50 @@ func TestAdoptContinuesPastAFailedRename(t *testing.T) {
 func TestAdoptWithNoSessions(t *testing.T) {
 	m, _ := stubManager()
 
-	if n := m.AdoptLegacySessions(t.Context()); n != 0 {
+	if n := m.AdoptLegacySessions(t.Context(), noRegistry); n != 0 {
 		t.Errorf("adopted %d sessions, want 0", n)
+	}
+}
+
+// An agent may legally be named "13c6e9-fast-crane". Its session is already
+// correct, and renaming it would hand the session to whatever "fast-crane" is —
+// a different agent, or nothing at all.
+func TestAdoptLeavesAnAgentWhoseNameLooksLikeAHash(t *testing.T) {
+	m, stub := stubManager("mycel-13c6e9-fast-crane")
+	knows := func(name string) bool { return name == "13c6e9-fast-crane" }
+
+	if n := m.AdoptLegacySessions(t.Context(), knows); n != 0 {
+		t.Errorf("adopted %d sessions, want 0 when the whole suffix is the agent's name", n)
+	}
+	if got := stub.renamed(); len(got) != 0 {
+		t.Errorf("renamed a current session: %v", got)
+	}
+}
+
+// A leftover session for an agent mycel no longer has is not adopted: renaming
+// it would invent a session under a name nothing will ever look for.
+func TestAdoptSkipsASessionForAnAgentThatIsGone(t *testing.T) {
+	m, stub := stubManager("mycel-13c6e9-deleted-agent")
+	knows := func(string) bool { return false }
+
+	if n := m.AdoptLegacySessions(t.Context(), knows); n != 0 {
+		t.Errorf("adopted %d sessions, want 0", n)
+	}
+	if got := stub.renamed(); len(got) != 0 {
+		t.Errorf("renamed %v", got)
+	}
+}
+
+// Both names plausible — the agent is "fast-crane", and no agent is called
+// "13c6e9-fast-crane" — is the ordinary migration, and it must still happen.
+func TestAdoptRenamesWhenOnlyTheRemainderNamesAnAgent(t *testing.T) {
+	m, stub := stubManager("mycel-13c6e9-fast-crane")
+	knows := func(name string) bool { return name == "fast-crane" }
+
+	if n := m.AdoptLegacySessions(t.Context(), knows); n != 1 {
+		t.Fatalf("adopted %d sessions, want 1", n)
+	}
+	if !stub.sessions["mycel-fast-crane"] {
+		t.Errorf("sessions = %v, want mycel-fast-crane", stub.sessions)
 	}
 }

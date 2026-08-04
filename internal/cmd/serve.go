@@ -210,9 +210,12 @@ func RunServerCtx(ctx context.Context, addr, repoRoot, corsOrigin, apiKey string
 
 	// Sessions created before session names dropped the repo hash are still
 	// running under the old name. Rename them before anything looks for an
-	// agent, or a running agent reads as stopped.
-	if n := tmux.NewManager(tmux.DefaultPrefix).AdoptLegacySessions(ctx); n > 0 {
-		log.Info("adopted tmux sessions named by an older version", "sessions", n)
+	// agent, or a running agent reads as stopped. The registry decides what is
+	// a hash and what is part of an agent's name, which shape alone cannot.
+	if svc.AgentMgr != nil {
+		if n := tmux.NewManager(tmux.DefaultPrefix).AdoptLegacySessions(ctx, svc.AgentMgr.HasAgent); n > 0 {
+			log.Info("adopted tmux sessions named by an older version", "sessions", n)
+		}
 	}
 
 	srv := server.New(cfg, svc, globalHub, server.WebDist())
