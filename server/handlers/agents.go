@@ -839,8 +839,8 @@ func (h *AgentHandler) syncSessions(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
-	synced, stopped := svc.SyncSessions(r.Context())
-	writeJSON(w, http.StatusOK, map[string]int{"synced": synced, "stopped": stopped})
+	synced, stopped, resumed := svc.SyncSessions(r.Context())
+	writeJSON(w, http.StatusOK, map[string]int{"synced": synced, "stopped": stopped, "resumed": resumed})
 }
 
 // AgentHealthInfo represents health status of an agent.

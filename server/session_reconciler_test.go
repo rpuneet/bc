@@ -16,12 +16,12 @@ type countingSyncer struct {
 	once  sync.Once
 }
 
-func (c *countingSyncer) SyncSessions(context.Context) (int, int) {
+func (c *countingSyncer) SyncSessions(context.Context) (int, int, int) {
 	c.mu.Lock()
 	c.calls++
 	c.mu.Unlock()
 	c.once.Do(func() { close(c.first) })
-	return 1, 1
+	return 1, 1, 0
 }
 
 func (c *countingSyncer) count() int {

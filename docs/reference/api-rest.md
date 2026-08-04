@@ -62,7 +62,7 @@ Errors are JSON objects: `{"error": "<message>"}` with an appropriate status cod
 | POST | `/api/agents/send-role` | Send a message to all agents with a role. Body: `{"role","message"}`. |
 | POST | `/api/agents/send-pattern` | Send a message to agents whose name matches a pattern. Body: `{"pattern","message"}`. |
 | POST | `/api/agents/stop-all` | Stop all agents. Returns `{"stopped": <n>}`. |
-| POST | `/api/agents/sync` | Reconcile in-memory agent state with live runtime sessions. Returns `{"synced": <n>, "stopped": <n>}`. |
+| POST | `/api/agents/sync` | Reconcile in-memory agent state with live runtime sessions. Returns `{"synced": <n>, "stopped": <n>, "resumed": <n>}`. |
 | GET | `/api/agents/health` | Per-agent health report (`healthy`/`degraded`/`unhealthy`, tmux liveness, state freshness). Query: `timeout=<duration>` (default `60s`), `agent=<name>`. |
 | GET | `/api/agents/activity` | Recent activity events across all agents (Live page hydration). Query: `limit` (default 200, max 2000). |
 

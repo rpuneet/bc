@@ -536,11 +536,21 @@ func (s *AgentService) publishEvent(eventType string, data map[string]any) {
 // the middle of starting.
 const sessionStartGrace = 30 * time.Second
 
+// sessionStopGrace is the same idea as sessionStartGrace on the way down.
+// Killing a session is not instantaneous, so a sweep landing immediately after
+// a stop can still see the session and would announce the agent as running
+// again — undoing a stop the user just asked for.
+const sessionStopGrace = 30 * time.Second
+
 // sessionGoneReason is recorded as the agent's task so the reason is visible
 // where the state is, rather than only in an event nobody is watching.
 const sessionGoneReason = "session ended without stopping — the agent was not running"
 
-// SyncSessions reconciles in-memory agent state with actual runtime sessions.
+// sessionAliveReason is its opposite: the record says stopped and the process
+// is still there.
+const sessionAliveReason = "session still running — the agent was recorded stopped while it was not"
+
+// SyncSessions reconciles agent state with the sessions actually running.
 //
 // State is derived from what an agent reports, so an agent whose session dies
 // without a final event keeps the state it last reported — forever. It is listed
@@ -548,18 +558,38 @@ const sessionGoneReason = "session ended without stopping — the agent was not 
 // no pty behind it (#3570). A "working" agent that cannot possibly be working is
 // worse than an error, because it suppresses the question.
 //
-// An agent whose session has vanished is moved to stopped, with the reason
-// recorded as its task. Terminal states are left alone: stopped and error have
-// nothing to reconcile, and done says the agent finished, which is worth more
-// than restating that its session is gone.
+// The mismatch runs both ways, and only stopping was ever corrected. An agent
+// recorded stopped with its session still running is the same lie told the other
+// way round, and it is the worse of the two to leave: nothing else ever revisits
+// a stopped record, so where a stale "working" is corrected within 30 seconds, a
+// wrong "stopped" is permanent. It is also reachable in one step — anything that
+// records a stop while the process lives, up to and including a bug in this
+// sweep — and it hides a running agent from the fleet entirely.
 //
-// Returns the number of agents inspected and the number moved to stopped.
-func (s *AgentService) SyncSessions(ctx context.Context) (synced, stopped int) {
+// So: a live state with no session becomes stopped, and a stopped state with a
+// live session becomes idle, both with the reason recorded as the task. Idle
+// rather than working because the session's existence says a process is there
+// and nothing more; the next event it reports moves it on.
+//
+// error and done are left alone in both directions. done means the agent
+// finished, which is worth more than restating what became of its session, and
+// an error with a session still up is a diagnosis a person should see rather
+// than have overwritten by an inference.
+//
+// Returns how many agents were inspected, how many were moved to stopped, and
+// how many stopped records were restored to idle.
+func (s *AgentService) SyncSessions(ctx context.Context) (synced, stopped, resumed int) {
 	agents := s.manager.ListAgents()
 	now := time.Now()
 	for _, a := range agents {
 		switch a.State {
-		case StateStopped, StateError, StateDone:
+		case StateError, StateDone:
+			continue
+		case StateStopped:
+			synced++
+			if s.resumeIfSessionAlive(ctx, a, now) {
+				resumed++
+			}
 			continue
 		}
 		if !a.StartedAt.IsZero() && now.Sub(a.StartedAt) < sessionStartGrace {
@@ -582,7 +612,30 @@ func (s *AgentService) SyncSessions(ctx context.Context) (synced, stopped int) {
 			"reason": "session_gone",
 		})
 	}
-	return synced, stopped
+	return synced, stopped, resumed
+}
+
+// resumeIfSessionAlive moves an agent recorded stopped back to idle when its
+// session is still running. Reports whether it did.
+func (s *AgentService) resumeIfSessionAlive(ctx context.Context, a *Agent, now time.Time) bool {
+	if a.StoppedAt != nil && now.Sub(*a.StoppedAt) < sessionStopGrace {
+		return false
+	}
+	rt := s.manager.RuntimeForAgent(a.Name)
+	if !rt.HasSession(ctx, a.Name) {
+		return false
+	}
+	if err := s.manager.UpdateAgentState(ctx, a.Name, StateIdle, sessionAliveReason); err != nil {
+		log.Warn("sync: failed to update agent state", "agent", a.Name, "error", err)
+		return false
+	}
+	log.Info("agent was recorded stopped with its session still running — marked idle", "agent", a.Name)
+	s.publishEvent("agent.state_changed", map[string]any{
+		"name":   a.Name,
+		"state":  string(StateIdle),
+		"reason": "session_alive",
+	})
+	return true
 }
 
 // StopAll stops all running agents. Returns count of agents stopped.
