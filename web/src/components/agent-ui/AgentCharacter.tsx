@@ -574,7 +574,6 @@ const TOOL_GLYPHS: Record<string, string> = {
   cursor: "▶",
   codex: "◆",
   pi: "π",
-  openclaw: "⌘",
 };
 
 function ToolChip({ id, tool }: { id: AgentIdentity; tool: string }) {

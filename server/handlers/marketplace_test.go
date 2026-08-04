@@ -216,37 +216,6 @@ func TestMarketplaceHandler_Install_ComposesCorrectMCPMessage(t *testing.T) {
 	}
 }
 
-func TestMarketplaceHandler_Install_OpenclawSkillUsesOpenclawCLI(t *testing.T) {
-	sender := &fakeAgentSender{}
-	h := NewMarketplaceHandler(newTestAggregator(t, nil), sender)
-	mux := http.NewServeMux()
-	h.Register(mux)
-
-	body := `{
-		"item_id":     "openclaw:couponclaw",
-		"item_name":   "CouponClaw",
-		"item_type":   "skill",
-		"item_source": "openclaw",
-		"agents":      ["my-agent"]
-	}`
-	req := httptest.NewRequest(http.MethodPost, "/api/marketplace/install", bytes.NewBufferString(body))
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-	msg := sender.calls[0].message
-	if !contains(msg, "openclaw skills install") {
-		t.Errorf("openclaw install message should contain 'openclaw skills install', got: %s", msg)
-	}
-	// Must NOT contain the non-existent clawhub binary.
-	if contains(msg, "clawhub install") {
-		t.Errorf("openclaw install message must NOT use clawhub (binary does not exist), got: %s", msg)
-	}
-}
-
 func TestMarketplaceHandler_Install_NoSender(t *testing.T) {
 	h := NewMarketplaceHandler(newTestAggregator(t, nil), nil)
 	mux := http.NewServeMux()
@@ -405,23 +374,28 @@ func TestComposeInstallMessage_ClaudeSkill(t *testing.T) {
 	}
 }
 
-func TestComposeInstallMessage_OpenclawSkill(t *testing.T) {
-	// Item IDs from the aggregator carry an "openclaw:" prefix; the install
-	// command must use the bare slug and the real openclaw CLI binary.
+// A skill's install path no longer varies by source. It used to: ClawHub skills
+// were installed with the openclaw CLI, and when that provider was removed the
+// branch went with it. Any skill, whatever registry it was listed from, is
+// installed as a Claude plugin from its repository.
+func TestComposeInstallMessage_SkillFromAnUnfamiliarSourceStillUsesThePluginPath(t *testing.T) {
 	req := installRequest{
-		ItemID:     "openclaw:couponclaw",
-		ItemName:   "CouponClaw",
-		ItemType:   "skill",
-		ItemSource: "openclaw",
-		Agents:     []string{"a"},
+		ItemID:        "somewhere:couponclaw",
+		ItemName:      "CouponClaw",
+		ItemType:      "skill",
+		ItemSource:    "somewhere",
+		ItemSourceURL: "https://github.com/acme/skills",
+		Agents:        []string{"a"},
 	}
 	msg := composeInstallMessage(req)
-	// Prefix must be stripped; command must use the real openclaw CLI.
-	if !contains(msg, `openclaw skills install "couponclaw"`) {
-		t.Errorf("openclaw message should contain 'openclaw skills install \"couponclaw\"', got:\n%s", msg)
+	if !contains(msg, "claude plugin marketplace add") {
+		t.Errorf("skill message should register the marketplace, got:\n%s", msg)
 	}
-	if contains(msg, "clawhub") {
-		t.Errorf("openclaw message must NOT reference clawhub (binary does not exist), got:\n%s", msg)
+	if !contains(msg, `claude plugin install "CouponClaw@skills"`) {
+		t.Errorf("skill message should install name@marketplace, got:\n%s", msg)
+	}
+	if contains(msg, "openclaw") || contains(msg, "clawhub") {
+		t.Errorf("skill message must not reference a removed provider, got:\n%s", msg)
 	}
 }
 

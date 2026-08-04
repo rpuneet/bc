@@ -325,7 +325,7 @@ func TestNpmPackageForHint(t *testing.T) {
 		{"npm install -g @openai/codex", "@openai/codex", true},
 		{"npm i -g foo", "foo", true},
 		{"npx -y @anthropic-ai/claude-code", "@anthropic-ai/claude-code", true},
-		{"npx openclaw", "openclaw", true},
+		{"npx some-cli", "some-cli", true},
 		{"curl -fsSL https://antigravity.google/install.sh | sh", "", false},
 		{"https://cursor.sh", "", false},
 		{"", "", false},

@@ -234,24 +234,15 @@ func composeInstallMessage(req installRequest) string {
 			sb.WriteString(fmt.Sprintf("  claude mcp add %q %q\n", req.ItemName, spec))
 		}
 	case marketplace.TypeSkill:
-		switch marketplace.Source(req.ItemSource) {
-		case marketplace.SourceOpenclaw:
-			// The correct CLI is the openclaw CLI, not the non-existent "clawhub" binary.
-			// Command: openclaw skills install <slug>
-			// The item ID may carry an "openclaw:" prefix; strip it to get the bare slug.
-			slug := strings.TrimPrefix(req.ItemID, "openclaw:")
-			sb.WriteString(fmt.Sprintf("  openclaw skills install %q\n", slug))
-		default:
-			repoURL := req.ItemSourceURL
-			if repoURL == "" {
-				repoURL = req.ItemID
-			}
-			marketplaceName := marketplaceNameFromURL(repoURL)
-			sb.WriteString("Step 1 — register the marketplace (first time only):\n")
-			sb.WriteString(fmt.Sprintf("  claude plugin marketplace add %q\n", repoURL))
-			sb.WriteString("Step 2 — install the plugin:\n")
-			sb.WriteString(fmt.Sprintf("  claude plugin install %q\n", req.ItemName+"@"+marketplaceName))
+		repoURL := req.ItemSourceURL
+		if repoURL == "" {
+			repoURL = req.ItemID
 		}
+		marketplaceName := marketplaceNameFromURL(repoURL)
+		sb.WriteString("Step 1 — register the marketplace (first time only):\n")
+		sb.WriteString(fmt.Sprintf("  claude plugin marketplace add %q\n", repoURL))
+		sb.WriteString("Step 2 — install the plugin:\n")
+		sb.WriteString(fmt.Sprintf("  claude plugin install %q\n", req.ItemName+"@"+marketplaceName))
 	case marketplace.TypeTemplate:
 		// This is the fallback for when no template store is wired; with one,
 		// install writes to the store itself and never composes a message.

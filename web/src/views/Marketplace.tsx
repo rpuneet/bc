@@ -20,7 +20,6 @@ type ItemSource =
   | "github"
   | "mycel"
   | "claude"
-  | "openclaw"
   | "gemini"
   | "glama"
   | "smithery";
@@ -47,7 +46,6 @@ const SOURCE_LABELS: Record<ItemSource, string> = {
   github: "GitHub",
   mycel: "mycel",
   claude: "Claude skills",
-  openclaw: "openclaw",
   gemini: "Google",
   glama: "Glama",
   smithery: "Smithery",
@@ -58,7 +56,6 @@ const SOURCE_COLORS: Record<ItemSource, string> = {
   github: "bg-mycel-success-subtle text-mycel-success",
   mycel: "bg-mycel-error-subtle text-mycel-error",
   claude: "bg-mycel-accent-subtle text-mycel-accent",
-  openclaw: "bg-mycel-success-subtle text-mycel-success",
   gemini: "bg-mycel-border text-mycel-muted",
   glama: "bg-mycel-accent-subtle text-mycel-accent",
   smithery: "bg-mycel-success-subtle text-mycel-success",
@@ -89,7 +86,6 @@ const ALL_SOURCES: Array<{ value: string; label: string }> = [
   { value: "glama", label: "Glama" },
   { value: "smithery", label: "Smithery" },
   { value: "claude", label: "Claude skills" },
-  { value: "openclaw", label: "openclaw" },
   { value: "gemini", label: "Google" },
   { value: "github", label: "GitHub" },
   { value: "mycel", label: "mycel" },

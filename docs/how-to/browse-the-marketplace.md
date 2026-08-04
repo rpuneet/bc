@@ -12,7 +12,6 @@ The Marketplace aggregates entries from eight sources into a single searchable c
 | GitHub | Repositories tagged `mcp-server` and `claude-skill`, gated by star count |
 | mycel | Templates from the local mycel template store |
 | Claude | Skills from `anthropics/claude-plugins-official` |
-| openclaw | Skills from the ClawHub catalog |
 | Google | Extensions from the `gemini-cli-extensions` org |
 | Glama | MCP servers listed on `glama.ai` |
 | Smithery | MCP servers listed on `registry.smithery.ai` |
@@ -25,7 +24,7 @@ Open the Marketplace from the web UI at `http://localhost:9374`. The header show
 
 - **Search** — matches an entry's name and description.
 - **Type** — filter to MCP Servers, Skills, or Templates.
-- **Source** — filter to a single source (MCP Registry, Glama, Smithery, Claude skills, openclaw, Google, GitHub, or mycel).
+- **Source** — filter to a single source (MCP Registry, Glama, Smithery, Claude skills, Google, GitHub, or mycel).
 
 Each card shows the entry's name, a type badge, a colour-coded source badge, its description, a star count for GitHub-sourced entries, and a link to the upstream repository or listing.
 
@@ -42,8 +41,7 @@ The exact command an agent runs depends on the entry:
 | Entry | Command the agent runs |
 |-------|------------------------|
 | MCP server | `claude mcp add "<name>" "<source-url>"` |
-| Skill (openclaw) | `openclaw skills install "<slug>"` |
-| Skill (Claude, GitHub) | `claude plugin marketplace add "<repo-url>"` then `claude plugin install "<name>@<marketplace>"` |
+| Skill | `claude plugin marketplace add "<repo-url>"` then `claude plugin install "<name>@<marketplace>"` |
 | Template | `mycel agent create <agent-name> --template "<name>"` |
 
 Templates are the exception: the `mycel` source lists the templates already on

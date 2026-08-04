@@ -12,12 +12,11 @@ import (
 func TestCuratedCommands(t *testing.T) {
 	// binary prefix each provider's commands must start with.
 	cases := map[string]string{
-		"claude":   "claude",
-		"codex":    "codex",
-		"pi":       "pi",
-		"agy":      "agy",
-		"cursor":   "cursor-agent",
-		"openclaw": "openclaw",
+		"claude": "claude",
+		"codex":  "codex",
+		"pi":     "pi",
+		"agy":    "agy",
+		"cursor": "cursor-agent",
 	}
 
 	for name, prefix := range cases {
@@ -57,7 +56,7 @@ func TestCuratedCommands(t *testing.T) {
 // web UI's guarded POST /api/providers/{name}/run can execute them inline
 // instead of only offering "copy + run in your terminal".
 func TestCuratedCommands_VersionAndHelpRunnable(t *testing.T) {
-	names := []string{"claude", "codex", "pi", "agy", "cursor", "openclaw"}
+	names := []string{"claude", "codex", "pi", "agy", "cursor"}
 
 	for _, name := range names {
 		t.Run(name, func(t *testing.T) {

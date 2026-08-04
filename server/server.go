@@ -450,7 +450,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewTemplateHandler(tmplStore).Register(mux)
 
 		// Marketplace — live catalog aggregating MCP registry, GitHub, vendor skill
-		// sources (Claude/openclaw/Gemini), and local templates. Template
+		// sources (Claude/Gemini), and local templates. Template
 		// installs write directly to tmplStore (deterministic); every other
 		// item type dispatches an install instruction via the agent-message
 		// path (AgentService.Send); sender may be nil when agents are unavailable.

@@ -56,7 +56,6 @@ export const PROVIDER_LABELS: Record<string, string> = {
   cursor: "Cursor",
   codex: "Codex",
   pi: "Pi",
-  openclaw: "OpenClaw",
 };
 
 export const PROVIDER_NAMES = Object.keys(PROVIDER_LABELS);
@@ -68,7 +67,6 @@ const PROVIDER_SIGNIN: Record<string, string> = {
   cursor: "cursor-agent",
   codex: "codex",
   pi: "pi",
-  openclaw: "openclaw",
 };
 
 function labelFor(name: string): string {

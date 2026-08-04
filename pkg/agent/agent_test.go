@@ -4008,3 +4008,41 @@ func TestEntityWorktreeManager_EmptyRootResolvesMycelHome(t *testing.T) {
 		t.Errorf("ClaudeDir() = %q, want %q", got, want)
 	}
 }
+
+// An agent whose stored tool is no longer in the registry — a provider that was
+// removed, or a typo in the record — must refuse to start rather than fall
+// through to the default command. Falling through starts a *different* provider
+// in that agent's worktree and reports it as running, which is how an agent can
+// appear healthy while doing something nobody asked for.
+func TestStartRefusesAnAgentWhoseToolIsGone(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Register(mockProvider{name: "stillhere", installed: true})
+
+	be := runtime.NewTmuxBackend(tmux.NewManager(fmt.Sprintf("bctest-%d-", time.Now().UnixNano())))
+	m := &Manager{
+		agents:           make(map[string]*Agent),
+		backends:         map[string]runtime.Backend{"tmux": be},
+		defaultBackend:   "tmux",
+		providerRegistry: reg,
+		stateDir:         t.TempDir(),
+		agentCmd:         "/bin/true",
+	}
+	m.agents["orphan"] = &Agent{
+		Name: "orphan",
+		Tool: "departed",
+		Repo: t.TempDir(),
+		// A path that does not exist, so the reuse-the-worktree branch is
+		// skipped and the run reaches command construction, which is what this
+		// test is about.
+		WorktreeDir:    filepath.Join(t.TempDir(), "gone"),
+		RuntimeBackend: "tmux",
+	}
+
+	_, err := m.startAgent(context.Background(), "orphan", SpawnOptions{Name: "orphan"})
+	if err == nil {
+		t.Fatal("expected a start of an agent with a removed tool to fail")
+	}
+	if !strings.Contains(err.Error(), "departed") || !strings.Contains(err.Error(), "no longer supported") {
+		t.Errorf("error should name the missing tool and say it is unsupported, got %q", err.Error())
+	}
+}

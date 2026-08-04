@@ -93,8 +93,10 @@ describe("AgentToolStream capture verdict", () => {
   });
 
   it("says capture is unavailable only when the provider declares none", async () => {
-    mockApi([{ name: "openclaw", activity_mode: "none" }]);
-    renderStream("openclaw");
+    // No shipped provider declares "none" any more, so the mode is stated
+    // directly rather than borrowed from one that might change under the test.
+    mockApi([{ name: "quiet-tool", activity_mode: "none" }]);
+    renderStream("quiet-tool");
     await waitFor(() => expect(screen.getByText(UNAVAILABLE)).toBeTruthy());
     expect(screen.queryByText(WAITING)).toBeNull();
   });
@@ -102,7 +104,7 @@ describe("AgentToolStream capture verdict", () => {
   it("does not flash 'unavailable' before the provider list arrives", () => {
     // Never resolves: the verdict is unknown for the whole of this render.
     fetchMock.mockImplementation(() => new Promise(() => {}));
-    renderStream("openclaw");
+    renderStream("quiet-tool");
     // Claiming capture is impossible before asking would be a lie the user acts
     // on, so an unknown verdict must read as "waiting".
     expect(screen.queryByText(UNAVAILABLE)).toBeNull();
@@ -111,7 +113,7 @@ describe("AgentToolStream capture verdict", () => {
 
   it("keeps waiting when the provider lookup fails", async () => {
     mockApi(null, { providersFail: true });
-    renderStream("openclaw");
+    renderStream("quiet-tool");
     // A network blip must not be reported to the user as a missing capability.
     await waitFor(() => expect(screen.getByText(WAITING)).toBeTruthy());
     expect(screen.queryByText(UNAVAILABLE)).toBeNull();
@@ -165,7 +167,7 @@ describe("AgentToolStream empty-feed diagnosis", () => {
     // An uncapturable provider is silent by design. Calling that silence broken
     // before knowing which kind of provider this is would be a false alarm.
     fetchMock.mockImplementation(() => new Promise(() => {}));
-    renderStream("openclaw", { agentState: "idle", startedAt: HOURS_AGO });
+    renderStream("quiet-tool", { agentState: "idle", startedAt: HOURS_AGO });
     expect(screen.queryByText(SILENT)).toBeNull();
     expect(screen.getByText(WAITING)).toBeTruthy();
   });

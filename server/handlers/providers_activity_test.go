@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -38,20 +39,36 @@ func activityModes(t *testing.T, reg *provider.Registry) map[string]string {
 	return modes
 }
 
+// quietProvider implements Provider and nothing else, which is how a provider
+// with no activity signal presents itself: it does not implement ActivitySource,
+// so the handler must fall back to "none" rather than serving an empty string.
+// Every provider mycel ships now has hooks or a transcript, so the fallback has
+// no real subject and would otherwise go untested.
+type quietProvider struct{}
+
+func (quietProvider) Name() string                               { return "quiet" }
+func (quietProvider) Description() string                        { return "test" }
+func (quietProvider) Command() string                            { return "quiet" }
+func (quietProvider) Binary() string                             { return "quiet" }
+func (quietProvider) InstallHint() string                        { return "" }
+func (quietProvider) BuildCommand(_ provider.CommandOpts) string { return "quiet" }
+func (quietProvider) IsInstalled(_ context.Context) bool         { return false }
+func (quietProvider) Version(_ context.Context) string           { return "" }
+
 func TestProvidersListReportsActivityMode(t *testing.T) {
 	reg := provider.NewRegistry()
-	reg.Register(provider.NewClaudeProvider())   // hooks
-	reg.Register(provider.NewCursorProvider())   // hooks
-	reg.Register(provider.NewCodexProvider())    // transcript
-	reg.Register(provider.NewOpenclawProvider()) // none
+	reg.Register(provider.NewClaudeProvider()) // hooks
+	reg.Register(provider.NewCursorProvider()) // hooks
+	reg.Register(provider.NewCodexProvider())  // transcript
+	reg.Register(quietProvider{})              // no ActivitySource at all
 
 	modes := activityModes(t, reg)
 
 	want := map[string]string{
-		"claude":   provider.ActivityModeHooks,
-		"cursor":   provider.ActivityModeHooks,
-		"codex":    provider.ActivityModeTranscript,
-		"openclaw": provider.ActivityModeNone,
+		"claude": provider.ActivityModeHooks,
+		"cursor": provider.ActivityModeHooks,
+		"codex":  provider.ActivityModeTranscript,
+		"quiet":  provider.ActivityModeNone,
 	}
 	for name, wantMode := range want {
 		if got := modes[name]; got != wantMode {

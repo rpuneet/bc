@@ -1,9 +1,12 @@
 package agent
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/rpuneet/mycel/pkg/provider"
 )
 
 // writeActivityConfig decides what mycel drops into a new agent's worktree so
@@ -49,11 +52,6 @@ func TestWriteActivityConfigPerProvider(t *testing.T) {
 			want: "",
 			why:  "codex is tailed from its rollout transcript and needs no cooperation",
 		},
-		{
-			tool: "openclaw",
-			want: "",
-			why:  "openclaw exposes no attributable activity, so any config would be dead weight",
-		},
 	}
 
 	for _, tc := range cases {
@@ -86,6 +84,47 @@ func TestWriteActivityConfigPerProvider(t *testing.T) {
 				t.Errorf("wrote %v but should write nothing (%s)", names, tc.why)
 			}
 		})
+	}
+}
+
+// quietProvider declares no activity signal. Every provider mycel ships reports
+// through hooks or a transcript, so this path has no real subject and would
+// otherwise go untested — and the thing it must not do is write Claude's hook
+// settings into a worktree where nothing reads them.
+type quietProvider struct{}
+
+func (quietProvider) Name() string                               { return "quiet" }
+func (quietProvider) Description() string                        { return "declares no activity signal" }
+func (quietProvider) Command() string                            { return "quiet" }
+func (quietProvider) Binary() string                             { return "quiet" }
+func (quietProvider) InstallHint() string                        { return "" }
+func (quietProvider) BuildCommand(_ provider.CommandOpts) string { return "quiet" }
+func (quietProvider) IsInstalled(_ context.Context) bool         { return false }
+func (quietProvider) Version(_ context.Context) string           { return "" }
+func (quietProvider) ActivityMode() string                       { return provider.ActivityModeNone }
+func (quietProvider) WriteHookConfig(_, _, _ string) error       { return nil }
+func (quietProvider) TranscriptGlobs(_ string) []string          { return nil }
+
+func TestWriteActivityConfigWritesNothingForANoneModeProvider(t *testing.T) {
+	m := NewManager(t.TempDir())
+	reg := provider.NewRegistry()
+	reg.Register(quietProvider{})
+	m.providerRegistry = reg
+	wt := t.TempDir()
+
+	if err := m.writeActivityConfig("quiet", wt, "agent-x"); err != nil {
+		t.Fatalf("writeActivityConfig: %v", err)
+	}
+	entries, err := os.ReadDir(wt)
+	if err != nil {
+		t.Fatalf("read worktree: %v", err)
+	}
+	if len(entries) != 0 {
+		names := make([]string, 0, len(entries))
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		t.Errorf("wrote %v for a provider that declares no activity signal", names)
 	}
 }
 

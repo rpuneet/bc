@@ -204,7 +204,7 @@ whether the Live tab expects events at all.
 |------|-----------|-------------------|---------------------------|
 | `hooks` | claude, agy, cursor | The provider runs a command on each lifecycle event, which POSTs to `/api/agents/{name}/hook` | claude: `.claude/settings.json`, agy: `.agents/hooks.json`, cursor: `.cursor/hooks.json` + `.cursor/hooks/mycel-activity.sh` |
 | `transcript` | pi, codex | The daemon tails the session file the provider already writes and parses appended lines | Nothing — the tailer needs no cooperation |
-| `none` | openclaw | No events | Nothing |
+| `none` | — | No events | Nothing |
 
 Every provider must declare a mode; `pkg/provider` has tests that fail when one
 does not, and that check each mode's obligations (a `hooks` provider must
