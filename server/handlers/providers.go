@@ -943,62 +943,101 @@ type costAgg struct {
 	cost   float64
 }
 
-// aggregateCostsByProvider groups model costs by provider name.
-// A model belongs to a provider if the model name contains the provider name.
+// aggregateCostsByProvider groups costs by the provider that ran them.
+//
+// Attribution is by the agent's configured tool, not by whether the model
+// name contains the provider name. Cursor agents routinely run Claude-named
+// models; the old substring rule billed those turns to Claude and left
+// Cursor at $0 even after Cursor started reporting usage (#3593).
 func (h *ProviderHandler) aggregateCostsByProvider(ctx context.Context) map[string]*costAgg {
 	result := make(map[string]*costAgg)
 	if h.costs == nil {
 		return result
 	}
 
-	summaries, err := h.costs.SummaryByModel(ctx)
+	summaries, err := h.costs.SummaryByAgent(ctx)
 	if err != nil {
 		return result
 	}
 
+	toolByAgent := make(map[string]string)
+	for _, a := range h.listAgents(ctx) {
+		if a.Tool != "" {
+			toolByAgent[a.Name] = a.Tool
+		}
+	}
+
 	providers := h.registry.List()
 	for _, s := range summaries {
-		model := strings.ToLower(s.Model)
-		for _, p := range providers {
-			if strings.Contains(model, strings.ToLower(p.Name())) {
-				agg, ok := result[p.Name()]
-				if !ok {
-					agg = &costAgg{}
-					result[p.Name()] = agg
+		tool := toolByAgent[s.AgentID]
+		if tool == "" {
+			// Host / unattributed sessions: fall back to model-name match.
+			model := strings.ToLower(s.Model)
+			for _, p := range providers {
+				if strings.Contains(model, strings.ToLower(p.Name())) {
+					tool = p.Name()
+					break
 				}
-				agg.tokens += s.TotalTokens
-				agg.cost += s.TotalCostUSD
-				break
 			}
 		}
+		if tool == "" {
+			continue
+		}
+		agg, ok := result[tool]
+		if !ok {
+			agg = &costAgg{}
+			result[tool] = agg
+		}
+		agg.tokens += s.TotalTokens
+		agg.cost += s.TotalCostUSD
 	}
 
 	return result
 }
 
-// costByModelForProvider returns per-model costs for a specific provider.
+// costByModelForProvider returns per-model costs for agents whose tool is
+// the named provider. Model-name substring matching is wrong here for the
+// same reason as aggregateCostsByProvider: a Cursor agent on a Claude model
+// is still Cursor spend.
 func (h *ProviderHandler) costByModelForProvider(ctx context.Context, name string) []ModelCost {
 	if h.costs == nil {
 		return nil
 	}
 
-	summaries, err := h.costs.SummaryByModel(ctx)
+	entries, err := h.costs.Entries(ctx)
 	if err != nil {
 		return nil
 	}
 
-	var models []ModelCost
-	lowerName := strings.ToLower(name)
-	for _, s := range summaries {
-		if strings.Contains(strings.ToLower(s.Model), lowerName) {
-			models = append(models, ModelCost{
-				Model:        s.Model,
-				TotalTokens:  s.TotalTokens,
-				TotalCostUSD: s.TotalCostUSD,
-			})
+	toolByAgent := make(map[string]string)
+	for _, a := range h.listAgents(ctx) {
+		if a.Tool != "" {
+			toolByAgent[a.Name] = a.Tool
 		}
 	}
 
+	byModel := map[string]*ModelCost{}
+	for _, e := range entries {
+		tool := toolByAgent[e.Agent]
+		if tool == "" && strings.Contains(strings.ToLower(e.Model), strings.ToLower(name)) {
+			tool = name
+		}
+		if tool != name {
+			continue
+		}
+		mc, ok := byModel[e.Model]
+		if !ok {
+			mc = &ModelCost{Model: e.Model}
+			byModel[e.Model] = mc
+		}
+		mc.TotalTokens += e.InputTokens + e.OutputTokens
+		mc.TotalCostUSD += e.CostUSD
+	}
+
+	models := make([]ModelCost, 0, len(byModel))
+	for _, mc := range byModel {
+		models = append(models, *mc)
+	}
 	return models
 }
 
