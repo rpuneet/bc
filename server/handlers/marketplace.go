@@ -81,10 +81,17 @@ type installRequest struct { //nolint:govet // field order matches JSON/API cont
 }
 
 // installResponse is returned on success (HTTP 200).
+//
+// Status is "installed" when the daemon completed the install itself (local
+// templates), or "dispatched" when it only sent an instruction to agents
+// (#3571). Callers must not treat dispatched as installed — that lie is how
+// failed installs used to look successful.
 // Errors lists per-agent failures so the caller can surface which agents were
 // not reached; a non-empty Errors slice alongside Dispatched>0 indicates a
 // partial success.
 type installResponse struct { //nolint:govet // field order matches API contract
+	Status     string   `json:"status"`
+	Message    string   `json:"message,omitempty"`
 	Dispatched int      `json:"dispatched"`
 	Errors     []string `json:"errors,omitempty"`
 }
@@ -144,7 +151,11 @@ func (h *MarketplaceHandler) install(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "install template: "+err.Error(), http.StatusBadGateway)
 			return
 		}
-		writeJSON(w, http.StatusOK, installResponse{Dispatched: len(req.Agents)})
+		writeJSON(w, http.StatusOK, installResponse{
+			Status:     "installed",
+			Message:    "Template written to the local store.",
+			Dispatched: len(req.Agents),
+		})
 		return
 	}
 
@@ -173,7 +184,12 @@ func (h *MarketplaceHandler) install(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, installResponse{Dispatched: dispatched, Errors: sendErrs})
+	writeJSON(w, http.StatusOK, installResponse{
+		Status:     "dispatched",
+		Message:    fmt.Sprintf("Install instruction sent to %d agent(s). Outcome is not verified yet.", dispatched),
+		Dispatched: dispatched,
+		Errors:     sendErrs,
+	})
 }
 
 // installTemplate upserts a template the daemon already holds. Only the local

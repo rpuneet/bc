@@ -126,7 +126,7 @@ async function fetchAgents(): Promise<Agent[]> {
 async function sendInstall(
   item: MarketplaceItem,
   agents: string[],
-): Promise<{ dispatched: number }> {
+): Promise<{ status: string; dispatched: number; message?: string }> {
   const res = await fetch("/api/marketplace/install", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -143,7 +143,7 @@ async function sendInstall(
     const text = await res.text();
     throw new Error(text || `API error: ${res.status}`);
   }
-  return res.json() as Promise<{ dispatched: number }>;
+  return res.json() as Promise<{ status: string; dispatched: number; message?: string }>;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -275,7 +275,7 @@ function FilterSelect({ value, options, onChange }: FilterSelectProps) {
 interface InlineAgentPickerProps {
   item: MarketplaceItem;
   onDismiss: () => void;
-  onSent: (count: number) => void;
+  onSent: (result: { status: string; dispatched: number; message?: string }) => void;
 }
 
 function InlineAgentPicker({
@@ -326,7 +326,7 @@ function InlineAgentPicker({
     setError(null);
     try {
       const result = await sendInstall(item, Array.from(selected));
-      onSent(result.dispatched);
+      onSent(result);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Unknown error");
       setSending(false);
@@ -411,19 +411,30 @@ function isRawUrl(s: string): boolean {
 
 function ItemCard({ item }: { item: MarketplaceItem }) {
   const [showPicker, setShowPicker] = useState(false);
-  const [sentCount, setSentCount] = useState<number | null>(null);
+  const [outcome, setOutcome] = useState<{
+    status: string;
+    dispatched: number;
+    message?: string;
+  } | null>(null);
 
-  function handleSent(count: number) {
+  function handleSent(result: { status: string; dispatched: number; message?: string }) {
     setShowPicker(false);
-    setSentCount(count);
+    setOutcome(result);
     // Clear confirmation after 4 s so the button is reusable.
-    setTimeout(() => setSentCount(null), 4000);
+    setTimeout(() => setOutcome(null), 4000);
   }
 
   // Only render a description when there is meaningful text (not a raw URL —
   // the source badge already implies the repo).
   const showDescription =
     !!item.description && !isRawUrl(item.description);
+
+  const outcomeLabel =
+    outcome == null
+      ? null
+      : outcome.status === "installed"
+        ? "Installed"
+        : `Instruction sent to ${outcome.dispatched} agent${outcome.dispatched !== 1 ? "s" : ""}`;
 
   return (
     <motion.div
@@ -459,9 +470,14 @@ function ItemCard({ item }: { item: MarketplaceItem }) {
 
         {/* Add button + inline picker */}
         <div className="relative shrink-0">
-          {sentCount !== null ? (
-            <span className="text-[10px] text-mycel-success whitespace-nowrap">
-              Sent to {sentCount} agent{sentCount !== 1 ? "s" : ""}
+          {outcomeLabel ? (
+            <span
+              className={`text-[10px] whitespace-nowrap ${
+                outcome?.status === "installed" ? "text-mycel-success" : "text-mycel-muted"
+              }`}
+              title={outcome?.message}
+            >
+              {outcomeLabel}
             </span>
           ) : (
             <button
