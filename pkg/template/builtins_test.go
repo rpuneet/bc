@@ -2,6 +2,8 @@ package template
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -113,6 +115,140 @@ func TestEnsureBuiltinsLeavesAnEditedTemplateAlone(t *testing.T) {
 	}
 	if got.Description != "mine" || prompt != "my own prompt\n" {
 		t.Errorf("edited template was replaced: description=%q prompt=%q", got.Description, prompt)
+	}
+}
+
+func TestEnsureBuiltinsUpgradesWhenHashStillMatches(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := EnsureBuiltins(dir); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+
+	// Simulate a prior ship: record the current on-disk hash, then rewrite
+	// the files to a stale body while leaving the recorded hash pointing at
+	// those "old" bytes — the next EnsureBuiltins must treat them as ours
+	// and replace with the embed.
+	name := "feature-dev"
+	staleJSON := []byte(`{"name":"feature-dev","description":"stale","mcps":["bc"]}` + "\n")
+	staleMD := []byte("old prompt that referenced bc\n")
+	staleHash := builtinContentHash(staleJSON, string(staleMD))
+	if err := os.WriteFile(filepath.Join(dir, name+".json"), staleJSON, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, name+".md"), staleMD, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	state, err := readBuiltinState(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Hashes == nil {
+		state.Hashes = map[string]string{}
+	}
+	state.Hashes[name] = staleHash
+	if err := writeBuiltinState(dir, state); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := EnsureBuiltins(dir); err != nil {
+		t.Fatalf("upgrade run: %v", err)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(dir, name+".json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), `"bc"`) {
+		t.Fatalf("stale builtin was not upgraded: %s", raw)
+	}
+	shipHash, err := shippedBuiltinHash(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diskHash, err := diskBuiltinHash(dir, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diskHash != shipHash {
+		t.Fatalf("after upgrade disk hash %s != ship hash %s", diskHash, shipHash)
+	}
+	state, err = readBuiltinState(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Hashes[name] != shipHash {
+		t.Fatalf("state hash = %q, want %q", state.Hashes[name], shipHash)
+	}
+}
+
+func TestEnsureBuiltinsDoesNotUpgradeAnEditEvenWithARecordedHash(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := EnsureBuiltins(dir); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+
+	name := "feature-dev"
+	state, err := readBuiltinState(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// User edits after install: disk hash diverges from recorded.
+	edit := []byte(`{"name":"feature-dev","description":"my edit","mcps":["mycel"]}` + "\n")
+	if err := os.WriteFile(filepath.Join(dir, name+".json"), edit, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, name+".md"), []byte("edited prompt\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := EnsureBuiltins(dir); err != nil {
+		t.Fatalf("second run: %v", err)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, name+".json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "my edit") {
+		t.Fatalf("edit was overwritten: %s", raw)
+	}
+	// Recorded hash must still be the pre-edit value (we do not adopt edits).
+	if state.Hashes[name] == "" {
+		t.Fatal("expected a recorded hash from install")
+	}
+	state2, _ := readBuiltinState(dir)
+	if state2.Hashes[name] != state.Hashes[name] {
+		t.Fatalf("hash was rewritten to follow the edit")
+	}
+}
+
+func TestEnsureBuiltinsWithdrawsAnOwnedBuiltin(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := EnsureBuiltins(dir); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	name := "feature-dev"
+	state, err := readBuiltinState(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state.Withdrawn = append(state.Withdrawn, name)
+	if err := writeBuiltinState(dir, state); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := EnsureBuiltins(dir); err != nil {
+		t.Fatalf("withdraw run: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, name+".json")); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("owned withdrawn builtin still on disk: %v", err)
+	}
+	// Must not come back on a further run.
+	if _, err := EnsureBuiltins(dir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, name+".json")); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatal("withdrawn builtin was reinstalled")
 	}
 }
 

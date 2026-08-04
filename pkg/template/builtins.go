@@ -1,7 +1,9 @@
 package template
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,8 +34,23 @@ const builtinDir = "builtins"
 // templates, and this is not one.
 const builtinStateFile = ".builtins.state"
 
+// builtinState tracks what EnsureBuiltins has done in a templates directory.
+//
+// Installed is the set of names that have ever been seeded here — including
+// ones the user later deleted — so a deliberate deletion is not undone on
+// the next start.
+//
+// Hashes maps name → sha256 of the JSON+markdown pair EnsureBuiltins last
+// wrote. When the on-disk pair still matches that hash, the file is ours to
+// upgrade or withdraw; when it does not, the user edited it and we leave it
+// alone (#3573).
+//
+// Withdrawn lists names we used to ship and no longer do. They stay out of
+// Installed's reinstall path forever, even after the embed drops them.
 type builtinState struct {
-	Installed []string `json:"installed"`
+	Hashes    map[string]string `json:"hashes,omitempty"`
+	Installed []string          `json:"installed"`
+	Withdrawn []string          `json:"withdrawn,omitempty"`
 }
 
 // BuiltinNames returns the names of the templates that ship with mycel, sorted.
@@ -76,18 +93,64 @@ func Builtin(name string) (Template, string, error) {
 	return t, prompt, nil
 }
 
-// EnsureBuiltins installs any built-in template that has never been installed
-// into dir, and returns the names it added.
+// builtinContentHash returns a stable hex digest of the JSON+markdown pair.
+// Both halves are included so a prompt-only or metadata-only change is seen.
+func builtinContentHash(jsonBytes []byte, prompt string) string {
+	sum := sha256.New()
+	_, _ = sum.Write(jsonBytes)
+	_, _ = sum.Write([]byte{0}) // separator so "ab"+"c" ≠ "a"+"bc"
+	_, _ = sum.Write([]byte(prompt))
+	return hex.EncodeToString(sum.Sum(nil))
+}
+
+// shippedBuiltinHash is the content hash of the currently embedded pair.
+func shippedBuiltinHash(name string) (string, error) {
+	raw, err := builtinFS.ReadFile(filepath.Join(builtinDir, name+".json"))
+	if err != nil {
+		return "", err
+	}
+	prompt := ""
+	if md, mdErr := builtinFS.ReadFile(filepath.Join(builtinDir, name+".md")); mdErr == nil {
+		prompt = string(md)
+	}
+	return builtinContentHash(raw, prompt), nil
+}
+
+// diskBuiltinHash is the content hash of the on-disk pair, or "" when the
+// JSON side is missing.
+func diskBuiltinHash(dir, name string) (string, error) {
+	raw, err := os.ReadFile(filepath.Join(dir, name+".json")) //nolint:gosec // path under templates dir
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return "", nil
+		}
+		return "", err
+	}
+	prompt := ""
+	if md, mdErr := os.ReadFile(filepath.Join(dir, name+".md")); mdErr == nil { //nolint:gosec
+		prompt = string(md)
+	} else if !errors.Is(mdErr, fs.ErrNotExist) {
+		return "", mdErr
+	}
+	return builtinContentHash(raw, prompt), nil
+}
+
+// EnsureBuiltins installs, upgrades, or withdraws built-in templates in dir
+// and returns the names it newly added (not upgrades).
 //
-// It is additive and runs on every start, so an upgrade delivers new built-ins
-// to an existing workspace rather than only to a fresh one — the previous
-// seeding only fired when the directory was completely empty, which meant
-// nobody who had ever used mycel would see a template added later.
+// It runs on every start so an upgrade delivers new built-ins to an existing
+// workspace. Behaviour for each shipped name:
 //
-// Two things it will not do. It never overwrites a file that exists, so edits
-// to a built-in survive. And it records what it has installed, so a built-in
-// someone deleted on purpose stays deleted instead of returning at every
-// restart.
+//   - never installed, absent on disk → install and record hash
+//   - installed before, absent on disk → leave deleted (user choice)
+//   - on disk, hash matches what we last wrote → ours: upgrade if the embed
+//     changed, otherwise leave
+//   - on disk, hash does not match (or no hash recorded) → user edit or a
+//     pre-hash install: leave alone, remember the name so a later delete sticks
+//
+// Names listed in state.Withdrawn, or present in WithdrawnBuiltins(), are
+// never reinstalled; on-disk copies whose hash still matches what we wrote
+// are removed so a shipped deletion reaches existing workspaces.
 func EnsureBuiltins(dir string) ([]string, error) {
 	if dir == "" {
 		return nil, errors.New("templates dir is empty")
@@ -100,36 +163,86 @@ func EnsureBuiltins(dir string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	if state.Hashes == nil {
+		state.Hashes = map[string]string{}
+	}
 	known := make(map[string]bool, len(state.Installed))
 	for _, n := range state.Installed {
 		known[n] = true
 	}
+	withdrawn := make(map[string]bool, len(state.Withdrawn)+len(WithdrawnBuiltins()))
+	for _, n := range state.Withdrawn {
+		withdrawn[n] = true
+	}
+	for _, n := range WithdrawnBuiltins() {
+		withdrawn[n] = true
+		if !containsString(state.Withdrawn, n) {
+			state.Withdrawn = append(state.Withdrawn, n)
+		}
+	}
 
-	s := NewStore(dir)
 	var added []string
 
+	// Drop on-disk copies of withdrawn builtins we still own.
+	for name := range withdrawn {
+		if err := withdrawOwnedBuiltin(dir, name, &state); err != nil {
+			return added, err
+		}
+		known[name] = true // so a later ship of the same name still respects deletion intent
+	}
+
 	for _, name := range BuiltinNames() {
-		if known[name] {
-			continue // installed before; respect a later deletion
+		if withdrawn[name] {
+			continue
+		}
+		shipHash, hashErr := shippedBuiltinHash(name)
+		if hashErr != nil {
+			return added, hashErr
 		}
 
-		// A template already on disk was either shipped by an older build or
-		// written by hand. Either way it is not ours to replace — record it and
-		// leave it be.
-		if _, statErr := os.Stat(filepath.Join(dir, name+".json")); statErr == nil {
-			state.Installed = append(state.Installed, name)
+		diskHash, diskErr := diskBuiltinHash(dir, name)
+		if diskErr != nil {
+			return added, diskErr
+		}
+
+		if diskHash == "" {
+			// Absent on disk.
+			if known[name] {
+				continue // user deleted it
+			}
+			if installErr := installShippedBuiltin(dir, name, shipHash, &state); installErr != nil {
+				return added, installErr
+			}
+			known[name] = true
+			added = append(added, name)
 			continue
 		}
 
-		t, prompt, builtinErr := Builtin(name)
-		if builtinErr != nil {
-			return added, builtinErr
+		// Present on disk.
+		recorded := state.Hashes[name]
+		if recorded != "" && diskHash == recorded {
+			// Still the bytes we wrote — safe to upgrade when the embed moved.
+			if diskHash == shipHash {
+				if !known[name] {
+					state.Installed = append(state.Installed, name)
+					known[name] = true
+				}
+				continue
+			}
+			if installErr := installShippedBuiltin(dir, name, shipHash, &state); installErr != nil {
+				return added, fmt.Errorf("upgrade built-in template %q: %w", name, installErr)
+			}
+			if !known[name] {
+				known[name] = true
+			}
+			continue
 		}
-		if createErr := s.Create(t, prompt, ScopeGlobal); createErr != nil {
-			return added, fmt.Errorf("install built-in template %q: %w", name, createErr)
+
+		// Edit, or a pre-hash install we cannot safely overwrite.
+		if !known[name] {
+			state.Installed = append(state.Installed, name)
+			known[name] = true
 		}
-		state.Installed = append(state.Installed, name)
-		added = append(added, name)
 	}
 
 	if err := writeBuiltinState(dir, state); err != nil {
@@ -138,6 +251,94 @@ func EnsureBuiltins(dir string) ([]string, error) {
 		return added, fmt.Errorf("record installed built-ins: %w", err)
 	}
 	return added, nil
+}
+
+// WithdrawnBuiltins returns names that used to ship and must not return.
+// Empty until a release actually drops templates (#3552); the hook exists so
+// EnsureBuiltins can express removal without a silent embed delete.
+func WithdrawnBuiltins() []string {
+	return nil
+}
+
+func installShippedBuiltin(dir, name, shipHash string, state *builtinState) error {
+	jsonBytes, err := builtinFS.ReadFile(filepath.Join(builtinDir, name+".json"))
+	if err != nil {
+		return err
+	}
+	prompt := []byte(nil)
+	if md, mdErr := builtinFS.ReadFile(filepath.Join(builtinDir, name+".md")); mdErr == nil {
+		prompt = md
+	} else if !errors.Is(mdErr, fs.ErrNotExist) {
+		return mdErr
+	}
+	if writeErr := writeRawBuiltinPair(dir, name, jsonBytes, prompt); writeErr != nil {
+		return fmt.Errorf("install built-in template %q: %w", name, writeErr)
+	}
+	if !containsString(state.Installed, name) {
+		state.Installed = append(state.Installed, name)
+	}
+	state.Hashes[name] = shipHash
+	return nil
+}
+
+func withdrawOwnedBuiltin(dir, name string, state *builtinState) error {
+	recorded := state.Hashes[name]
+	if recorded == "" {
+		return nil // never ours under the hash scheme — leave edits alone
+	}
+	diskHash, err := diskBuiltinHash(dir, name)
+	if err != nil || diskHash == "" {
+		delete(state.Hashes, name)
+		return err
+	}
+	if diskHash != recorded {
+		return nil // user edited after we wrote it
+	}
+	_ = os.Remove(filepath.Join(dir, name+".json"))
+	_ = os.Remove(filepath.Join(dir, name+".md"))
+	delete(state.Hashes, name)
+	return nil
+}
+
+// writeRawBuiltinPair writes the embedded bytes as-is so the on-disk hash
+// matches shippedBuiltinHash (re-marshaling through Template would drift).
+func writeRawBuiltinPair(dir, name string, jsonBytes, prompt []byte) error {
+	if !validName(name) {
+		return fmt.Errorf("invalid template name %q", name)
+	}
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return err
+	}
+	jsonPath := filepath.Join(dir, name+".json")
+	mdPath := filepath.Join(dir, name+".md")
+	tmpJSON := jsonPath + ".tmp"
+	tmpMD := mdPath + ".tmp"
+	if err := os.WriteFile(tmpJSON, jsonBytes, 0o640); err != nil { //nolint:gosec
+		return err
+	}
+	if err := os.WriteFile(tmpMD, prompt, 0o640); err != nil { //nolint:gosec
+		_ = os.Remove(tmpJSON)
+		return err
+	}
+	if err := os.Rename(tmpJSON, jsonPath); err != nil {
+		_ = os.Remove(tmpJSON)
+		_ = os.Remove(tmpMD)
+		return err
+	}
+	if err := os.Rename(tmpMD, mdPath); err != nil {
+		_ = os.Remove(tmpMD)
+		return err
+	}
+	return nil
+}
+
+func containsString(list []string, want string) bool {
+	for _, s := range list {
+		if s == want {
+			return true
+		}
+	}
+	return false
 }
 
 func readBuiltinState(dir string) (builtinState, error) {
@@ -159,6 +360,7 @@ func readBuiltinState(dir string) (builtinState, error) {
 
 func writeBuiltinState(dir string, st builtinState) error {
 	sort.Strings(st.Installed)
+	sort.Strings(st.Withdrawn)
 	raw, err := json.MarshalIndent(st, "", "  ")
 	if err != nil {
 		return err
