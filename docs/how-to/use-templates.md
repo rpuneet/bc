@@ -56,5 +56,21 @@ mycel template create my-persona \
   --prompt-file ./persona.md
 ```
 
+## Composition (#3558)
+
+A **multi-agent** blueprint lists other templates under `composes`. Expanding it
+returns the leaf templates (and the union of declared secrets) without creating
+agents yet:
+
+```bash
+curl -s http://127.0.0.1:9374/api/templates/engineering-team/expand
+# {"leaves":["eng","test","pm"],"secrets":["GH","TEAM_TOKEN"]}
+```
+
+Missing credentials do not refuse creation later — agents run degraded and the
+UI reports what is absent. Provisioning the leaves into live agents is the next
+slice of #3558.
+
 Or use **Templates → New** in the UI. Set `"label": "single-agent"` (or
-`"multi-agent"`) in the JSON when you know which kind it is.
+`"multi-agent"`) in the JSON when you know which kind it is. `"composes": ["a","b"]`
+makes a team of templates.
