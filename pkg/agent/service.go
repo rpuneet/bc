@@ -66,6 +66,10 @@ type CreateOptions struct {
 	// MissingSecrets is set when creating from a template whose declared
 	// secrets are absent (#3558 create-degraded).
 	MissingSecrets []string
+	// Task is an optional initial task (#3589). Recorded on the agent row
+	// and delivered as the first message after the bootstrap delay so the
+	// provider CLI has drawn its prompt.
+	Task string
 }
 
 // StartOptions configures agent start behavior.
@@ -235,6 +239,18 @@ func (s *AgentService) Create(ctx context.Context, opts CreateOptions) (*Agent, 
 		return nil, err
 	}
 
+	if task := strings.TrimSpace(opts.Task); task != "" {
+		if setErr := s.manager.SetAgentTask(ctx, a.Name, task); setErr != nil {
+			log.Warn("create: failed to record initial task", "agent", a.Name, "error", setErr)
+		} else {
+			// Refresh the returned copy so callers see the task immediately.
+			if refreshed := s.manager.GetAgent(a.Name); refreshed != nil {
+				a = refreshed
+			}
+		}
+		go s.deliverInitialTask(a.Name, task)
+	}
+
 	s.publishEvent("agent.created", map[string]any{
 		"name": a.Name,
 		"role": string(a.Role),
@@ -242,6 +258,17 @@ func (s *AgentService) Create(ctx context.Context, opts CreateOptions) (*Agent, 
 	})
 
 	return a, nil
+}
+
+// deliverInitialTask waits for the provider CLI to settle, then sends the
+// create-time task as the agent's first message (#3589).
+func (s *AgentService) deliverInitialTask(name, message string) {
+	time.Sleep(s.manager.getBootstrapDelay())
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := s.Send(ctx, name, message); err != nil {
+		log.Warn("create: initial task delivery failed", "agent", name, "error", err)
+	}
 }
 
 // Start starts a stopped agent, optionally with a fresh session.

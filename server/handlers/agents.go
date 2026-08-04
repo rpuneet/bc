@@ -417,9 +417,17 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 			// Repo is the absolute path of the git repo the agent binds
 			// to. Empty defaults to the repo the daemon was booted against.
 			Repo string `json:"repo,omitempty"`
+			// Task is an optional first instruction (#3589). Recorded on the
+			// agent and delivered after the bootstrap delay.
+			Task string `json:"task,omitempty"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			httpError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		req.Task = strings.TrimSpace(req.Task)
+		if len(req.Task) > 1024 {
+			httpError(w, "task too long: max 1024 bytes", http.StatusBadRequest)
 			return
 		}
 		for k := range req.Env {
@@ -462,7 +470,7 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 
 		created := make([]*agent.Agent, 0, len(leaves))
 		var unionMissing []string
-		for _, leaf := range leaves {
+		for i, leaf := range leaves {
 			agentName := leafAgentName(req.Name, leaf, multi)
 			tool := req.Tool
 			var leafSecrets []string
@@ -483,6 +491,12 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 			if tmplName == "" {
 				tmplName = req.Template
 			}
+			// Initial task applies to the primary agent only for multi-agent
+			// blueprints — leaf agents should not all get the same keystrokes.
+			leafTask := ""
+			if i == 0 {
+				leafTask = req.Task
+			}
 			a, err := svc.Create(r.Context(), agent.CreateOptions{
 				Name:           agentName,
 				Role:           agent.Role(role),
@@ -495,6 +509,7 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 				Team:           team,
 				Template:       tmplName,
 				MissingSecrets: missing,
+				Task:           leafTask,
 			})
 			if err != nil {
 				httpError(w, err.Error(), http.StatusBadRequest)

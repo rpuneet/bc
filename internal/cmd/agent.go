@@ -306,6 +306,7 @@ var (
 	agentCreateTeam     string
 	agentCreateEnv      string
 	agentCreateRuntime  string
+	agentCreateTask     string
 	agentStartRuntime   string
 	agentStartResume    string // explicit session ID to resume
 	agentListRole       string
@@ -337,6 +338,7 @@ func init() {
 	agentCreateCmd.Flags().StringVar(&agentCreateTeam, "team", "", "Team name (alphanumeric)")
 	agentCreateCmd.Flags().StringVar(&agentCreateEnv, "env", "", "Path to env file (KEY=VALUE per line)")
 	agentCreateCmd.Flags().StringVar(&agentCreateRuntime, "runtime", "", "Runtime backend override: tmux or docker")
+	agentCreateCmd.Flags().StringVar(&agentCreateTask, "task", "", "Initial task recorded on the agent and delivered after spawn")
 
 	// List flags
 	agentListCmd.Flags().StringVar(&agentListRole, "role", "", "Filter by role")
@@ -486,6 +488,7 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		Team:     agentCreateTeam,
 		EnvFile:  agentCreateEnv,
 		Template: tmpl,
+		Task:     agentCreateTask,
 	})
 	if createErr != nil {
 		fmt.Println("✗")
