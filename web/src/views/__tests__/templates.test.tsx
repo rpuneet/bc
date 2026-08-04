@@ -54,6 +54,35 @@ describe("Templates marketplace section", () => {
     expect(screen.queryByText(/coming soon/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Browse community templates/)).not.toBeInTheDocument();
   });
+
+  it("groups starter personas separately from custom templates", async () => {
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.includes("/api/templates")) {
+        return jsonResponse([
+          {
+            name: "engineering-team",
+            description: "Eng trio",
+            label: "multi-agent",
+            composes: ["software-engineer", "software-testing", "product-manager"],
+            mcps: [],
+            secrets: [],
+            plugins: [],
+          },
+          { name: "reviewer", description: "Custom", mcps: ["mycel"], secrets: [], plugins: [] },
+        ]);
+      }
+      return jsonResponse([]);
+    });
+
+    renderTemplates();
+
+    await waitFor(() => expect(screen.getByText("engineering-team")).toBeInTheDocument());
+    expect(screen.getByText("Starter personas")).toBeInTheDocument();
+    expect(screen.getByText("Your templates")).toBeInTheDocument();
+    expect(screen.getByText("Team")).toBeInTheDocument();
+    expect(screen.getByText("software-engineer")).toBeInTheDocument();
+  });
 });
 
 /**

@@ -14,6 +14,8 @@ interface Template {
   description: string;
   /** "single-agent" | "multi-agent" — see #3552. */
   label?: string;
+  /** Other template names this blueprint expands into (#3558). */
+  composes?: string[];
   mcps: string[];
   secrets: string[];
   plugins: string[];
@@ -21,8 +23,38 @@ interface Template {
   stuck_timeout_min?: number;
 }
 
+/** Built-ins shipped as the #3558 starter set (plus blank). */
+const STARTER_NAMES = new Set([
+  "blank",
+  "trader",
+  "trade-analyst",
+  "travel-agent",
+  "software-engineer",
+  "software-testing",
+  "product-manager",
+  "engineering-team",
+]);
+
 interface TemplateDetail extends Template {
   system_prompt: string;
+}
+
+// ─── Shared list/detail badges ───────────────────────────────────────────────
+
+function LabelBadge({ label }: { label?: string }) {
+  if (!label) return null;
+  const team = label === "multi-agent";
+  return (
+    <span
+      className={`ml-2 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+        team
+          ? "bg-mycel-accent/15 text-mycel-accent"
+          : "bg-mycel-border/60 text-mycel-muted"
+      }`}
+    >
+      {team ? "Team" : "Agent"}
+    </span>
+  );
 }
 
 // ─── API helpers ─────────────────────────────────────────────────────────────
@@ -233,12 +265,13 @@ function TemplateDetailPanel({
           className="text-xs text-mycel-muted hover:text-mycel-text transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg rounded-md"
           aria-label="Back to templates list"
         >
-          ← Marketplace
+          ← Templates
         </button>
         <span className="text-mycel-muted">/</span>
         <h1 className="font-display text-xl font-semibold text-mycel-text">
           {detail.name}
         </h1>
+        <LabelBadge label={detail.label} />
       </div>
 
       <div className="rounded-lg border border-mycel-border bg-mycel-surface p-5 space-y-5">
@@ -260,6 +293,16 @@ function TemplateDetailPanel({
             </p>
           )}
         </div>
+
+        {(detail.composes?.length ?? 0) > 0 && !editing ? (
+          <div className="space-y-1">
+            <SectionRule label="Composes" />
+            <ChipList items={detail.composes ?? []} color="accent" />
+            <p className="text-xs text-mycel-muted">
+              Creating from this blueprint expands into these agent templates.
+            </p>
+          </div>
+        ) : null}
 
         {/* System prompt */}
         <div className="space-y-1">
@@ -642,6 +685,7 @@ function TemplateRow({
   template: Template;
   onClick: () => void;
 }) {
+  const composes = template.composes ?? [];
   return (
     <tr
       className="border-t border-mycel-border hover:bg-mycel-surface-hover transition-colors cursor-pointer"
@@ -661,17 +705,59 @@ function TemplateRow({
         style={{ fontFamily: MONO }}
       >
         {template.name}
-        {template.label ? (
-          <span className="ml-2 text-xs font-normal text-mycel-muted">{template.label}</span>
-        ) : null}
+        <LabelBadge label={template.label} />
       </td>
       <td className="py-3 px-4">
-        <ChipList items={template.mcps ?? []} color="accent" />
+        {composes.length > 0 ? (
+          <ChipList items={composes} color="accent" />
+        ) : (
+          <ChipList items={template.mcps ?? []} color="accent" />
+        )}
       </td>
       <td className="py-3 px-4 text-sm text-mycel-muted">
         {template.description || <span className="text-mycel-muted">{"\u2014"}</span>}
       </td>
     </tr>
+  );
+}
+
+function TemplateTable({
+  title,
+  hint,
+  rows,
+  onSelect,
+}: {
+  title: string;
+  hint?: string;
+  rows: Template[];
+  onSelect: (name: string) => void;
+}) {
+  if (rows.length === 0) return null;
+  return (
+    <div>
+      <div className="pb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted select-none">
+        {title}
+      </div>
+      {hint ? <p className="pb-2 text-xs text-mycel-muted">{hint}</p> : <div className="pb-2" />}
+      <div className="rounded-lg border border-mycel-border bg-mycel-surface overflow-hidden">
+        <table className="w-full">
+          <thead>
+            <tr className="text-left text-[11px] font-medium text-mycel-muted uppercase tracking-[0.08em]">
+              <th className="py-2.5 pl-4 pr-6 font-medium">Name</th>
+              <th className="py-2.5 px-4 font-medium">
+                {rows.some((r) => (r.composes?.length ?? 0) > 0) ? "Composes / MCPs" : "MCPs"}
+              </th>
+              <th className="py-2.5 px-4 font-medium">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((t) => (
+              <TemplateRow key={t.name} template={t} onClick={() => onSelect(t.name)} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -699,6 +785,11 @@ export function Templates() {
           (t.description ?? "").toLowerCase().includes(search.toLowerCase()),
       )
     : null;
+
+  const starterRows =
+    filteredTemplates?.filter((t) => STARTER_NAMES.has(t.name)) ?? [];
+  const customRows =
+    filteredTemplates?.filter((t) => !STARTER_NAMES.has(t.name)) ?? [];
 
   // Header slot — count summary center-left, search + primary CTA right,
   // following the Agents pattern. Cleared while a detail panel is open.
@@ -809,33 +900,21 @@ export function Templates() {
         />
       )}
 
-      {/* Table — local templates, distinguished from the marketplace
-          link below. */}
+      {/* Tables — starters first (the #3558 product story), then custom. */}
       {filteredTemplates !== null && filteredTemplates.length > 0 && (
-        <div>
-          <div className="pb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted select-none">
-            Your templates
-          </div>
-        <div className="rounded-lg border border-mycel-border bg-mycel-surface overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="text-left text-[11px] font-medium text-mycel-muted uppercase tracking-[0.08em]">
-                <th className="py-2.5 pl-4 pr-6 font-medium">Name</th>
-                <th className="py-2.5 px-4 font-medium">MCPs</th>
-                <th className="py-2.5 px-4 font-medium">Description</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredTemplates.map((t) => (
-                <TemplateRow
-                  key={t.name}
-                  template={t}
-                  onClick={() => setSelectedTemplate(t.name)}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <div className="space-y-6">
+          <TemplateTable
+            title="Starter personas"
+            hint="Shipped blueprints — pick one to create agents. Teams expand into multiple agents."
+            rows={starterRows}
+            onSelect={setSelectedTemplate}
+          />
+          <TemplateTable
+            title="Your templates"
+            hint={customRows.length === 0 ? undefined : "Templates you created or imported."}
+            rows={customRows}
+            onSelect={setSelectedTemplate}
+          />
         </div>
       )}
 
