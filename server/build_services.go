@@ -36,6 +36,7 @@ import (
 	secretpkg "github.com/rpuneet/mycel/pkg/secret"
 	statspkg "github.com/rpuneet/mycel/pkg/stats"
 	templatepkg "github.com/rpuneet/mycel/pkg/template"
+	"github.com/rpuneet/mycel/pkg/tmux"
 	toolpkg "github.com/rpuneet/mycel/pkg/tool"
 	wspkg "github.com/rpuneet/mycel/server/ws"
 )
@@ -151,6 +152,14 @@ func buildServicesFromHome(ctx context.Context, globals *Globals, h *home.Home) 
 	}
 	if err := agentMgr.LoadState(); err != nil {
 		log.Warn("failed to load agent state", "error", err, "repo", h.RootDir)
+	}
+	// Adopt sessions named by a version that scoped them to the workspace path,
+	// before anything asks whether an agent has a session. Ordering is not a
+	// nicety here: the session reconciler's first pass would otherwise find a
+	// running agent under a name it does not use and mark it stopped, which is
+	// precisely the false report both changes exist to prevent.
+	if n := tmux.NewManager(tmux.DefaultPrefix).AdoptLegacySessions(ctx, agentMgr.HasAgent); n > 0 {
+		log.Info("adopted tmux sessions named by an older version", "sessions", n)
 	}
 	if h.RoleManager != nil {
 		agentMgr.SetRoleManager(h.RoleManager)
