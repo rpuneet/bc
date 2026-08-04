@@ -29,7 +29,7 @@ const sessionSyncInterval = 30 * time.Second
 // sessionSyncer is the part of AgentService this loop needs, narrowed so a test
 // can drive it without a runtime.
 type sessionSyncer interface {
-	SyncSessions(ctx context.Context) (synced, stopped int)
+	SyncSessions(ctx context.Context) (synced, stopped, resumed int)
 }
 
 // runSessionReconciler reconciles agent state against live sessions until ctx is
@@ -56,9 +56,10 @@ func runSessionReconciler(ctx context.Context, agents sessionSyncer) {
 }
 
 func syncOnce(ctx context.Context, agents sessionSyncer) {
-	synced, stopped := agents.SyncSessions(ctx)
-	if stopped > 0 {
-		log.Info("reconciled agents whose sessions were gone", "inspected", synced, "stopped", stopped)
+	synced, stopped, resumed := agents.SyncSessions(ctx)
+	if stopped > 0 || resumed > 0 {
+		log.Info("reconciled agent state against live sessions",
+			"inspected", synced, "stopped", stopped, "resumed", resumed)
 	}
 }
 

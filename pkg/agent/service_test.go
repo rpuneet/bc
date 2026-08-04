@@ -426,9 +426,9 @@ func TestSyncSessionsStopsAnAgentWithNoSession(t *testing.T) {
 	pub := &mockEventPublisher{}
 	svc := NewAgentService(mgr, pub, nil)
 
-	synced, stopped := svc.SyncSessions(context.Background())
-	if synced != 3 || stopped != 3 {
-		t.Fatalf("synced=%d stopped=%d, want 3 and 3", synced, stopped)
+	synced, stopped, resumed := svc.SyncSessions(context.Background())
+	if synced != 3 || stopped != 3 || resumed != 0 {
+		t.Fatalf("synced=%d stopped=%d resumed=%d, want 3, 3, 0", synced, stopped, resumed)
 	}
 	for _, name := range []string{"working", "idle", "stuck"} {
 		if got := mgr.GetAgent(name).State; got != StateStopped {
@@ -441,9 +441,9 @@ func TestSyncSessionsStopsAnAgentWithNoSession(t *testing.T) {
 	}
 }
 
-// Terminal states are the agent's own account of how it finished. Stopped and
-// error have nothing to reconcile, and overwriting done with stopped would
-// replace "it completed" with "its session is gone", which says less.
+// done and error are the agent's own account of how it finished. Overwriting
+// them would replace a diagnosis with an inference about the session. A
+// stopped agent with no session is already correct and stays that way.
 func TestSyncSessionsLeavesTerminalStatesAlone(t *testing.T) {
 	mgr := newTestManager(t)
 	mgr.agents["done"] = &Agent{Name: "done", State: StateDone, Children: []string{}}
@@ -452,12 +452,17 @@ func TestSyncSessionsLeavesTerminalStatesAlone(t *testing.T) {
 
 	svc := NewAgentService(mgr, nil, nil)
 
-	synced, stopped := svc.SyncSessions(context.Background())
-	if synced != 0 || stopped != 0 {
-		t.Errorf("synced=%d stopped=%d, want 0 and 0", synced, stopped)
+	synced, stopped, resumed := svc.SyncSessions(context.Background())
+	// The stopped agent is inspected (so a live session would be noticed), but
+	// without one it is not moved.
+	if synced != 1 || stopped != 0 || resumed != 0 {
+		t.Errorf("synced=%d stopped=%d resumed=%d, want 1, 0, 0", synced, stopped, resumed)
 	}
 	if got := mgr.GetAgent("done").State; got != StateDone {
 		t.Errorf("done agent became %q", got)
+	}
+	if got := mgr.GetAgent("halted").State; got != StateStopped {
+		t.Errorf("halted agent became %q", got)
 	}
 }
 
@@ -474,10 +479,71 @@ func TestSyncSessionsSparesAnAgentThatJustStarted(t *testing.T) {
 
 	svc := NewAgentService(mgr, nil, nil)
 
-	if synced, stopped := svc.SyncSessions(context.Background()); synced != 0 || stopped != 0 {
-		t.Errorf("synced=%d stopped=%d, want the starting agent skipped", synced, stopped)
+	if synced, stopped, resumed := svc.SyncSessions(context.Background()); synced != 0 || stopped != 0 || resumed != 0 {
+		t.Errorf("synced=%d stopped=%d resumed=%d, want the starting agent skipped", synced, stopped, resumed)
 	}
 	if got := mgr.GetAgent("starting").State; got != StateWorking {
 		t.Errorf("state = %q, want working", got)
+	}
+}
+
+// A stopped record with a live session is the same mismatch as working-with-no-
+// session, told the other way. Nothing else revisits stopped agents, so leaving
+// it alone would hide a running process permanently.
+func TestSyncSessionsResumesAStoppedAgentWhoseSessionIsAlive(t *testing.T) {
+	be := newMockBackend("tmux")
+	be.sessions["alive"] = true
+	mgr := newMockManager(t, "tmux", map[string]*mockBackend{"tmux": be})
+	longAgo := time.Now().Add(-time.Hour)
+	mgr.agents["alive"] = &Agent{
+		Name:      "alive",
+		State:     StateStopped,
+		StoppedAt: &longAgo,
+		Task:      "session ended without stopping — the agent was not running",
+		Children:  []string{},
+	}
+	mgr.agents["genuinely-gone"] = &Agent{
+		Name:      "genuinely-gone",
+		State:     StateStopped,
+		StoppedAt: &longAgo,
+		Children:  []string{},
+	}
+
+	svc := NewAgentService(mgr, &mockEventPublisher{}, nil)
+	synced, stopped, resumed := svc.SyncSessions(context.Background())
+	if synced != 2 || stopped != 0 || resumed != 1 {
+		t.Fatalf("synced=%d stopped=%d resumed=%d, want 2, 0, 1", synced, stopped, resumed)
+	}
+	if got := mgr.GetAgent("alive").State; got != StateIdle {
+		t.Errorf("alive state = %q, want idle", got)
+	}
+	if task := mgr.GetAgent("alive").Task; !strings.Contains(task, "still running") {
+		t.Errorf("task = %q, want it to explain the session is still there", task)
+	}
+	if got := mgr.GetAgent("genuinely-gone").State; got != StateStopped {
+		t.Errorf("genuinely-gone became %q", got)
+	}
+}
+
+// Killing a session is not instantaneous. A sweep that lands immediately after
+// a stop must not undo the stop the user just asked for.
+func TestSyncSessionsSparesARecentlyStoppedAgent(t *testing.T) {
+	be := newMockBackend("tmux")
+	be.sessions["just-stopped"] = true
+	mgr := newMockManager(t, "tmux", map[string]*mockBackend{"tmux": be})
+	now := time.Now()
+	mgr.agents["just-stopped"] = &Agent{
+		Name:      "just-stopped",
+		State:     StateStopped,
+		StoppedAt: &now,
+		Children:  []string{},
+	}
+
+	svc := NewAgentService(mgr, nil, nil)
+	if synced, stopped, resumed := svc.SyncSessions(context.Background()); synced != 1 || stopped != 0 || resumed != 0 {
+		t.Errorf("synced=%d stopped=%d resumed=%d, want the recent stop spared", synced, stopped, resumed)
+	}
+	if got := mgr.GetAgent("just-stopped").State; got != StateStopped {
+		t.Errorf("state = %q, want stopped", got)
 	}
 }
