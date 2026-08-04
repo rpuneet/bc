@@ -557,3 +557,53 @@ func TestSyncSessionsSparesARecentlyStoppedAgent(t *testing.T) {
 		t.Errorf("state = %q, want stopped", got)
 	}
 }
+
+func TestProviderPromptFile(t *testing.T) {
+	tests := []struct {
+		name     string
+		tool     string
+		expected string
+	}{
+		{"claude", "claude", "CLAUDE.md"},
+		{"cursor", "cursor", ".cursorrules"},
+		{"agy", "agy", "AGENTS.md"},
+		{"empty", "", "CLAUDE.md"},
+		{"unknown", "unknown-provider", "CLAUDE.md"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := providerPromptFile(tt.tool)
+			if got != tt.expected {
+				t.Errorf("providerPromptFile(%q) = %q, want %q", tt.tool, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestProviderMCPFiles(t *testing.T) {
+	tests := []struct {
+		name     string
+		tool     string
+		expected []string
+	}{
+		{"claude", "claude", []string{".claude/mcp.json", ".mcp.json"}},
+		{"cursor", "cursor", []string{".cursor/mcp.json", ".mcp.json"}},
+		{"agy", "agy", []string{".agents/mcp_config.json", ".mcp.json"}},
+		{"empty", "", []string{".mcp.json"}},
+		{"unknown", "unknown-provider", []string{".mcp.json"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := providerMCPFiles(tt.tool)
+			if len(got) != len(tt.expected) {
+				t.Errorf("providerMCPFiles(%q) = %v, want %v", tt.tool, got, tt.expected)
+				return
+			}
+			for i := range got {
+				if got[i] != tt.expected[i] {
+					t.Errorf("providerMCPFiles(%q)[%d] = %q, want %q", tt.tool, i, got[i], tt.expected[i])
+				}
+			}
+		})
+	}
+}

@@ -12,6 +12,7 @@ import (
 	"github.com/rpuneet/mycel/pkg/events"
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/names"
+	"github.com/rpuneet/mycel/pkg/provider"
 )
 
 // EventPublisher is the interface for publishing agent lifecycle events.
@@ -818,7 +819,8 @@ func (s *AgentService) GenerateName(ctx context.Context) (string, error) {
 }
 
 // ForkAgent creates a new stopped agent by copying the source agent's worktree
-// config files (CLAUDE.md, .mcp.json). The forked agent starts in stopped state.
+// config files (prompt file and MCP config). The forked agent starts in stopped state.
+// The prompt file and MCP config are determined by the source agent's provider.
 func (s *AgentService) ForkAgent(ctx context.Context, sourceName, newName string) (*Agent, error) {
 	src := s.manager.GetAgent(sourceName)
 	if src == nil {
@@ -839,22 +841,34 @@ func (s *AgentService) ForkAgent(ctx context.Context, sourceName, newName string
 		return nil, fmt.Errorf("create worktree: %w", err)
 	}
 
-	// Copy CLAUDE.md from source worktree to new worktree.
+	// Copy provider-specific config files from source worktree to new worktree.
 	if src.WorktreeDir != "" {
-		srcClaude := filepath.Join(src.WorktreeDir, "CLAUDE.md")
-		if data, readErr := os.ReadFile(srcClaude); readErr == nil { //nolint:gosec // trusted path
-			dstClaude := filepath.Join(wtDir, "CLAUDE.md")
-			if writeErr := os.WriteFile(dstClaude, data, 0600); writeErr != nil {
-				return nil, fmt.Errorf("fork: copy CLAUDE.md: %w", writeErr)
+		// Get the provider-specific prompt file (e.g., CLAUDE.md, .cursorrules, AGENTS.md)
+		promptFile := providerPromptFile(src.Tool)
+		srcPrompt := filepath.Join(src.WorktreeDir, promptFile)
+		if data, readErr := os.ReadFile(srcPrompt); readErr == nil { //nolint:gosec // trusted path
+			dstPrompt := filepath.Join(wtDir, promptFile)
+			if writeErr := os.WriteFile(dstPrompt, data, 0600); writeErr != nil {
+				return nil, fmt.Errorf("fork: copy %s: %w", promptFile, writeErr)
 			}
 		}
 
-		// Copy .mcp.json from source worktree to new worktree.
-		srcMCP := filepath.Join(src.WorktreeDir, ".mcp.json")
-		if data, readErr := os.ReadFile(srcMCP); readErr == nil { //nolint:gosec // trusted path
-			dstMCP := filepath.Join(wtDir, ".mcp.json")
-			if writeErr := os.WriteFile(dstMCP, data, 0600); writeErr != nil {
-				return nil, fmt.Errorf("fork: copy .mcp.json: %w", writeErr)
+		// Copy provider-specific MCP config (e.g., .mcp.json, .cursor/mcp.json)
+		mcpFiles := providerMCPFiles(src.Tool)
+		for _, mcpFile := range mcpFiles {
+			srcMCP := filepath.Join(src.WorktreeDir, mcpFile)
+			if data, readErr := os.ReadFile(srcMCP); readErr == nil { //nolint:gosec // trusted path
+				dstMCP := filepath.Join(wtDir, mcpFile)
+				// Ensure parent directory exists for nested MCP files (e.g., .cursor/mcp.json)
+				if parentDir := filepath.Dir(dstMCP); parentDir != "." && parentDir != "" {
+					if mkdirErr := os.MkdirAll(parentDir, 0750); mkdirErr != nil {
+						return nil, fmt.Errorf("fork: create dir for %s: %w", mcpFile, mkdirErr)
+					}
+				}
+				if writeErr := os.WriteFile(dstMCP, data, 0600); writeErr != nil {
+					return nil, fmt.Errorf("fork: copy %s: %w", mcpFile, writeErr)
+				}
+				break // Only copy the first found MCP file
 			}
 		}
 	}
@@ -886,4 +900,48 @@ func (s *AgentService) ForkAgent(ctx context.Context, sourceName, newName string
 	})
 
 	return newAgent, nil
+}
+
+// providerPromptFile returns the prompt filename for the given provider tool.
+// Falls back to CLAUDE.md when tool is empty or unknown.
+func providerPromptFile(tool string) string {
+	if tool == "" {
+		return "CLAUDE.md"
+	}
+	p, ok := provider.DefaultRegistry.Get(tool)
+	if !ok {
+		return "CLAUDE.md"
+	}
+	if adapter := provider.GetConfigAdapter(p); adapter != nil {
+		return adapter.PromptFile()
+	}
+	return provider.NewGenericAdapter(tool).PromptFile()
+}
+
+// providerMCPFiles returns the possible MCP config file paths for the given provider tool.
+// Falls back to .mcp.json when tool is empty or unknown.
+func providerMCPFiles(tool string) []string {
+	if tool == "" {
+		return []string{".mcp.json"}
+	}
+	p, ok := provider.DefaultRegistry.Get(tool)
+	if !ok {
+		return []string{".mcp.json"}
+	}
+	if adapter := provider.GetConfigAdapter(p); adapter != nil {
+		configDir := adapter.ConfigDir()
+		if configDir != "" {
+			// Check provider-specific paths first, then fall back to root .mcp.json
+			// agy uses mcp_config.json, others use mcp.json
+			mcpFile := "mcp.json"
+			if tool == "agy" {
+				mcpFile = "mcp_config.json"
+			}
+			return []string{
+				filepath.Join(configDir, mcpFile),
+				".mcp.json",
+			}
+		}
+	}
+	return []string{".mcp.json"}
 }
