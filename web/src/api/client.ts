@@ -980,6 +980,8 @@ export const api = {
     /** Absolute path of the git repo to bind to. Empty binds to the repo the
      *  daemon was booted against. */
     repo?: string;
+    /** Optional first instruction — recorded on the agent and delivered after spawn (#3589). */
+    task?: string;
     /** Name of an existing agent to attach this one to as a child. */
     parent?: string;
     /** Environment variables for the agent. Values may hold

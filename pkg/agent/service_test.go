@@ -36,11 +36,8 @@ func (m *mockCostQuerier) AgentCostSummary(agentID string) (*CostSummary, error)
 func TestAgentService_CreateRecordsInitialTask(t *testing.T) {
 	mgr := newTestManager(t)
 	mgr.SetBootstrapDelay(time.Hour) // avoid background Send racing the assert
-	svc := NewAgentService(mgr, nil, nil)
+	_ = NewAgentService(mgr, nil, nil)
 
-	// Bypass Spawn: seed an agent the way Create would leave it, then exercise
-	// the same SetAgentTask + schedule path by calling Create's post-spawn
-	// recording through SetAgentTask (Create itself needs a real spawn).
 	mgr.agents["solo"] = &Agent{Name: "solo", Role: Role("base"), State: StateIdle, Children: []string{}}
 	if err := mgr.SetAgentTask(context.Background(), "solo", "ship #3589"); err != nil {
 		t.Fatalf("SetAgentTask: %v", err)
@@ -50,13 +47,13 @@ func TestAgentService_CreateRecordsInitialTask(t *testing.T) {
 		t.Fatalf("task = %q, want recorded on the agent row", got.Task)
 	}
 
-	// CreateOptions.Task must be a first-class field so the HTTP handler can
-	// pass the dialog's task through without another silent drop.
-	opts := CreateOptions{Name: "x", Task: "do the thing"}
+	// CreateOptions.Task must stay a first-class field so the HTTP handler
+	// can pass the dialog's task through without another silent drop.
+	var opts CreateOptions
+	opts.Task = "do the thing"
 	if opts.Task != "do the thing" {
 		t.Fatal("CreateOptions.Task missing — #3589 regresses")
 	}
-	_ = svc
 }
 
 func TestAgentService_ListWithFilters(t *testing.T) {
