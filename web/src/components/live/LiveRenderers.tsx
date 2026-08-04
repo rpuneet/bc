@@ -509,6 +509,15 @@ export const AgentCard = memo(function AgentCard({
                   <span className="tabular-nums">{errorCount}</span>
                 </span>
               )}
+              {(activity.missingSecrets?.length ?? 0) > 0 && (
+                <span
+                  className="inline-flex items-center h-[18px] px-1.5 text-[10px] font-mono font-medium text-mycel-warning border border-mycel-border bg-mycel-warning-subtle rounded leading-none"
+                  title={`Missing secrets: ${activity.missingSecrets!.join(", ")}`}
+                  aria-label={`Degraded — missing secrets: ${activity.missingSecrets!.join(", ")}`}
+                >
+                  degraded
+                </span>
+              )}
             </span>
             <span className="flex items-center gap-2 mt-0.5">
               {activity.role && activity.role !== "base" && (

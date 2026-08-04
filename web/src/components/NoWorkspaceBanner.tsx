@@ -21,8 +21,9 @@ export function NoWorkspaceBanner() {
       </svg>
       <span className="truncate">
         <span className="font-medium">No workspace.</span> This daemon is not
-        anchored to a repo — run <span className="font-mono">mycel up</span> from
-        a project directory, or open Settings for first-run setup.
+        anchored to a repo — from a project directory run{" "}
+        <span className="font-mono">mycel up</span>
+        {" "}(or <span className="font-mono">mycel up --workspace /path/to/repo</span>).
       </span>
       <Link
         to="/settings"

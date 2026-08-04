@@ -88,4 +88,11 @@ describe("AgentCard header toolbar", () => {
     expect(tokens).toBeTruthy();
     expect(tokens.closest(".tabular-nums")).not.toBeNull();
   });
+
+  it("shows a degraded chip when template secrets were missing at create", () => {
+    renderCard(activity({ missingSecrets: ["KITE_API_KEY", "TELEGRAM_BOT_TOKEN"] }));
+    const chip = screen.getByLabelText(/Degraded — missing secrets: KITE_API_KEY, TELEGRAM_BOT_TOKEN/);
+    expect(chip).toBeTruthy();
+    expect(chip.textContent).toBe("degraded");
+  });
 });

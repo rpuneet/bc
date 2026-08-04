@@ -1271,7 +1271,18 @@ export function Agents() {
                       <RuntimeCell tool={a.tool} runtime={a.runtime_backend} model={a.model} />
                     </td>
                     <td className="px-4 py-2">
-                      <StatusBadge status={a.state} />
+                      <span className="inline-flex items-center gap-1.5">
+                        <StatusBadge status={a.state} />
+                        {(a.missing_secrets?.length ?? 0) > 0 ? (
+                          <span
+                            className="inline-flex items-center h-[18px] px-1.5 text-[10px] font-mono font-medium text-mycel-warning border border-mycel-border bg-mycel-warning-subtle rounded leading-none"
+                            title={`Missing secrets: ${a.missing_secrets!.join(", ")}`}
+                            aria-label={`Degraded — missing secrets: ${a.missing_secrets!.join(", ")}`}
+                          >
+                            degraded
+                          </span>
+                        ) : null}
+                      </span>
                     </td>
                     <td className="px-4 py-2 hidden md:table-cell whitespace-nowrap">
                       <span

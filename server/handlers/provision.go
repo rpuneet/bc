@@ -28,8 +28,11 @@ func (v vaultPresence) Has(name string) bool {
 	if v.store == nil {
 		return false
 	}
-	_, err := v.store.GetMeta(name)
-	return err == nil
+	// GetMeta returns (nil, nil) when the name is absent — not an error.
+	// Treating err==nil alone as presence made every missing secret look
+	// installed, so create-degraded never recorded MissingSecrets (#3558).
+	meta, err := v.store.GetMeta(name)
+	return err == nil && meta != nil
 }
 
 // leafAgentName builds the agent name for a composed leaf under team base.

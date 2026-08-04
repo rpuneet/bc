@@ -117,6 +117,7 @@ export function useAgentActivity(agentName?: string, options?: UseAgentActivityO
               lastEventTime: updatedAt > 0 && !isNaN(updatedAt) ? updatedAt : 0,
               nodes: [],
               collapsed: a.state === "stopped",
+              missingSecrets: a.missing_secrets ?? [],
             });
           }
         }
