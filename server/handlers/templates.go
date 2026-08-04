@@ -10,12 +10,18 @@ import (
 
 // TemplateHandler handles /api/templates routes.
 type TemplateHandler struct {
-	store *template.Store
+	store   *template.Store
+	secrets template.SecretPresence
 }
 
 // NewTemplateHandler creates a TemplateHandler backed by the given store.
 func NewTemplateHandler(store *template.Store) *TemplateHandler {
 	return &TemplateHandler{store: store}
+}
+
+// SetSecretPresence wires the vault used to fill ExpandResult.Missing.
+func (h *TemplateHandler) SetSecretPresence(v template.SecretPresence) {
+	h.secrets = v
 }
 
 // Register mounts template routes on mux.
@@ -151,6 +157,7 @@ func (h *TemplateHandler) byName(w http.ResponseWriter, r *http.Request) {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		result.Missing = template.FilterMissing(result.Secrets, h.secrets)
 		writeJSON(w, http.StatusOK, result)
 		return
 	}

@@ -67,9 +67,17 @@ curl -s http://127.0.0.1:9374/api/templates/engineering-team/expand
 # {"leaves":["eng","test","pm"],"secrets":["GH","TEAM_TOKEN"]}
 ```
 
-Missing credentials do not refuse creation later — agents run degraded and the
-UI reports what is absent. Provisioning the leaves into live agents is the next
-slice of #3558.
+Missing credentials do not refuse creation — agents run **degraded** and the
+API reports what is absent (`missing_secrets` on the agent; health status
+`degraded`). Creating from a multi-agent blueprint expands `composes` and
+spawns one agent per leaf (`{name}-{leaf}`), tagged with `team={name}`.
+
+```bash
+curl -s -X POST http://127.0.0.1:9374/api/agents \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"eng","template":"engineering-team","tool":"cursor"}'
+# → agents eng-a, eng-b, … plus missing: […] when secrets are undeclared in the vault
+```
 
 Or use **Templates → New** in the UI. Set `"label": "single-agent"` (or
 `"multi-agent"`) in the JSON when you know which kind it is. `"composes": ["a","b"]`

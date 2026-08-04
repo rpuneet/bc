@@ -63,6 +63,9 @@ type CreateOptions struct {
 	// Recorded on the agent row so the guardrail loop can enforce the
 	// template's MaxCostUSD / StuckTimeoutMin. Empty disables guardrails.
 	Template string
+	// MissingSecrets is set when creating from a template whose declared
+	// secrets are absent (#3558 create-degraded).
+	MissingSecrets []string
 }
 
 // StartOptions configures agent start behavior.
@@ -215,17 +218,18 @@ func (s *AgentService) Create(ctx context.Context, opts CreateOptions) (*Agent, 
 		repo = s.manager.repoPath
 	}
 	a, err := s.manager.SpawnAgentWithOptions(ctx, SpawnOptions{
-		Name:      opts.Name,
-		Role:      opts.Role,
-		Workspace: repo,
-		ParentID:  opts.Parent,
-		Tool:      opts.Tool,
-		Model:     opts.Model,
-		EnvFile:   opts.EnvFile,
-		Env:       opts.Env,
-		Runtime:   opts.Runtime,
-		Team:      opts.Team,
-		Template:  opts.Template,
+		Name:           opts.Name,
+		Role:           opts.Role,
+		Workspace:      repo,
+		ParentID:       opts.Parent,
+		Tool:           opts.Tool,
+		Model:          opts.Model,
+		EnvFile:        opts.EnvFile,
+		Env:            opts.Env,
+		Runtime:        opts.Runtime,
+		Team:           opts.Team,
+		Template:       opts.Template,
+		MissingSecrets: opts.MissingSecrets,
 	})
 	if err != nil {
 		return nil, err
