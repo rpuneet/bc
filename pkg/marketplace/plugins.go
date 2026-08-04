@@ -22,7 +22,7 @@ const (
 
 // InstalledPlugin is one skill/plugin the daemon recorded locally so
 // blueprints can reference it without dispatching prose to an agent (#3016).
-type InstalledPlugin struct {
+type InstalledPlugin struct { //nolint:govet // JSON field order preferred over alignment
 	Name        string    `json:"name"`
 	Source      string    `json:"source"`
 	URL         string    `json:"url,omitempty"`
