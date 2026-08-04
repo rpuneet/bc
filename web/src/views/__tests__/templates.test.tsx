@@ -57,11 +57,8 @@ describe("Templates marketplace section", () => {
 });
 
 /**
- * The editor used to accept Secrets and render a chip per entry, which read as
- * confirmation: you typed GITHUB_TOKEN, a chip appeared, and the agent never
- * received it (#3550). The fields are gone until they work — but values an
- * earlier build saved are still shown, because hiding them would suggest they
- * had been deleted.
+ * #3550: secrets and plugins are editable and applied at agent create.
+ * The old "Saved but not applied" banner is gone.
  */
 describe("Templates secrets and plugins", () => {
   function mockTemplates(detail: Record<string, unknown>) {
@@ -75,31 +72,13 @@ describe("Templates secrets and plugins", () => {
     });
   }
 
-  it("does not offer a Secrets field to fill in", async () => {
-    mockTemplates({ name: "reviewer", description: "Code review agent", mcps: ["mycel"], secrets: [], plugins: [] });
-    renderTemplates();
-
-    await waitFor(() => expect(screen.getByText("reviewer")).toBeInTheDocument());
-    expect(screen.queryByLabelText(/secrets/i)).not.toBeInTheDocument();
-    expect(screen.queryByPlaceholderText(/GITHUB_TOKEN/)).not.toBeInTheDocument();
-  });
-
-  it("drops the Secrets column from the list", async () => {
-    mockTemplates({ name: "reviewer", description: "Code review agent", mcps: ["mycel"], secrets: [], plugins: [] });
-    renderTemplates();
-
-    await waitFor(() => expect(screen.getByText("reviewer")).toBeInTheDocument());
-    expect(screen.queryByRole("columnheader", { name: "Secrets" })).not.toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "MCPs" })).toBeInTheDocument();
-  });
-
-  it("still shows a secret an earlier build saved, and says it does nothing", async () => {
+  it("offers editable Secrets and Plugins fields", async () => {
     mockTemplates({
       name: "reviewer",
       description: "Code review agent",
       mcps: ["mycel"],
       secrets: ["GITHUB_TOKEN"],
-      plugins: [],
+      plugins: ["code-review"],
       system_prompt: "review things",
     });
     renderTemplates();
@@ -107,24 +86,41 @@ describe("Templates secrets and plugins", () => {
     await waitFor(() => expect(screen.getByText("reviewer")).toBeInTheDocument());
     (await screen.findByText("reviewer")).click();
 
-    await waitFor(() => expect(screen.getByText("Saved but not applied")).toBeInTheDocument());
-    expect(screen.getByText("GITHUB_TOKEN")).toBeInTheDocument();
-    expect(screen.getByText(/do not receive them yet/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("GITHUB_TOKEN")).toBeInTheDocument());
+    expect(screen.getByText("code-review")).toBeInTheDocument();
+    expect(screen.queryByText("Saved but not applied")).not.toBeInTheDocument();
+
+    // Enter edit mode — fields become inputs.
+    (await screen.findByRole("button", { name: /^Edit$/i })).click();
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Secrets \(comma-separated/i)).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText(/Plugins \(comma-separated/i)).toBeInTheDocument();
   });
 
-  it("says nothing at all when a template records neither", async () => {
+  it("shows editable guardrails on the template detail", async () => {
     mockTemplates({
       name: "reviewer",
       description: "Code review agent",
       mcps: ["mycel"],
       secrets: [],
       plugins: [],
+      max_cost_usd: 5,
+      stuck_timeout_min: 30,
       system_prompt: "review things",
     });
     renderTemplates();
 
+    await waitFor(() => expect(screen.getByText("reviewer")).toBeInTheDocument());
     (await screen.findByText("reviewer")).click();
-    await waitFor(() => expect(screen.getByText("Code review agent")).toBeInTheDocument());
-    expect(screen.queryByText("Saved but not applied")).not.toBeInTheDocument();
+
+    await waitFor(() => expect(screen.getByText("$5.00")).toBeInTheDocument());
+    expect(screen.getByText("30 min")).toBeInTheDocument();
+
+    (await screen.findByRole("button", { name: /^Edit$/i })).click();
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Max cost USD/i)).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText(/Stuck timeout minutes/i)).toBeInTheDocument();
   });
 });
