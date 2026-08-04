@@ -1,0 +1,9 @@
+BUILD {"status":"ok","db":"ok","version":"0.4.6-dev.18.g8f58c7e","commit":"8f58c7e"}
+DISK templates: ['blank.json', 'blank.md']
+feature-dev present? False
+blank.json {'description': 'Empty starting point — write the prompt yourself', 'label': 'single-agent', 'mcps': ['mycel'], 'stuck_timeout_min': 30}
+API [{"name":"blank","description":"Empty starting point — write the prompt yourself","label":"single-agent","scope":"global","mcps":["mycel"],"stuck_timeout_min":30}]
+
+discover HOME candidates 23
+TCC home leaks none
+unit test: go test ./pkg/home/ -run TestScanLocalSkipsTCCProtectedHomeFolders => ok (ran earlier)
