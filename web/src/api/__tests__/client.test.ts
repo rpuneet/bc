@@ -191,3 +191,37 @@ describe("api.streamProviderUpdate", () => {
     );
   });
 });
+
+describe("api.createAgent", () => {
+  // The endpoint has always accepted a template; the type omitted it, so the
+  // create dialog had to bypass this client with a raw fetch to ask for one.
+  it("can ask for a template, and needs no role alongside it", async () => {
+    fetchMock.mockReturnValue(jsonResponse({ name: "trader-1" }));
+    await api.createAgent({ name: "trader-1", template: "trader" });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/agents");
+    expect(JSON.parse(init.body as string)).toEqual({
+      name: "trader-1",
+      template: "trader",
+    });
+  });
+
+  it("passes repo and parent through under the names the API reads", async () => {
+    fetchMock.mockReturnValue(jsonResponse({ name: "child" }));
+    await api.createAgent({
+      name: "child",
+      role: "engineer",
+      repo: "/Users/me/proj",
+      parent: "lead",
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({
+      name: "child",
+      role: "engineer",
+      repo: "/Users/me/proj",
+      parent: "lead",
+    });
+  });
+});

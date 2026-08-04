@@ -950,10 +950,21 @@ export const api = {
     ),
   createAgent: (opts: {
     name?: string;
-    role: string;
+    /** Optional when `template` is given: the server defaults the role to
+     *  "base" so a template alone is enough to describe an agent. */
+    role?: string;
+    /** Template to provision the agent from. The endpoint has always
+     *  accepted this; the type omitted it, so the create dialog had to bypass
+     *  this client with a raw fetch to ask for one. */
+    template?: string;
     tool?: string;
     model?: string;
     runtime?: string;
+    /** Absolute path of the git repo to bind to. Empty binds to the repo the
+     *  daemon was booted against. */
+    repo?: string;
+    /** Name of an existing agent to attach this one to as a child. */
+    parent?: string;
     /** Environment variables for the agent. Values may hold
      *  `${secret:NAME}` references resolved from the vault at spawn. */
     env?: Record<string, string>;
