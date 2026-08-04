@@ -258,6 +258,8 @@ func EnsureBuiltins(dir string) ([]string, error) {
 // blank remains embedded as a thin single-agent starting point. Names stay
 // listed here so EnsureBuiltins can remove unedited copies from existing
 // workspaces after the embed files are gone.
+//
+//nolint:misspell // "archaeologist" is the historical shipped template name
 func WithdrawnBuiltins() []string {
 	return []string{
 		"accessibility-audit",
