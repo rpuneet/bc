@@ -28,6 +28,8 @@ export interface AgentActivity {
   collapsed: boolean;
   /** Index of the currently-active subagent node in nodes[], for nesting */
   activeSubagentIdx?: number;
+  /** Template-declared secrets absent at create (#3558 create-degraded). */
+  missingSecrets?: string[];
 }
 
 export interface HookEvent {

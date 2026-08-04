@@ -501,7 +501,7 @@ export function Home() {
         <EmptyState
           icon="!"
           title="No workspace"
-          description="This daemon is running but is not anchored to a repository. New agents have no default repo to work in. From a project directory run mycel up, or use Settings to finish first-run setup."
+          description="This daemon is running but is not anchored to a repository. New agents have no default repo to work in. From a project directory run mycel up (or mycel up --workspace /path/to/repo)."
           actionLabel="Open Settings"
           onAction={() => navigate("/settings")}
         />
