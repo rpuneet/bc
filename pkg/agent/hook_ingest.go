@@ -83,12 +83,30 @@ func (s *AgentService) IngestHookEvent(ctx context.Context, name string, payload
 		hasState = true
 	}
 
+	// Whether the provider is blocked on a person outranks any of the above:
+	// the hook that carries it is one a provider also fires while it considers
+	// itself mid-turn (claude's Notification is registered with no state at
+	// all), so the mapped state describes the turn while this describes who is
+	// holding it up.
+	waiting, question := classifyHumanWait(payload)
+	switch waiting {
+	case humanWaitBlocked:
+		targetState, hasState = StateStuck, true
+	case humanWaitAnswered:
+		targetState, hasState = StateWorking, true
+	case humanWaitUnchanged:
+		if !hasState && provesTurnInProgress(payload.Event) && s.agentState(name) == StateStuck {
+			targetState, hasState = StateWorking, true
+		}
+	}
+
 	if hasState {
 		// State-only update: lifecycle descriptions baked into hook
 		// commands ("Turn complete", "Session ended", "Processing
 		// prompt...") must NOT become the agent's task line. They still
-		// flow to the event log and SSE stream below.
-		if err := s.manager.SetAgentState(ctx, name, targetState); err != nil {
+		// flow to the event log and SSE stream below. A question the agent
+		// is blocked on is the one exception — see applyHookState.
+		if err := s.applyHookState(ctx, name, targetState, question); err != nil {
 			log.Debug("hook state update skipped", "agent", name, "error", err)
 			return &HookStateSkippedError{Err: err}
 		}
@@ -156,6 +174,29 @@ func (s *AgentService) IngestHookEvent(ctx context.Context, name string, payload
 	}
 
 	return nil
+}
+
+// applyHookState moves an agent to the state a hook event implies.
+//
+// question is non-empty only when the provider is blocked on a person, in
+// which case MarkStuck records it as the agent's task — the field the agent
+// list and detail header already render beside the state, so "needs you" and
+// "about what" arrive together with nothing new to plumb.
+func (s *AgentService) applyHookState(ctx context.Context, name string, state State, question string) error {
+	if state == StateStuck && question != "" {
+		return s.manager.MarkStuck(ctx, name, question)
+	}
+	return s.manager.SetAgentState(ctx, name, state)
+}
+
+// agentState returns an agent's current state, or the empty state when no such
+// agent exists.
+func (s *AgentService) agentState(name string) State {
+	a := s.manager.GetAgent(name)
+	if a == nil {
+		return ""
+	}
+	return a.State
 }
 
 // isTurnStart reports whether an event marks the beginning of a model turn,
