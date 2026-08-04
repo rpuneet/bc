@@ -1,0 +1,7 @@
+health: {"status":"ok","db":"ok","version":"0.4.6-dev.19.gc8926d6","commit":"c8926d6"}
+expand: {"leaves":["blank"]}
+
+HTTP 200
+templates_count_9374: 36
+templates_count_9375: 1
+create_agent_default_template: blank (selected in UI)
