@@ -478,6 +478,13 @@ func (s *Service) deliverOutboundToSubscribers(ctx context.Context, channel, sen
 
 	log.Info("notify: outbound fan-out", "channel", channel, "sender", sender, "subscribers", len(subs))
 
+	// Extract mentions from content for mention_only filtering
+	mentions := extractMentions(content)
+	mentionSet := make(map[string]bool, len(mentions))
+	for _, m := range mentions {
+		mentionSet[strings.ToLower(m)] = true
+	}
+
 	// Strip platform prefix from sender for self-skip comparison
 	// Gateway messages arrive as "[slack] agent-name" but subscriptions
 	// store bare agent names.
@@ -490,6 +497,7 @@ func (s *Service) deliverOutboundToSubscribers(ctx context.Context, channel, sen
 		Platform:  platform,
 		Sender:    sender,
 		Content:   content,
+		Mentions:  mentions,
 	})
 	if err != nil {
 		log.Error("notify: marshal outbound notification", "error", err)
@@ -503,10 +511,8 @@ func (s *Service) deliverOutboundToSubscribers(ctx context.Context, channel, sen
 			continue
 		}
 
-		// Outbound messages don't have mentions, so mention_only subscribers
-		// won't get woken (this matches the behavior if the message came
-		// via platform echo with no @mentions).
-		if sub.MentionOnly {
+		// @mention filter: if mention_only, skip unless agent is mentioned
+		if sub.MentionOnly && !mentionSet[strings.ToLower(sub.Agent)] {
 			continue
 		}
 
