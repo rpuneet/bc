@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Apple, Monitor, Terminal, Download } from "lucide-react";
 import {
   type DesktopOS,
-  desktopDownloadUrl,
   detectOS,
   useGitHubStats,
 } from "../../lib/github";
@@ -27,12 +26,11 @@ const ORDER: DesktopOS[] = ["mac", "linux", "windows"];
  * button; the other two are quiet secondary links. The curl/brew CLI install
  * lives below the fold in InstallSection as the power-user path.
  *
- * The desktop assets these point at are produced by release.yml's Wails job.
- * They 404 until the first desktop release (v0.4.0) is tagged — expected; the
- * /releases/latest/download/ URLs resolve the moment that release exists.
+ * Desktop URLs come from the latest GitHub release asset list (signed zip
+ * preferred; falls back to `*-UNSIGNED.zip` when that is what shipped).
  */
 export function DownloadButtons() {
-  const { version } = useGitHubStats();
+  const { desktopUrls } = useGitHubStats();
   // Default to mac for SSR/first paint (matches the flagship build); refine
   // to the real OS after mount so the markup is stable and hydration-safe.
   const [os, setOs] = useState<DesktopOS>("mac");
@@ -46,11 +44,12 @@ export function DownloadButtons() {
   const primary = OS_META[os];
   const PrimaryIcon = primary.icon;
   const others = ORDER.filter((o) => o !== os);
+  const unsignedMac = /UNSIGNED/.test(desktopUrls.mac);
 
   return (
     <div className="flex flex-col items-center gap-3">
       <Link
-        href={desktopDownloadUrl(os, version)}
+        href={desktopUrls[os]}
         className="group inline-flex h-12 items-center gap-2.5 rounded-lg bg-primary px-7 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-[0_0_24px_color-mix(in_srgb,var(--primary)_32%,transparent)] active:scale-[0.97]"
       >
         <PrimaryIcon className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -68,7 +67,7 @@ export function DownloadButtons() {
           return (
             <Link
               key={o}
-              href={desktopDownloadUrl(o, version)}
+              href={desktopUrls[o]}
               className="inline-flex items-center gap-1.5 rounded-md border border-outline-variant/20 px-3 py-1.5 font-body text-xs font-medium text-on-surface-variant transition-colors hover:border-primary/30 hover:text-primary active:scale-[0.97]"
             >
               <Icon className="h-3.5 w-3.5" aria-hidden="true" />
@@ -77,6 +76,16 @@ export function DownloadButtons() {
           );
         })}
       </div>
+
+      {unsignedMac && os === "mac" ? (
+        <p className="max-w-sm text-center font-body text-xs text-on-surface-variant/80">
+          macOS build is unsigned until Developer ID signing lands. After
+          download:{" "}
+          <code className="rounded bg-surface-container px-1 py-0.5 text-[11px]">
+            xattr -dr com.apple.quarantine /path/to/mycel.app
+          </code>
+        </p>
+      ) : null}
     </div>
   );
 }

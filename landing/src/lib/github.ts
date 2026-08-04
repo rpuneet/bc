@@ -11,22 +11,83 @@ import { useEffect, useState } from "react";
  * never flashes zeros. If the API is unavailable or rate-limited, the cached
  * numbers simply stay — graceful degradation, no error UI.
  *
- * Cached fallbacks refreshed 2026-07-31 from the live API.
+ * Cached fallbacks refreshed 2026-08-05 from the live API.
  */
 export const REPO = "rpuneet/mycel";
+
+export type DesktopOS = "mac" | "linux" | "windows";
 
 export type GitHubStats = {
   stars: number;
   contributors: number;
-  version: string; // release tag, e.g. "v0.3.13"
+  version: string; // release tag, e.g. "v0.4.6"
   live: boolean; // true once real API data has replaced the fallback
+  /** Resolved desktop asset URLs for the latest release (signed preferred). */
+  desktopUrls: Record<DesktopOS, string>;
 };
+
+/**
+ * Candidate artifact names per OS, in preference order. Signed macOS builds
+ * omit the suffix; when ALLOW_UNSIGNED_MACOS ships the release, the asset is
+ * named `...-UNSIGNED.zip` so Gatekeeper refusal is visible in the filename.
+ */
+function desktopAssetCandidates(os: DesktopOS, version: string): string[] {
+  const v = version.replace(/^v/, "");
+  switch (os) {
+    case "mac":
+      return [
+        `mycel-desktop_darwin_arm64_${v}.zip`,
+        `mycel-desktop_darwin_arm64_${v}-UNSIGNED.zip`,
+      ];
+    case "linux":
+      return [`mycel-desktop_linux_amd64_${v}.tar.gz`];
+    case "windows":
+      return [`mycel-desktop_windows_amd64_${v}.zip`];
+  }
+}
+
+/** Pick the first candidate that appears in the release asset list. */
+export function pickDesktopAsset(
+  os: DesktopOS,
+  version: string,
+  assetNames: readonly string[],
+): string {
+  const candidates = desktopAssetCandidates(os, version);
+  return candidates.find((n) => assetNames.includes(n)) ?? candidates[0];
+}
+
+export function desktopUrlsFromAssets(
+  tag: string,
+  assetNames: readonly string[],
+): Record<DesktopOS, string> {
+  const base = `https://github.com/${REPO}/releases/download/${tag}`;
+  return {
+    mac: `${base}/${pickDesktopAsset("mac", tag, assetNames)}`,
+    linux: `${base}/${pickDesktopAsset("linux", tag, assetNames)}`,
+    windows: `${base}/${pickDesktopAsset("windows", tag, assetNames)}`,
+  };
+}
+
+/**
+ * Construct URLs when the asset list is unknown (SSR / offline fallback).
+ * For macOS the last candidate is the UNSIGNED name so a release that only
+ * shipped unsigned (until Developer ID lands) does not 404 from the site.
+ */
+export function desktopDownloadUrl(os: DesktopOS, version: string): string {
+  const name = desktopAssetCandidates(os, version).at(-1)!;
+  return `https://github.com/${REPO}/releases/latest/download/${name}`;
+}
 
 export const FALLBACK_STATS: GitHubStats = {
   stars: 4,
   contributors: 6,
-  version: "v0.3.13",
+  version: "v0.4.6",
   live: false,
+  desktopUrls: {
+    mac: desktopDownloadUrl("mac", "v0.4.6"),
+    linux: desktopDownloadUrl("linux", "v0.4.6"),
+    windows: desktopDownloadUrl("windows", "v0.4.6"),
+  },
 };
 
 /** Parse the total contributor count from a paginated Link header. */
@@ -68,7 +129,21 @@ export function useGitHubStats(): GitHubStats {
       }
       try {
         const rel = await fetch(`${api}/releases/latest`).then((r) => r.json());
-        if (rel.tag_name) next.version = rel.tag_name;
+        if (rel.tag_name) {
+          next.version = rel.tag_name;
+          const names = Array.isArray(rel.assets)
+            ? rel.assets.map((a: { name?: string }) => a.name).filter(Boolean)
+            : [];
+          if (names.length > 0) {
+            next.desktopUrls = desktopUrlsFromAssets(rel.tag_name, names);
+          } else {
+            next.desktopUrls = {
+              mac: desktopDownloadUrl("mac", rel.tag_name),
+              linux: desktopDownloadUrl("linux", rel.tag_name),
+              windows: desktopDownloadUrl("windows", rel.tag_name),
+            };
+          }
+        }
       } catch {
         /* keep fallback */
       }
@@ -82,36 +157,6 @@ export function useGitHubStats(): GitHubStats {
   }, []);
 
   return stats;
-}
-
-/**
- * Desktop app download URLs, keyed by OS. Built from the release artifact
- * names produced by .github/workflows/release.yml (Wails desktop build):
- *   mycel-desktop_darwin_arm64_<version>.zip
- *   mycel-desktop_linux_amd64_<version>.tar.gz
- *   mycel-desktop_windows_amd64_<version>.zip
- *
- * We use the /releases/latest/download/ redirect so a link resolves to the
- * newest tagged asset. The version is still needed because it is baked into
- * the filename; we take it from the live release tag (stripped of a leading v).
- *
- * NOTE: these 404 until the first desktop release (v0.4.0) is tagged and its
- * assets are uploaded. That is expected — the URLs are correct by construction
- * and will resolve the moment the release exists.
- */
-export type DesktopOS = "mac" | "linux" | "windows";
-
-export function desktopDownloadUrl(os: DesktopOS, version: string): string {
-  const v = version.replace(/^v/, "");
-  const base = `https://github.com/${REPO}/releases/latest/download`;
-  switch (os) {
-    case "mac":
-      return `${base}/mycel-desktop_darwin_arm64_${v}.zip`;
-    case "linux":
-      return `${base}/mycel-desktop_linux_amd64_${v}.tar.gz`;
-    case "windows":
-      return `${base}/mycel-desktop_windows_amd64_${v}.zip`;
-  }
 }
 
 /** Best-effort OS detection for choosing the primary download button. */
