@@ -40,6 +40,8 @@ type CreateAgentReq struct {
 	Team     string `json:"team,omitempty"`
 	EnvFile  string `json:"env_file,omitempty"`
 	Template string `json:"template,omitempty"`
+	// Task is an optional first instruction recorded and delivered (#3589).
+	Task string `json:"task,omitempty"`
 }
 
 // AgentStatsRecord holds a single Docker stats sample for an agent.

@@ -40,3 +40,20 @@ func TestCreateAgentRequestRuntimeUsesAKeyTheHandlerReads(t *testing.T) {
 		t.Errorf("the runtime the CLI sent reaches the handler as %q, want %q\nrequest body: %s", got, "tmux", raw)
 	}
 }
+
+func TestCreateAgentRequestTaskUsesAKeyTheHandlerReads(t *testing.T) {
+	raw, err := json.Marshal(client.CreateAgentReq{Name: "eng-01", Task: "fix the flaky test"})
+	if err != nil {
+		t.Fatalf("marshal create request: %v", err)
+	}
+
+	var decoded struct {
+		Task string `json:"task"`
+	}
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if decoded.Task != "fix the flaky test" {
+		t.Errorf("task = %q, want recorded on the wire for #3589", decoded.Task)
+	}
+}

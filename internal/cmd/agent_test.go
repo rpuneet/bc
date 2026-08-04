@@ -177,6 +177,13 @@ func TestAgentCreateHasTeamFlag(t *testing.T) {
 	}
 }
 
+func TestAgentCreateHasTaskFlag(t *testing.T) {
+	flags := agentCreateCmd.Flags()
+	if flags.Lookup("task") == nil {
+		t.Error("expected --task flag on agent create (#3589)")
+	}
+}
+
 // --- Agent Role Hierarchy Tests ---
 
 func TestCanCreateRole_TechLeadCanCreateEngineer(t *testing.T) {
