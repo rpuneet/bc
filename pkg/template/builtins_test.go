@@ -195,19 +195,19 @@ func TestEnsureBuiltinsDoesNotUpgradeAnEditEvenWithARecordedHash(t *testing.T) {
 	}
 	// User edits after install: disk hash diverges from recorded.
 	edit := []byte(`{"name":"feature-dev","description":"my edit","mcps":["mycel"]}` + "\n")
-	if err := os.WriteFile(filepath.Join(dir, name+".json"), edit, 0o600); err != nil {
-		t.Fatal(err)
+	if werr := os.WriteFile(filepath.Join(dir, name+".json"), edit, 0o600); werr != nil {
+		t.Fatal(werr)
 	}
-	if err := os.WriteFile(filepath.Join(dir, name+".md"), []byte("edited prompt\n"), 0o600); err != nil {
-		t.Fatal(err)
+	if werr := os.WriteFile(filepath.Join(dir, name+".md"), []byte("edited prompt\n"), 0o600); werr != nil {
+		t.Fatal(werr)
 	}
 
-	if _, err := EnsureBuiltins(dir); err != nil {
-		t.Fatalf("second run: %v", err)
+	if _, uerr := EnsureBuiltins(dir); uerr != nil {
+		t.Fatalf("second run: %v", uerr)
 	}
-	raw, err := os.ReadFile(filepath.Join(dir, name+".json"))
-	if err != nil {
-		t.Fatal(err)
+	raw, rerr := os.ReadFile(filepath.Join(dir, name+".json")) //nolint:gosec // test path under temp dir
+	if rerr != nil {
+		t.Fatal(rerr)
 	}
 	if !strings.Contains(string(raw), "my edit") {
 		t.Fatalf("edit was overwritten: %s", raw)
