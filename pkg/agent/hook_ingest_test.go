@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -460,5 +462,38 @@ func TestIngestHookEvent_GatewayEnvelopeBecomesAReadableTask(t *testing.T) {
 
 	if got := mgr.agents["eng-1"].Task; got != "review both trackers and make sure main is good" {
 		t.Errorf("task = %q, want the message rather than its envelope", got)
+	}
+}
+
+func TestIngestHookEvent_StopPersistsCursorUsage(t *testing.T) {
+	mgr := newTestManager(t)
+	mgr.agents["cursor-agent"] = &Agent{Name: "cursor-agent", State: StateWorking, Children: []string{}}
+	svc := NewAgentService(mgr, nil, nil)
+
+	payload := HookPayload{
+		Event:            HookStop,
+		State:            "idle",
+		Model:            "kimi-k3",
+		SessionID:        "sess",
+		GenerationID:     "gen-99",
+		InputTokens:      100,
+		OutputTokens:     20,
+		CacheReadTokens:  40,
+		CacheWriteTokens: 5,
+	}
+	if err := svc.IngestHookEvent(context.Background(), "cursor-agent", payload, nil); err != nil {
+		t.Fatalf("IngestHookEvent: %v", err)
+	}
+
+	path := filepath.Join(mgr.agentsRoot(), "cursor-agent", "session", "cursor", "usage.jsonl")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("usage file missing: %v", err)
+	}
+	if !strings.Contains(string(raw), `"generation_id":"gen-99"`) {
+		t.Errorf("usage file = %s, want generation_id", raw)
+	}
+	if !strings.Contains(string(raw), `"input_tokens":100`) {
+		t.Errorf("usage file missing input_tokens: %s", raw)
 	}
 }

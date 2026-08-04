@@ -11,6 +11,7 @@ import (
 
 	"github.com/rpuneet/mycel/pkg/events"
 	"github.com/rpuneet/mycel/pkg/log"
+	"github.com/rpuneet/mycel/pkg/provider"
 )
 
 // ErrUnknownHookEvent is returned by IngestHookEvent for events that are not
@@ -130,6 +131,13 @@ func (s *AgentService) IngestHookEvent(ctx context.Context, name string, payload
 		}
 	}
 
+	// Cursor (and any future provider that puts tokens on Stop) reports
+	// usage on the turn-complete hook rather than in a session transcript.
+	// Persist it where CostReader looks, or Insights stays at $0 forever.
+	if payload.Event == HookStop {
+		s.recordHookUsage(name, payload)
+	}
+
 	now := time.Now()
 	fields := hookPayloadFields(payload)
 
@@ -197,6 +205,33 @@ func (s *AgentService) agentState(name string) State {
 		return ""
 	}
 	return a.State
+}
+
+// recordHookUsage persists token counts from a Stop payload into the agent's
+// cursor usage JSONL. Best-effort: a write failure must not drop the hook
+// event itself, or activity reporting would become coupled to disk health.
+func (s *AgentService) recordHookUsage(name string, payload HookPayload) {
+	if payload.InputTokens == 0 && payload.OutputTokens == 0 &&
+		payload.CacheReadTokens == 0 && payload.CacheWriteTokens == 0 {
+		return
+	}
+	if s.manager == nil {
+		return
+	}
+	rec := provider.CursorUsageRecord{
+		Timestamp:        time.Now().UTC(),
+		Model:            payload.Model,
+		SessionID:        payload.SessionID,
+		GenerationID:     payload.GenerationID,
+		InputTokens:      payload.InputTokens,
+		OutputTokens:     payload.OutputTokens,
+		CacheReadTokens:  payload.CacheReadTokens,
+		CacheWriteTokens: payload.CacheWriteTokens,
+		CostUSD:          payload.CostUSD,
+	}
+	if err := provider.AppendCursorUsage(s.manager.agentsRoot(), name, rec); err != nil {
+		log.Debug("cursor usage record skipped", "agent", name, "error", err)
+	}
 }
 
 // isTurnStart reports whether an event marks the beginning of a model turn,

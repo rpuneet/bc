@@ -146,9 +146,17 @@ type HookPayload struct {
 	NotificationType string   `json:"notification_type,omitempty"`
 	File             string   `json:"file,omitempty"`
 	Mentions         []string `json:"mentions,omitempty"`
-	CostUSD          float64  `json:"cost_usd,omitempty"`
-	InputTokens      int64    `json:"input_tokens,omitempty"`
-	OutputTokens     int64    `json:"output_tokens,omitempty"`
+	// SessionID / GenerationID identify the provider turn. Cursor puts both
+	// on every hook payload; they are how usage records dedup.
+	SessionID    string  `json:"session_id,omitempty"`
+	GenerationID string  `json:"generation_id,omitempty"`
+	CostUSD      float64 `json:"cost_usd,omitempty"`
+	InputTokens  int64   `json:"input_tokens,omitempty"`
+	OutputTokens int64   `json:"output_tokens,omitempty"`
+	// Cache token fields are Cursor's stop-hook vocabulary. Claude uses
+	// different names in its transcripts and never puts them on this payload.
+	CacheReadTokens  int64 `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens int64 `json:"cache_write_tokens,omitempty"`
 }
 
 // The Claude Code hook-settings writer that generates .claude/settings.json
