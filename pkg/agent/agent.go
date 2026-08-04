@@ -652,7 +652,7 @@ func NewManager(stateDir string) *Manager {
 // repoPath is the anchor repo new agents default to (may be "").
 func NewManagerWithRepo(stateDir, repoPath string) *Manager {
 	cmd, tool := defaultAgentCmd()
-	tmuxBe := runtime.NewTmuxBackend(tmux.NewManagerWithRepo(DefaultSessionPrefix, repoPath))
+	tmuxBe := runtime.NewTmuxBackend(tmux.NewManager(DefaultSessionPrefix))
 	return &Manager{
 		agents:           make(map[string]*Agent),
 		agentLocks:       make(map[string]*sync.Mutex),
@@ -675,7 +675,7 @@ func NewManagerWithRuntime(stateDir, repoPath string, rt runtime.Backend, rtName
 	bes := map[string]runtime.Backend{rtName: rt}
 	// Always register a tmux backend so agents with RuntimeBackend="tmux" work
 	if rtName != "tmux" {
-		bes["tmux"] = runtime.NewTmuxBackend(tmux.NewManagerWithRepo(DefaultSessionPrefix, repoPath))
+		bes["tmux"] = runtime.NewTmuxBackend(tmux.NewManager(DefaultSessionPrefix))
 	}
 	return &Manager{
 		agents:           make(map[string]*Agent),

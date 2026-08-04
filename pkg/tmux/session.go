@@ -43,7 +43,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"os"
@@ -88,7 +87,6 @@ type Manager struct {
 	sessionLocks    map[string]*sync.Mutex
 	hasSessionCache map[string]bool // Cached session existence checks
 	SessionPrefix   string          // Prepended to all session names (e.g., "mycel-")
-	repoHash        string          // Included in session names for repo isolation
 	sessionsCache   []Session       // Cached list of sessions
 	cacheTTL        time.Duration   // Cache TTL (default: 2 seconds)
 	cacheMu         sync.RWMutex    // Protects cache fields
@@ -139,19 +137,6 @@ func NewManager(prefix string) *Manager {
 	}
 }
 
-// NewManagerWithRepo creates a tmux manager scoped to a repo.
-// Session names include a short hash of the repo path for isolation.
-func NewManagerWithRepo(prefix, repoPath string) *Manager {
-	h := sha256.Sum256([]byte(repoPath))
-	return &Manager{
-		SessionPrefix:   prefix,
-		repoHash:        fmt.Sprintf("%x", h[:3]),
-		execCommand:     exec.Command,
-		hasSessionCache: make(map[string]bool),
-		cacheTTL:        DefaultCacheTTL,
-	}
-}
-
 // NewDefaultManager creates a new tmux manager with the canonical prefix.
 func NewDefaultManager() *Manager {
 	return &Manager{
@@ -169,11 +154,16 @@ func (m *Manager) WithExecCommand(fn func(string, ...string) *exec.Cmd) *Manager
 	return m
 }
 
-// SessionName returns the full session name with prefix (and repo hash if set).
+// SessionName returns the full session name with prefix.
+//
+// Deliberately not namespaced by anything else. Session names used to carry a
+// hash of the repo the daemon booted in, from when state lived in a directory
+// inside each project and two projects could genuinely collide. State is one
+// ~/.mycel now, agent names are unique across it, and the hash only meant that
+// two daemons started in different directories could not see each other's
+// sessions — so opening the desktop app left every running agent listed and
+// unreachable (#3569).
 func (m *Manager) SessionName(name string) string {
-	if m.repoHash != "" {
-		return m.SessionPrefix + m.repoHash + "-" + name
-	}
 	return m.SessionPrefix + name
 }
 
@@ -483,11 +473,7 @@ func (m *Manager) ListSessions(ctx context.Context) ([]Session, error) {
 		return nil, err
 	}
 
-	// Build the full prefix once — it doesn't depend on the current line.
 	fullPrefix := m.SessionPrefix
-	if m.repoHash != "" {
-		fullPrefix = m.SessionPrefix + m.repoHash + "-"
-	}
 
 	var sessions []Session
 	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {

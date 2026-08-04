@@ -173,9 +173,6 @@ func TestNewManager(t *testing.T) {
 	if m.SessionPrefix != "test-" {
 		t.Errorf("SessionPrefix = %q, want %q", m.SessionPrefix, "test-")
 	}
-	if m.repoHash != "" {
-		t.Errorf("repoHash = %q, want empty", m.repoHash)
-	}
 	if m.execCommand == nil {
 		t.Error("execCommand should not be nil")
 	}
@@ -191,32 +188,15 @@ func TestNewDefaultManager(t *testing.T) {
 	}
 }
 
-func TestNewManagerWithRepo(t *testing.T) {
-	m := NewManagerWithRepo("mycel-", "/some/repo")
-	if m.SessionPrefix != "mycel-" {
-		t.Errorf("SessionPrefix = %q, want %q", m.SessionPrefix, "mycel-")
+// A session name is the prefix and the agent, and nothing else: two daemons
+// started in different directories have to arrive at the same name for the same
+// agent, or one of them cannot see the other's sessions (#3569).
+func TestSessionNamesDoNotDependOnWhereTheDaemonStarted(t *testing.T) {
+	if got := NewManager("mycel-").SessionName("fast-crane"); got != "mycel-fast-crane" {
+		t.Errorf("SessionName = %q, want %q", got, "mycel-fast-crane")
 	}
-	if m.repoHash == "" {
-		t.Error("repoHash should not be empty")
-	}
-	if m.execCommand == nil {
-		t.Error("execCommand should not be nil")
-	}
-}
-
-func TestNewManagerWithRepo_DifferentPaths(t *testing.T) {
-	m1 := NewManagerWithRepo("mycel-", "/path/one")
-	m2 := NewManagerWithRepo("mycel-", "/path/two")
-	if m1.repoHash == m2.repoHash {
-		t.Error("different paths should produce different hashes")
-	}
-}
-
-func TestNewManagerWithRepo_SamePath(t *testing.T) {
-	m1 := NewManagerWithRepo("mycel-", "/same/path")
-	m2 := NewManagerWithRepo("mycel-", "/same/path")
-	if m1.repoHash != m2.repoHash {
-		t.Error("same paths should produce same hash")
+	if got := NewDefaultManager().SessionName("fast-crane"); got != "mycel-fast-crane" {
+		t.Errorf("SessionName = %q, want %q", got, "mycel-fast-crane")
 	}
 }
 
@@ -357,12 +337,6 @@ func TestSessionName(t *testing.T) {
 			input: "agent1",
 			want:  "mycel-agent1",
 		},
-		{
-			name:  "repo-scoped manager",
-			mgr:   NewManagerWithRepo("mycel-", "/some/path"),
-			input: "agent1",
-			want:  "mycel-" + NewManagerWithRepo("mycel-", "/some/path").repoHash + "-agent1",
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -382,17 +356,15 @@ func TestSessionName_EmptyName(t *testing.T) {
 	}
 }
 
-func TestSessionName_RepoHashPrefix(t *testing.T) {
-	m := NewManagerWithRepo("mycel-", "/repo")
-	name := m.SessionName("agent1")
-	if !strings.HasPrefix(name, "mycel-") {
-		t.Errorf("session name should start with prefix: %s", name)
+// The name carries nothing between the prefix and the agent. A hash used to sit
+// there, which is what made a session invisible to a daemon started elsewhere.
+func TestSessionNameCarriesNothingBetweenPrefixAndAgent(t *testing.T) {
+	name := NewManager("mycel-").SessionName("agent1")
+	if name != "mycel-agent1" {
+		t.Errorf("SessionName = %q, want %q", name, "mycel-agent1")
 	}
-	if !strings.HasSuffix(name, "-agent1") {
-		t.Errorf("session name should end with -agent1: %s", name)
-	}
-	if !strings.Contains(name, m.repoHash) {
-		t.Errorf("session name should contain the repo hash: %s", name)
+	if strings.Count(name, "-") != 1 {
+		t.Errorf("session name has an extra segment in it: %s", name)
 	}
 }
 
@@ -890,11 +862,11 @@ func TestListSessions_Success(t *testing.T) {
 	}
 }
 
-func TestListSessions_RepoIsolation(t *testing.T) {
-	m := NewManagerWithRepo("mycel-", "/workspace/one")
-	hash := m.repoHash
-	sessionOutput := fmt.Sprintf("mycel-%s-agent1|Thu Jan  1|0|1|/workspace\nbc-otheragent2|Thu Jan  1|0|1|/workspace\n", hash)
-	m.execCommand = mockCmd(sessionOutput, "", 0)
+// Sessions belonging to something else on the same tmux server stay out of the
+// list; the prefix is the whole of the filter now.
+func TestListSessionsIgnoresSessionsWithAnotherPrefix(t *testing.T) {
+	m := newTestManager("mycel-", mockCmd(
+		"mycel-agent1|Thu Jan  1|0|1|/workspace\nbc-otheragent2|Thu Jan  1|0|1|/workspace\n", "", 0))
 
 	sessions, err := m.ListSessions(testCtx())
 	if err != nil {
@@ -902,7 +874,7 @@ func TestListSessions_RepoIsolation(t *testing.T) {
 	}
 
 	if len(sessions) != 1 {
-		t.Fatalf("expected 1 session (workspace-scoped), got %d", len(sessions))
+		t.Fatalf("expected 1 session, got %d", len(sessions))
 	}
 	if sessions[0].Name != "agent1" {
 		t.Errorf("session name = %q, want %q", sessions[0].Name, "agent1")
@@ -985,8 +957,8 @@ func TestAttachCmd(t *testing.T) {
 	}
 }
 
-func TestAttachCmd_WorkspaceManager(t *testing.T) {
-	m := NewManagerWithRepo("mycel-", "/repo")
+func TestAttachCmd_UsesTheFullSessionName(t *testing.T) {
+	m := NewManager("mycel-")
 	m.execCommand = exec.Command
 	cmd := m.AttachCmd(testCtx(), "agent1")
 	expectedName := m.SessionName("agent1")

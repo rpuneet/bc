@@ -21,14 +21,6 @@ func BenchmarkSessionName_NoHash(b *testing.B) {
 	}
 }
 
-func BenchmarkSessionName_WithHash(b *testing.B) {
-	m := NewManagerWithRepo("mycel-", "/path/to/workspace")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = m.SessionName("test-agent")
-	}
-}
-
 func BenchmarkGenerateBufferName(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = generateBufferName()
@@ -86,12 +78,6 @@ func BenchmarkValidEnvVarName_LongName(b *testing.B) {
 func BenchmarkNewManager(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = NewManager("mycel-")
-	}
-}
-
-func BenchmarkNewManagerWithRepo(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		_ = NewManagerWithRepo("mycel-", "/path/to/workspace")
 	}
 }
 
