@@ -20,6 +20,7 @@ import { Header } from "./Header";
 import { HistoryNavButtons } from "./HistoryNavButtons";
 import { AgentNavTree } from "./AgentNavTree";
 import { SetupNudge } from "./SetupNudge";
+import { NoWorkspaceBanner } from "./NoWorkspaceBanner";
 import { SidebarToggle } from "./SidebarToggle";
 import { BrandMark } from "./BrandMark";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
@@ -1100,6 +1101,7 @@ export function Layout() {
       />
       <DegradedBanner />
       <SetupNudge />
+      <NoWorkspaceBanner />
 
       <div className="flex flex-1 min-h-0 relative">
       {mobileOpen && <div className="fixed inset-0 z-40 bg-mycel-overlay md:hidden" onClick={() => setMobileOpen(false)} />}
