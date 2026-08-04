@@ -147,17 +147,17 @@ func TestEnsureBuiltinsUpgradesWhenHashStillMatches(t *testing.T) {
 		state.Hashes = map[string]string{}
 	}
 	state.Hashes[name] = staleHash
-	if err := writeBuiltinState(dir, state); err != nil {
-		t.Fatal(err)
+	if werr := writeBuiltinState(dir, state); werr != nil {
+		t.Fatal(werr)
 	}
 
-	if _, err := EnsureBuiltins(dir); err != nil {
-		t.Fatalf("upgrade run: %v", err)
+	if _, uerr := EnsureBuiltins(dir); uerr != nil {
+		t.Fatalf("upgrade run: %v", uerr)
 	}
 
-	raw, err := os.ReadFile(filepath.Join(dir, name+".json"))
-	if err != nil {
-		t.Fatal(err)
+	raw, rerr := os.ReadFile(filepath.Join(dir, name+".json")) //nolint:gosec // test path under temp dir
+	if rerr != nil {
+		t.Fatal(rerr)
 	}
 	if strings.Contains(string(raw), `"bc"`) {
 		t.Fatalf("stale builtin was not upgraded: %s", raw)

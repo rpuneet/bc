@@ -139,7 +139,7 @@ func diskBuiltinHash(dir, name string) (string, error) {
 // and returns the names it newly added (not upgrades).
 //
 // It runs on every start so an upgrade delivers new built-ins to an existing
-// workspace. Behaviour for each shipped name:
+// workspace. Behavior for each shipped name:
 //
 //   - never installed, absent on disk → install and record hash
 //   - installed before, absent on disk → leave deleted (user choice)
