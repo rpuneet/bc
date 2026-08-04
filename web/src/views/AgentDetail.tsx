@@ -598,6 +598,80 @@ function ProviderModelSection({
  * Blank inputs clear the override (send 0) so the fleet default applies.
  * For tmux agents the limits are stored but not enforced — labelled so.
  */
+function AgentGuardrailsSection({ templateName }: { templateName?: string }) {
+  const [maxCost, setMaxCost] = useState<number | null>(null);
+  const [stuckMin, setStuckMin] = useState<number | null>(null);
+  const [loadErr, setLoadErr] = useState(false);
+
+  useEffect(() => {
+    if (!templateName) {
+      setMaxCost(null);
+      setStuckMin(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/templates/${encodeURIComponent(templateName)}`)
+      .then((r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json() as Promise<{ max_cost_usd?: number; stuck_timeout_min?: number }>;
+      })
+      .then((t) => {
+        if (cancelled) return;
+        setMaxCost(t.max_cost_usd && t.max_cost_usd > 0 ? t.max_cost_usd : null);
+        setStuckMin(t.stuck_timeout_min && t.stuck_timeout_min > 0 ? t.stuck_timeout_min : null);
+        setLoadErr(false);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadErr(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [templateName]);
+
+  return (
+    <section>
+      <SectionRule>Guardrails</SectionRule>
+      {!templateName ? (
+        <p className="text-xs text-mycel-muted leading-relaxed mt-1">
+          No template on this agent — cost and stuck limits are not enforced. Create from a
+          template (or set one) to attach guardrails.
+        </p>
+      ) : loadErr ? (
+        <p className="text-xs text-mycel-muted mt-1">Could not load template {templateName}.</p>
+      ) : (
+        <div className="mt-2 space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm" style={{ fontFamily: MONO }}>
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-mycel-muted">Max cost</div>
+              <div className="text-mycel-text">
+                {maxCost != null ? `$${maxCost.toFixed(2)}` : "— (no cap)"}
+              </div>
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-mycel-muted">Stuck timeout</div>
+              <div className="text-mycel-text">
+                {stuckMin != null ? `${stuckMin} min` : "— (no timeout)"}
+              </div>
+            </div>
+          </div>
+          <p className="text-xs text-mycel-muted leading-relaxed">
+            In effect from template{" "}
+            <Link
+              to={`/templates`}
+              className="text-mycel-accent hover:underline"
+              title={templateName}
+            >
+              {templateName}
+            </Link>
+            . Edit them on the template — the daemon re-reads on each check.
+          </p>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function ResourceLimitsSection({
   agentName,
   isDocker,
@@ -995,6 +1069,9 @@ function SettingsTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) 
           memoryMB={config?.memory_mb ?? agent.memory_mb ?? 0}
           onSaved={reloadConfig}
         />
+
+        {/* ── GUARDRAILS (from template) ── */}
+        <AgentGuardrailsSection templateName={agent.template} />
 
         {/* ── TEMPLATE ── */}
         {templates.length > 0 && (

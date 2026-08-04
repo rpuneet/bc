@@ -17,6 +17,8 @@ interface Template {
   mcps: string[];
   secrets: string[];
   plugins: string[];
+  max_cost_usd?: number;
+  stuck_timeout_min?: number;
 }
 
 interface TemplateDetail extends Template {
@@ -67,6 +69,8 @@ const updateTemplate = (
     mcps: string[];
     secrets: string[];
     plugins: string[];
+    max_cost_usd: number;
+    stuck_timeout_min: number;
   },
 ): Promise<Template> =>
   fetch(`/api/templates/${encodeURIComponent(name)}`, {
@@ -120,6 +124,8 @@ function TemplateDetailPanel({
   const [mcpsRaw, setMcpsRaw] = useState("");
   const [secretsRaw, setSecretsRaw] = useState("");
   const [pluginsRaw, setPluginsRaw] = useState("");
+  const [maxCostRaw, setMaxCostRaw] = useState("");
+  const [stuckTimeoutRaw, setStuckTimeoutRaw] = useState("");
 
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({ type: "idle" });
 
@@ -137,6 +143,10 @@ function TemplateDetailPanel({
       setMcpsRaw((t.mcps ?? []).join(", "));
       setSecretsRaw((t.secrets ?? []).join(", "));
       setPluginsRaw((t.plugins ?? []).join(", "));
+      setMaxCostRaw(t.max_cost_usd && t.max_cost_usd > 0 ? String(t.max_cost_usd) : "");
+      setStuckTimeoutRaw(
+        t.stuck_timeout_min && t.stuck_timeout_min > 0 ? String(t.stuck_timeout_min) : "",
+      );
     } catch (err) {
       setLoadErr(err instanceof Error ? err.message : "Failed to load");
     } finally {
@@ -164,6 +174,8 @@ function TemplateDetailPanel({
         mcps: splitComma(mcpsRaw),
         secrets: splitComma(secretsRaw),
         plugins: splitComma(pluginsRaw),
+        max_cost_usd: parseFloat(maxCostRaw) || 0,
+        stuck_timeout_min: parseInt(stuckTimeoutRaw, 10) || 0,
       });
       setSaveStatus({ type: "success" });
       setEditing(false);
@@ -332,6 +344,70 @@ function TemplateDetailPanel({
           )}
         </div>
 
+        {/* Guardrails — enforced by the daemon from this template (#3574) */}
+        <div className="space-y-3">
+          <SectionRule label="Guardrails" />
+          <p className="text-[11px] text-mycel-muted leading-relaxed">
+            Agents created from this template inherit these limits. Leave blank for no cap.
+            Hitting the cost cap stops the agent; stuck timeout marks it stuck when idle too long.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[11px] uppercase tracking-wide text-mycel-muted" htmlFor="max-cost">
+                Max cost (USD)
+              </label>
+              {editing ? (
+                <input
+                  id="max-cost"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={maxCostRaw}
+                  onChange={(e) => setMaxCostRaw(e.target.value)}
+                  className="w-full px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
+                  placeholder="e.g. 5"
+                  aria-label="Max cost USD"
+                  style={{ fontFamily: MONO }}
+                />
+              ) : (
+                <p className="text-sm text-mycel-text" style={{ fontFamily: MONO }}>
+                  {detail.max_cost_usd && detail.max_cost_usd > 0
+                    ? `$${detail.max_cost_usd.toFixed(2)}`
+                    : "—"}
+                </p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <label
+                className="text-[11px] uppercase tracking-wide text-mycel-muted"
+                htmlFor="stuck-timeout"
+              >
+                Stuck timeout (min)
+              </label>
+              {editing ? (
+                <input
+                  id="stuck-timeout"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={stuckTimeoutRaw}
+                  onChange={(e) => setStuckTimeoutRaw(e.target.value)}
+                  className="w-full px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
+                  placeholder="e.g. 30"
+                  aria-label="Stuck timeout minutes"
+                  style={{ fontFamily: MONO }}
+                />
+              ) : (
+                <p className="text-sm text-mycel-text" style={{ fontFamily: MONO }}>
+                  {detail.stuck_timeout_min && detail.stuck_timeout_min > 0
+                    ? `${detail.stuck_timeout_min} min`
+                    : "—"}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Actions */}
         <div className="flex items-center justify-between pt-2 border-t border-mycel-border">
           <div className="flex items-center gap-3">
@@ -356,6 +432,16 @@ function TemplateDetailPanel({
                     setMcpsRaw((detail.mcps ?? []).join(", "));
                     setSecretsRaw((detail.secrets ?? []).join(", "));
                     setPluginsRaw((detail.plugins ?? []).join(", "));
+                    setMaxCostRaw(
+                      detail.max_cost_usd && detail.max_cost_usd > 0
+                        ? String(detail.max_cost_usd)
+                        : "",
+                    );
+                    setStuckTimeoutRaw(
+                      detail.stuck_timeout_min && detail.stuck_timeout_min > 0
+                        ? String(detail.stuck_timeout_min)
+                        : "",
+                    );
                   }}
                   className="inline-flex items-center h-9 px-3 rounded-md bg-mycel-surface border border-mycel-border text-mycel-text-2 text-sm hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
                 >

@@ -116,6 +116,10 @@ export interface Agent {
   cpus?: number;
   /** Per-agent Docker memory cap in MB (0/absent = inherit fleet default). */
   memory_mb?: number;
+  /** Template this agent was spawned from; guardrails are read from it. */
+  template?: string;
+  /** Template-declared secrets absent from the vault at create (#3558). */
+  missing_secrets?: string[];
 }
 
 export interface AgentConfig {

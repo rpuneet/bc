@@ -98,12 +98,29 @@ describe("Templates secrets and plugins", () => {
     expect(screen.getByLabelText(/Plugins \(comma-separated/i)).toBeInTheDocument();
   });
 
-  it("drops the Secrets column from the list (detail is enough)", async () => {
-    mockTemplates({ name: "reviewer", description: "Code review agent", mcps: ["mycel"], secrets: [], plugins: [] });
+  it("shows editable guardrails on the template detail", async () => {
+    mockTemplates({
+      name: "reviewer",
+      description: "Code review agent",
+      mcps: ["mycel"],
+      secrets: [],
+      plugins: [],
+      max_cost_usd: 5,
+      stuck_timeout_min: 30,
+      system_prompt: "review things",
+    });
     renderTemplates();
 
     await waitFor(() => expect(screen.getByText("reviewer")).toBeInTheDocument());
-    expect(screen.queryByRole("columnheader", { name: "Secrets" })).not.toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "MCPs" })).toBeInTheDocument();
+    (await screen.findByText("reviewer")).click();
+
+    await waitFor(() => expect(screen.getByText("$5.00")).toBeInTheDocument());
+    expect(screen.getByText("30 min")).toBeInTheDocument();
+
+    (await screen.findByRole("button", { name: /^Edit$/i })).click();
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Max cost USD/i)).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText(/Stuck timeout minutes/i)).toBeInTheDocument();
   });
 });
