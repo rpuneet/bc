@@ -163,6 +163,18 @@ func addEntry(sum *Summary, e provider.CostEntry) {
 	sum.TotalTokens += e.InputTokens + e.OutputTokens
 	sum.TotalCostUSD += e.CostUSD
 	sum.RecordCount++
+	if sum.CostBasis == "" {
+		sum.CostBasis = CostBasisPriced
+	}
+}
+
+// markPriced stamps CostBasisPriced on a summary that had no entries
+// (addEntry never ran) so empty responses still declare their basis.
+func markPriced(sum *Summary) *Summary {
+	if sum.CostBasis == "" {
+		sum.CostBasis = CostBasisPriced
+	}
+	return sum
 }
 
 // TotalSummary returns the total cost summary across all sources.
@@ -175,7 +187,7 @@ func (s *Service) TotalSummary(ctx context.Context) (*Summary, error) {
 	for _, e := range entries {
 		addEntry(&sum, e)
 	}
-	return &sum, nil
+	return markPriced(&sum), nil
 }
 
 // GetSummarySince returns a summary of costs since the given time.
@@ -191,7 +203,7 @@ func (s *Service) GetSummarySince(ctx context.Context, since time.Time) (*Summar
 		}
 		addEntry(&sum, e)
 	}
-	return &sum, nil
+	return markPriced(&sum), nil
 }
 
 // SummaryByAgent returns aggregated costs per agent, highest cost first.
@@ -269,7 +281,7 @@ func (s *Service) AgentSummary(ctx context.Context, agentID string) (*Summary, e
 		}
 		addEntry(&sum, e)
 	}
-	return &sum, nil
+	return markPriced(&sum), nil
 }
 
 // groupedSummaries aggregates entries since `since` by key(e), sorted

@@ -113,7 +113,7 @@ func IsKnownEvent(ev HookEvent) bool {
 
 // HookPayload is the JSON payload received by the /hook endpoint.
 // Different events populate different fields.
-type HookPayload struct {
+type HookPayload struct { //nolint:govet // field order matches the wire JSON / provider payloads
 	ToolInput    any            `json:"tool_input,omitempty"`
 	ToolResponse any            `json:"tool_response,omitempty"`
 	Metadata     map[string]any `json:"metadata,omitempty"`

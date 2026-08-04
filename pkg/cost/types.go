@@ -74,16 +74,35 @@ type BudgetStore interface {
 	Delete(scope string) error
 }
 
+// CostBasis is how TotalCostUSD / CostUSD figures were produced.
+const (
+	// CostBasisPriced means dollars were computed from local model rate
+	// tables × token counts. This is the only basis every CostReader
+	// produces today. It is not a provider invoice, subscription
+	// included-usage meter, or Cursor/Anthropic billing export.
+	CostBasisPriced = "priced"
+	// CostBasisBilled is reserved for a future reader that ingests a
+	// provider's own billed figures (e.g. Cursor Admin API). No reader
+	// emits it yet; the constant exists so the API/UI seam is stable
+	// when one lands.
+	CostBasisBilled = "billed"
+)
+
 // Summary represents aggregated cost data.
 //
 // TotalTokens is input + output only. Cache tokens are reported separately
 // via CacheReadTokens / CacheWriteTokens — they are priced at a fraction of
 // input tokens and lumping them into the total makes it meaningless (cache
 // reads dominate by 1000x in agentic workloads).
+//
+// CostBasis is how TotalCostUSD was produced. Always CostBasisPriced until
+// a billed reader exists; UIs must label priced dollars as estimates
+// rather than invoices.
 type Summary struct {
 	AgentID          string  `json:"agent_id,omitempty"`
 	TeamID           string  `json:"team_id,omitempty"`
 	Model            string  `json:"model,omitempty"`
+	CostBasis        string  `json:"cost_basis"`
 	InputTokens      int64   `json:"input_tokens"`
 	OutputTokens     int64   `json:"output_tokens"`
 	CacheReadTokens  int64   `json:"cache_read_tokens"`

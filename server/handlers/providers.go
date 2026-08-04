@@ -47,10 +47,14 @@ type ProviderInfo struct { //nolint:govet // field order matches JSON/API contra
 	// Empty means the provider has no model selection.
 	Models       []ModelInfo `json:"models"`
 	TotalCostUSD float64     `json:"total_cost_usd"`
-	TotalTokens  int64       `json:"total_tokens"`
-	AgentCount   int         `json:"agent_count"`
-	Installed    bool        `json:"installed"`
-	Enabled      bool        `json:"enabled"`
+	// CostBasis is how TotalCostUSD was produced. Always "priced" today
+	// (local model rate tables); reserved for "billed" when a provider
+	// invoice reader lands. See cost.CostBasisPriced.
+	CostBasis   string `json:"cost_basis"`
+	TotalTokens int64  `json:"total_tokens"`
+	AgentCount  int    `json:"agent_count"`
+	Installed   bool   `json:"installed"`
+	Enabled     bool   `json:"enabled"`
 }
 
 // ProviderDetail extends ProviderInfo with per-model cost breakdown and agent list.
@@ -880,6 +884,7 @@ func (h *ProviderHandler) buildProviderInfo(
 		Status:       status,
 		ActivityMode: providerActivityMode(p),
 		Models:       models,
+		CostBasis:    cost.CostBasisPriced,
 		AgentCount:   agentCounts[p.Name()],
 		Installed:    installed,
 		Enabled:      enabled,

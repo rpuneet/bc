@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatCost, formatTokens } from "./format";
+import { costBasisSub, costSpendLabel, formatCost, formatTokens } from "./format";
 
 describe("formatCost", () => {
   it("formats zero", () => {
@@ -18,6 +18,22 @@ describe("formatCost", () => {
     expect(formatCost(1234.56)).toBe("$1,234.56");
     expect(formatCost(1_000_000)).toBe("$1,000,000.00");
     expect(formatCost(9_876_543.21)).toBe("$9,876,543.21");
+  });
+});
+
+describe("costSpendLabel", () => {
+  it("defaults missing basis to estimated (priced)", () => {
+    expect(costSpendLabel(undefined)).toBe("Estimated spend");
+    expect(costSpendLabel(undefined, "cost")).toBe("Estimated cost");
+  });
+  it("labels billed when the API says so", () => {
+    expect(costSpendLabel("billed")).toBe("Billed spend");
+    expect(costSpendLabel("billed", "cost")).toBe("Billed cost");
+  });
+  it("explains priced dollars as not provider billing", () => {
+    expect(costBasisSub("priced")).toMatch(/not provider billing/);
+    expect(costBasisSub(undefined)).toMatch(/not provider billing/);
+    expect(costBasisSub("billed")).toMatch(/provider billing/);
   });
 });
 

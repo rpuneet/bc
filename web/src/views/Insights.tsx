@@ -9,10 +9,11 @@
  *   4. What are the agents actually doing?              → recent activity chart
  *   5. What is it doing to the machine?                 → live system row
  *
- * Every number is period-scoped off the cost ledger (computed directly
- * from provider transcripts) via `?since=` — no mixed lifetime/range
- * figures on one surface. Ledger days are UTC. /stats, /metrics and
- * /costs redirect here (see App.tsx).
+ * Every number is period-scoped off the cost ledger (token counts from
+ * provider sessions; dollars estimated from local model rate tables —
+ * cost_basis "priced", not invoices) via `?since=` — no mixed
+ * lifetime/range figures on one surface. Ledger days are UTC. /stats,
+ * /metrics and /costs redirect here (see App.tsx).
  *
  * Depth is progressive disclosure, never upfront: the Tokens stat, every
  * breakdown row and every system tile expand into an inline drill-down
@@ -35,7 +36,7 @@ import { EmptyState } from "../components/EmptyState";
 import { SectionRule } from "../components/shared/SectionRule";
 import { fmtTokens } from "../components/shared/stats-primitives";
 import { AgentChip } from "../components/agent-ui";
-import { formatCost } from "../utils/format";
+import { costSpendLabel, formatCost } from "../utils/format";
 import { useHeaderSlot } from "../context/HeaderSlotContext";
 import {
   ACCENT, TICK, AX, TT_STYLE, fmtClock, fmtShortDate, stripAgentPrefix,
@@ -148,7 +149,7 @@ function SpendTooltip({ active, payload }: ChartTooltipProps) {
       <div className="font-semibold tabular-nums">{formatCost(p.cost)}</div>
       {p.records > 0 && (
         <div className="text-[11px] text-mycel-muted tabular-nums">
-          {fmtTokens(p.tokens)} tokens · {p.records.toLocaleString()} calls
+          {fmtTokens(p.tokens)} tokens · {p.records.toLocaleString()} calls · estimated
         </div>
       )}
     </div>
@@ -625,7 +626,7 @@ export function Insights() {
         <EmptyState
           icon="$"
           title={isAll ? "No cost data yet" : `No spend in the ${periodLabel}`}
-          description="Costs are read directly from provider session transcripts."
+          description="Token counts come from provider sessions (transcripts or Stop hooks). Dollars are estimated from local model rate tables — not provider invoices or Cursor Usage."
           actionLabel={isAll ? undefined : "View all time"}
           onAction={isAll ? undefined : () => setPeriod("all")}
         />
@@ -640,7 +641,7 @@ export function Insights() {
       <div className="rounded-lg border border-mycel-border shadow-mycel-sm overflow-hidden">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-mycel-border">
           <StatCell
-            label={`Spend · ${periodLabel}`}
+            label={`${costSpendLabel(data.summary?.cost_basis)} · ${periodLabel}`}
             value={formatCost(stat.spend)}
             sub={isAll
               ? (data.daily[0] ? `since ${fmtShortDate(data.daily[0].date)}` : undefined)
@@ -654,7 +655,7 @@ export function Insights() {
           <StatCell
             label={`Tokens · ${periodLabel}`}
             value={fmtTokens((cache.input ?? 0) + (cache.output ?? 0))}
-            sub={`${fmtTokens(cache.input)} in · ${fmtTokens(cache.output)} out`}
+            sub={`${fmtTokens(cache.input)} in · ${fmtTokens(cache.output)} out · mycel agents`}
             onClick={() => setTokensOpen("1")}
             open={tokensOpen !== null}
           />
@@ -679,7 +680,7 @@ export function Insights() {
 
       {/* ── Spend over time ── */}
       <section>
-        <SectionRule label="Spend" trailing={
+        <SectionRule label={costSpendLabel(data.summary?.cost_basis)} trailing={
           <span className="text-[11px] text-mycel-muted tabular-nums">{periodLabel} · daily, UTC</span>
         } />
         {spendSeries.length === 0 ? (

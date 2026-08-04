@@ -10,7 +10,13 @@ package provider
 //	<AgentsDir>/<name>/session/cursor/usage.jsonl
 //
 // by the hook ingestion path, one line per completed turn. ReadCosts prices
-// each line the same way Claude's reader does for its session files.
+// each line the same way Claude's reader does for its session files
+// (cost.CostBasisPriced — local model rate tables, not Cursor billing).
+//
+// Scope note: this is mycel-agent usage only. Cursor's own account Usage
+// dashboard counts every Cursor surface (IDE chat, Tab, Cloud, etc.) and
+// will not match these totals; dollars here will also not match Cursor
+// Spend / invoices until a CostBasisBilled reader exists.
 
 import (
 	"bufio"
