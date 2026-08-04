@@ -1,0 +1,8 @@
+{
+  "name": "qa3602-solo",
+  "template": "blank",
+  "team": null,
+  "missing_secrets": null,
+  "state": "stopped",
+  "tool": "cursor"
+}

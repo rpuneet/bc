@@ -1,0 +1,4 @@
+qa3602t-qa-leaf-a team=qa3602t tmpl=qa-leaf-a missing=None
+qa3602t-qa-leaf-b team=qa3602t tmpl=qa-leaf-b missing=None
+qa3602u-qa-leaf-a team=qa3602u tmpl=qa-leaf-a missing=None
+qa3602u-qa-leaf-b team=qa3602u tmpl=qa-leaf-b missing=None

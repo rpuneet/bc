@@ -1,0 +1,14 @@
+Build: 0.4.6-dev.20.g02f0ede on :9374 and :9375
+
+1. blank expand: {"leaves":["blank"]} — missing omitted (empty) PASS
+2. create blank name=qa3602-solo template=blank — PASS (single agent, requested name)
+3. seeded qa-team composes [qa-leaf-a, qa-leaf-b] with secrets QA3602_* absent from vault
+   - expand returns leaves+secrets but NOT missing — FAIL
+   - create name=qa3602u → agents qa3602u-qa-leaf-a, qa3602u-qa-leaf-b team=qa3602u — PASS naming
+   - missing_secrets stored as [] — FAIL
+   - health never "missing secrets: …"; only later stale degraded — FAIL create-degraded
+
+Root cause (code read, not a fix — QA only):
+  pkg/secret/store.go scanMeta returns (nil, nil) on sql.ErrNoRows
+  handlers/provision.go vaultPresence.Has returns err == nil
+  → absent secrets look present → FilterMissing always empty
