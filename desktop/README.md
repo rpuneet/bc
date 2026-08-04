@@ -134,11 +134,16 @@ Windows code-signing is a separate certificate (EV/OV code-signing cert
 from a CA) and is **not wired up yet** — a future addition once the cert is
 procured.
 
+## App icon
+
+The Dock / Finder icon comes from `build/appicon.png` (source: `appicon.svg`).
+If that PNG is missing, Wails silently ships its default **"W"** mark — see
+`#3605`. `make build-local-desktop` and the release desktop job run
+`scripts/check-desktop-icon.sh` so that fallback fails the build instead.
+
 ## Follow-ups
 
 - System tray with Open/Quit — Wails v2 has no tray support; revisit on
   Wails v3 or add a platform tray library.
-- Replace the placeholder spore icon (`build/appicon.svg` → `appicon.png`)
-  with final branding.
 - Windows code-signing (needs an EV/OV cert) and Windows arm64 build.
 - Linux packaging (deb/rpm/AppImage).
