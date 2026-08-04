@@ -1,0 +1,9 @@
+{
+  "description": "Plans itineraries and follows up on WhatsApp / chat when wired",
+  "label": "single-agent",
+  "provider": "claude",
+  "mcps": ["mycel"],
+  "secrets": ["TELEGRAM_BOT_TOKEN"],
+  "max_cost_usd": 20,
+  "stuck_timeout_min": 30
+}

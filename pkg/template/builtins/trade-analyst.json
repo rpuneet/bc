@@ -1,0 +1,9 @@
+{
+  "description": "Market and trade analysis companion — research, risk notes, no execution",
+  "label": "single-agent",
+  "provider": "claude",
+  "mcps": ["mycel"],
+  "secrets": ["KITE_API_KEY"],
+  "max_cost_usd": 15,
+  "stuck_timeout_min": 30
+}

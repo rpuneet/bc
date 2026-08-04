@@ -1,0 +1,9 @@
+{
+  "description": "Implements features and fixes in the workspace repo",
+  "label": "single-agent",
+  "provider": "claude",
+  "mcps": ["mycel"],
+  "secrets": ["GITHUB_TOKEN"],
+  "max_cost_usd": 50,
+  "stuck_timeout_min": 45
+}

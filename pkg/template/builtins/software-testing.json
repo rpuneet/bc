@@ -1,0 +1,8 @@
+{
+  "description": "Writes and runs tests; reports coverage gaps and regressions",
+  "label": "single-agent",
+  "provider": "claude",
+  "mcps": ["mycel"],
+  "max_cost_usd": 30,
+  "stuck_timeout_min": 45
+}

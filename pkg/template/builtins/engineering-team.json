@@ -1,0 +1,6 @@
+{
+  "description": "Multi-agent engineering setup: engineer + testing + product",
+  "label": "multi-agent",
+  "composes": ["software-engineer", "software-testing", "product-manager"],
+  "mcps": ["mycel"]
+}
