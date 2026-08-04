@@ -1365,7 +1365,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	injectResourceLimits(env, existing.CPUs, existing.MemoryMB)
 	injectEnv(env, repoPath, name, existing.EnvFile, existing.Env)
 	injectAppEnv(env, m.appsConfig)
-	secretEnvKeys := injectVaultSecrets(env, repoPath, resolveRoleSecrets(repoPath, string(existing.Role)), m.appsConfig)
+	secretEnvKeys := injectVaultSecrets(env, repoPath, resolveAgentSecrets(repoPath, string(existing.Role), existing.Template), m.appsConfig)
 
 	rt := m.runtimeForAgent(name)
 	m.mu.Unlock()
@@ -1617,7 +1617,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	injectResourceLimits(env, agent.CPUs, agent.MemoryMB)
 	injectEnv(env, repoPath, name, opts.EnvFile, opts.Env)
 	injectAppEnv(env, m.appsConfig)
-	secretEnvKeys := injectVaultSecrets(env, repoPath, resolveRoleSecrets(repoPath, string(role)), m.appsConfig)
+	secretEnvKeys := injectVaultSecrets(env, repoPath, resolveAgentSecrets(repoPath, string(role), opts.Template), m.appsConfig)
 
 	rt := m.runtimeForAgent(name)
 	m.mu.Unlock()
@@ -3544,8 +3544,9 @@ func openLayeredStore(repoPath, passphrase string) (ls *secret.LayeredStore, clo
 // Call AFTER injectEnv + injectAppEnv so that explicitly-set values are
 // never overwritten by vault copies.
 //
-// Role-scoped secrets (roleSecrets from ResolvedRole.Secrets) act as an
-// allowlist: vault values are not sprayed across every agent indiscriminately.
+// Role-scoped and template-declared secrets (roleSecrets from ResolvedRole /
+// Template.Secrets, #3550) act as an allowlist: vault values are not sprayed
+// across every agent indiscriminately.
 // Connected-app credentials (descriptor Secret fields, stored under
 // app:<instance>:<key>) and well-known integration tokens (SLACK_BOT_TOKEN
 // etc.) are also exported when present as a convenience for agents that
@@ -3675,6 +3676,22 @@ func resolveRoleSecrets(repoPath, roleName string) []string {
 		return nil
 	}
 	return resolved.Secrets
+}
+
+// resolveAgentSecrets returns the union of role secrets and template-declared
+// secrets (#3550). Template secrets must reach injectVaultSecrets the same way
+// role secrets do — otherwise a blueprint that names GITHUB_TOKEN only gets it
+// into .mcp.json substitution and never into the agent's environment.
+func resolveAgentSecrets(repoPath, roleName, templateName string) []string {
+	out := resolveRoleSecrets(repoPath, roleName)
+	if templateName == "" {
+		return out
+	}
+	tmpl, _, err := loadTemplateForSetup(templateName)
+	if err != nil || tmpl == nil {
+		return out
+	}
+	return union(out, tmpl.Secrets)
 }
 
 // resolveRoleMCPServers returns the effective MCP server names an agent of the

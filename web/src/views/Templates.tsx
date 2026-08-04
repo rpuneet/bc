@@ -118,6 +118,8 @@ function TemplateDetailPanel({
   const [description, setDescription] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [mcpsRaw, setMcpsRaw] = useState("");
+  const [secretsRaw, setSecretsRaw] = useState("");
+  const [pluginsRaw, setPluginsRaw] = useState("");
 
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({ type: "idle" });
 
@@ -133,6 +135,8 @@ function TemplateDetailPanel({
       setDescription(t.description ?? "");
       setSystemPrompt(t.system_prompt ?? "");
       setMcpsRaw((t.mcps ?? []).join(", "));
+      setSecretsRaw((t.secrets ?? []).join(", "));
+      setPluginsRaw((t.plugins ?? []).join(", "));
     } catch (err) {
       setLoadErr(err instanceof Error ? err.message : "Failed to load");
     } finally {
@@ -158,11 +162,8 @@ function TemplateDetailPanel({
         description: description.trim(),
         system_prompt: systemPrompt,
         mcps: splitComma(mcpsRaw),
-        // Passed through, not edited: these are not applied to agents yet
-        // (#3550). Rebuilding them from a removed field would delete anyone's
-        // stored values on their next save.
-        secrets: detail.secrets ?? [],
-        plugins: detail.plugins ?? [],
+        secrets: splitComma(secretsRaw),
+        plugins: splitComma(pluginsRaw),
       });
       setSaveStatus({ type: "success" });
       setEditing(false);
@@ -290,11 +291,46 @@ function TemplateDetailPanel({
           )}
         </div>
 
-        {/* Secrets and plugins are not applied to agents yet (#3550), so there
-            is nothing here to edit. Values saved by an earlier build are still
-            shown — hiding them would suggest they had been deleted — labeled
-            with the fact that they are inert. */}
-        <NotAppliedYet secrets={detail.secrets ?? []} plugins={detail.plugins ?? []} />
+        {/* Secrets — applied at create via vault inject + MCP substitution (#3550) */}
+        <div className="space-y-1">
+          <SectionRule label="Secrets" />
+          {editing ? (
+            <input
+              type="text"
+              value={secretsRaw}
+              onChange={(e) => setSecretsRaw(e.target.value)}
+              className="w-full px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
+              placeholder="GITHUB_TOKEN, ALPACA_KEY"
+              aria-label="Secrets (comma-separated vault names)"
+              style={{ fontFamily: MONO }}
+            />
+          ) : (
+            <ChipList items={detail.secrets ?? []} color="yellow" />
+          )}
+          <p className="text-[11px] text-mycel-muted leading-relaxed">
+            Vault names injected into the agent env and into MCP{" "}
+            <code className="font-mono">{"${secret:NAME}"}</code> refs. Missing ones create the
+            agent degraded.
+          </p>
+        </div>
+
+        {/* Plugins — written via provider SetupPlugins at create (#3550) */}
+        <div className="space-y-1">
+          <SectionRule label="Plugins" />
+          {editing ? (
+            <input
+              type="text"
+              value={pluginsRaw}
+              onChange={(e) => setPluginsRaw(e.target.value)}
+              className="w-full px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
+              placeholder="code-review"
+              aria-label="Plugins (comma-separated)"
+              style={{ fontFamily: MONO }}
+            />
+          ) : (
+            <ChipList items={detail.plugins ?? []} color="green" />
+          )}
+        </div>
 
         {/* Actions */}
         <div className="flex items-center justify-between pt-2 border-t border-mycel-border">
@@ -318,6 +354,8 @@ function TemplateDetailPanel({
                     setDescription(detail.description ?? "");
                     setSystemPrompt(detail.system_prompt ?? "");
                     setMcpsRaw((detail.mcps ?? []).join(", "));
+                    setSecretsRaw((detail.secrets ?? []).join(", "));
+                    setPluginsRaw((detail.plugins ?? []).join(", "));
                   }}
                   className="inline-flex items-center h-9 px-3 rounded-md bg-mycel-surface border border-mycel-border text-mycel-text-2 text-sm hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
                 >
@@ -551,51 +589,6 @@ function TemplateRow({
   );
 }
 
-/**
- * NotAppliedYet — surfaces secrets and plugins that an earlier build let someone
- * save, and says plainly that they do nothing.
- *
- * The editor used to accept both and render a chip per entry, which read as
- * confirmation: you typed GITHUB_TOKEN, a chip appeared, and the agent never
- * received it — the failure arrived much later, inside the agent, as a tool that
- * could not authenticate (#3550). The fields are gone until they work.
- *
- * Stored values are still shown, because deleting them from view would suggest
- * they had been deleted from the template. They are passed through untouched on
- * save.
- */
-function NotAppliedYet({ secrets, plugins }: { secrets: string[]; plugins: string[] }) {
-  if (secrets.length === 0 && plugins.length === 0) return null;
-  const named = [
-    secrets.length > 0 ? `${secrets.length} secret${secrets.length === 1 ? "" : "s"}` : null,
-    plugins.length > 0 ? `${plugins.length} plugin${plugins.length === 1 ? "" : "s"}` : null,
-  ]
-    .filter(Boolean)
-    .join(" and ");
-
-  return (
-    <div className="space-y-2 rounded-md border border-mycel-border bg-mycel-surface p-3">
-      <div className="text-xs font-medium text-mycel-warning">Saved but not applied</div>
-      <p className="text-xs text-mycel-muted leading-relaxed">
-        This template records {named}. Agents created from it do not receive them yet, so treat
-        anything here as a note to yourself rather than configuration. It is kept as-is when you
-        save.
-      </p>
-      {secrets.length > 0 && (
-        <div className="space-y-1">
-          <div className="text-[11px] uppercase tracking-wide text-mycel-muted">Secrets</div>
-          <ChipList items={secrets} color="yellow" />
-        </div>
-      )}
-      {plugins.length > 0 && (
-        <div className="space-y-1">
-          <div className="text-[11px] uppercase tracking-wide text-mycel-muted">Plugins</div>
-          <ChipList items={plugins} color="green" />
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ─── Main export ─────────────────────────────────────────────────────────────
 
