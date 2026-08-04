@@ -2,8 +2,8 @@
 
 A template is the reusable half of an agent: the system prompt it starts with,
 the MCP servers it should have, and the guardrails that stop it running away.
-Each template carries a **label** — `single-agent` or `multi-agent` — so the
-UI can tell a persona from a composed system (#3552).
+A template can optionally carry a **label** — `single-agent` or `multi-agent` —
+so the UI can tell a persona from a composed system (#3552).
 
 mycel ships a thin `blank` starting point. Richer blueprints (trader,
 engineering-team, and the rest) land with the blueprint work in #3558.

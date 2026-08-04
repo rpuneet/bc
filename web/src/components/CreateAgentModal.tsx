@@ -148,7 +148,12 @@ export function CreateAgentModal({
           const names = (list as Array<{ name?: unknown }>)
             .map((t) => (typeof t.name === "string" ? t.name : null))
             .filter((n): n is string => n !== null);
-          if (names.length > 0) setTemplates(names);
+          if (names.length > 0) {
+            setTemplates(names);
+            setTemplate((prev) =>
+              names.includes(prev) ? prev : names.includes("blank") ? "blank" : names[0],
+            );
+          }
         }
       })
       .catch(() => {
@@ -206,7 +211,9 @@ export function CreateAgentModal({
     if (open && !prevOpenRef.current) {
       const newName = generateName(existingNames);
       setName(newName);
-      setTemplate("blank");
+      setTemplate((prev) =>
+        templates.includes(prev) ? prev : templates.includes("blank") ? "blank" : (templates[0] ?? ""),
+      );
       setProvider("claude");
       setModel("");
       setRuntime("docker");

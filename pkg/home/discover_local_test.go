@@ -95,12 +95,16 @@ func TestScanLocalBadRoot(t *testing.T) {
 
 func TestScanLocalSkipsTCCProtectedHomeFolders(t *testing.T) {
 	root := t.TempDir()
+	t.Setenv("HOME", root)
+
 	mkRepo(t, filepath.Join(root, "Music", "album-repo"))
 	mkRepo(t, filepath.Join(root, "Pictures", "photo-repo"))
 	mkRepo(t, filepath.Join(root, "Downloads", "dl-repo"))
 	mkRepo(t, filepath.Join(root, "Projects", "real"))
+	// A project literally named Music under Projects must still be found.
+	mkRepo(t, filepath.Join(root, "Projects", "Music", "band-repo"))
 
-	out, err := ScanLocal(context.Background(), ScanOptions{Root: root, Depth: 3})
+	out, err := ScanLocal(context.Background(), ScanOptions{Root: root, Depth: 4})
 	if err != nil {
 		t.Fatalf("ScanLocal: %v", err)
 	}
@@ -111,9 +115,12 @@ func TestScanLocalSkipsTCCProtectedHomeFolders(t *testing.T) {
 	if !names["real"] {
 		t.Error("expected Projects/real")
 	}
+	if !names["band-repo"] {
+		t.Error("expected Projects/Music/band-repo — TCC skip is home-scoped only")
+	}
 	for _, bad := range []string{"album-repo", "photo-repo", "dl-repo"} {
 		if names[bad] {
-			t.Errorf("TCC-protected folder leaked candidate %q", bad)
+			t.Errorf("$HOME TCC folder leaked candidate %q", bad)
 		}
 	}
 }

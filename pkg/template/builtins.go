@@ -334,8 +334,14 @@ func withdrawOwnedBuiltin(dir, name string, state *builtinState) error {
 	if diskHash != recorded {
 		return nil // user edited after we wrote it
 	}
-	_ = os.Remove(filepath.Join(dir, name+".json"))
-	_ = os.Remove(filepath.Join(dir, name+".md"))
+	jsonPath := filepath.Join(dir, name+".json")
+	mdPath := filepath.Join(dir, name+".md")
+	if rmErr := os.Remove(jsonPath); rmErr != nil && !errors.Is(rmErr, fs.ErrNotExist) {
+		return fmt.Errorf("withdraw %q json: %w", name, rmErr)
+	}
+	if rmErr := os.Remove(mdPath); rmErr != nil && !errors.Is(rmErr, fs.ErrNotExist) {
+		return fmt.Errorf("withdraw %q markdown: %w", name, rmErr)
+	}
 	delete(state.Hashes, name)
 	return nil
 }
