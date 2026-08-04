@@ -14,7 +14,14 @@ type Template struct {
 	Description  string        `json:"description,omitempty"`
 	// Label distinguishes a single-agent template from a multi-agent system
 	// (#3552). Values: "single-agent", "multi-agent". Empty means unlabeled.
-	Label            string   `json:"label,omitempty"`
+	Label string `json:"label,omitempty"`
+	// Provider is the preferred agent tool (claude, cursor, …). Empty lets the
+	// create UI / caller pick. Part of the blueprint model (#3558).
+	Provider string `json:"provider,omitempty"`
+	// Composes lists other template names this blueprint expands into.
+	// A team is a template composed of templates (#3558 Q4). Empty means this
+	// template is itself a leaf agent.
+	Composes         []string `json:"composes,omitempty"`
 	SystemPromptFile string   `json:"system_prompt_file,omitempty"`
 	Scope            Scope    `json:"scope,omitempty"`
 	MCPs             []string `json:"mcps,omitempty"`
