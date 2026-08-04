@@ -314,6 +314,15 @@ func buildServicesFromHome(ctx context.Context, globals *Globals, h *home.Home) 
 		runProviderFailureMonitor(svcCtx, agentSvc)
 	}()
 
+	// Session reconciler — an agent whose session died without reporting keeps
+	// the state it last reported, so it stays listed as working with no pty
+	// behind it. Reconciliation existed but nothing ever triggered it.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		runSessionReconciler(svcCtx, agentSvc)
+	}()
+
 	// Notify service (channel subscriptions + delivery).
 	var notifyService *notifypkg.Service
 	if ns, err := notifypkg.OpenStore(wsDB, wsDriver); err != nil {
