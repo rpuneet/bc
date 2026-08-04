@@ -18,6 +18,7 @@ import (
 	secretpkg "github.com/rpuneet/mycel/pkg/secret"
 	statspkg "github.com/rpuneet/mycel/pkg/stats"
 	templatepkg "github.com/rpuneet/mycel/pkg/template"
+	"github.com/rpuneet/mycel/pkg/tmux"
 	"github.com/rpuneet/mycel/server"
 	wspkg "github.com/rpuneet/mycel/server/ws"
 )
@@ -204,6 +205,16 @@ func RunServerCtx(ctx context.Context, addr, repoRoot, corsOrigin, apiKey string
 	if svc.AgentMgr != nil {
 		if n := svc.AgentMgr.RefreshActivityConfigs(); n > 0 {
 			log.Info("refreshed agent activity configs", "agents", n)
+		}
+	}
+
+	// Sessions created before session names dropped the repo hash are still
+	// running under the old name. Rename them before anything looks for an
+	// agent, or a running agent reads as stopped. The registry decides what is
+	// a hash and what is part of an agent's name, which shape alone cannot.
+	if svc.AgentMgr != nil {
+		if n := tmux.NewManager(tmux.DefaultPrefix).AdoptLegacySessions(ctx, svc.AgentMgr.HasAgent); n > 0 {
+			log.Info("adopted tmux sessions named by an older version", "sessions", n)
 		}
 	}
 

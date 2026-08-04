@@ -106,13 +106,18 @@ regenerates role files under the new name, and updates child agents'
 
 ### Tmux
 
-Local tmux sessions. Named with the `mycel-` prefix plus a short hash of
-the repo path, so agents on different repos never collide:
+Local tmux sessions, named with the `mycel-` prefix plus the agent name:
 
 ```
-mycel-<repo-hash6>-<agent>
-Example: mycel-a3f2c1-eng-01
+mycel-<agent>
+Example: mycel-eng-01
 ```
+
+The name used to carry a short hash of the repo path. That is gone: agent
+names are already unique across the one `~/.mycel` home, and encoding the
+path meant a daemon started from anywhere else could not find a running
+session and reported the agent as stopped. Sessions left over from the old
+scheme are renamed on daemon startup.
 
 | Operation | Implementation |
 |-----------|---------------|

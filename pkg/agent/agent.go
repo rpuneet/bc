@@ -652,7 +652,7 @@ func NewManager(stateDir string) *Manager {
 // repoPath is the anchor repo new agents default to (may be "").
 func NewManagerWithRepo(stateDir, repoPath string) *Manager {
 	cmd, tool := defaultAgentCmd()
-	tmuxBe := runtime.NewTmuxBackend(tmux.NewManagerWithRepo(DefaultSessionPrefix, repoPath))
+	tmuxBe := runtime.NewTmuxBackend(tmux.NewManager(DefaultSessionPrefix))
 	return &Manager{
 		agents:           make(map[string]*Agent),
 		agentLocks:       make(map[string]*sync.Mutex),
@@ -675,7 +675,7 @@ func NewManagerWithRuntime(stateDir, repoPath string, rt runtime.Backend, rtName
 	bes := map[string]runtime.Backend{rtName: rt}
 	// Always register a tmux backend so agents with RuntimeBackend="tmux" work
 	if rtName != "tmux" {
-		bes["tmux"] = runtime.NewTmuxBackend(tmux.NewManagerWithRepo(DefaultSessionPrefix, repoPath))
+		bes["tmux"] = runtime.NewTmuxBackend(tmux.NewManager(DefaultSessionPrefix))
 	}
 	return &Manager{
 		agents:           make(map[string]*Agent),
@@ -2386,6 +2386,15 @@ func (m *Manager) GetAgent(name string) *Agent {
 	copy := *a
 	copy.Children = append([]string{}, a.Children...)
 	return &copy
+}
+
+// HasAgent reports whether an agent by this name is registered. Cheaper than
+// GetAgent when only existence matters, and it copies nothing.
+func (m *Manager) HasAgent(name string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	_, exists := m.agents[name]
+	return exists
 }
 
 // SetArchived stamps (or clears) ArchivedAt on an in-memory agent and
