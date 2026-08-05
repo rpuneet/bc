@@ -292,7 +292,7 @@ func (m *Manager) StartAdapter(adapter NotificationAdapter) error {
 		handler := func(n Notification) {
 			m.handleNotification(name, n)
 		}
-		if err := adapter.Start(ctx, handler); err != nil && ctx.Err() != nil {
+		if err := adapter.Start(ctx, handler); err != nil && ctx.Err() == nil {
 			log.Error("gateway: adapter stopped with error", "adapter", name, "error", err)
 		}
 	}()
