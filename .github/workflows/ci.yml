@@ -206,6 +206,20 @@ jobs:
         working-directory: desktop
         run: go mod tidy -diff
 
+      # Being a separate module, desktop/ is invisible to the root `go test ./...`
+      # in the Test jobs, so its tests would never run anywhere. Compiling it
+      # needs the same webview headers the release workflow installs.
+      - name: Desktop webview dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Test desktop module
+        working-directory: desktop
+        # webkit2_41: wails v2 defaults to the 4.0 pkg-config name, which the
+        # ubuntu runners no longer ship.
+        run: go test -tags webkit2_41 ./...
+
   # ── Container Scan (main only) ──────────────────────────────────────
   scan:
     name: Container Scan
@@ -231,7 +245,7 @@ jobs:
           # can remove; alerting on them is permanent noise.
           ignore-unfixed: true
       - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v4.37.4
+        uses: github/codeql-action/upload-sarif@v4.37.3
         if: always()
         with:
           sarif_file: trivy-results.sarif
