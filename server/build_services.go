@@ -128,6 +128,21 @@ func buildServicesFromHome(ctx context.Context, globals *Globals, h *home.Home) 
 	eventsJSONL := filepath.Join(h.LogsDir(), "events.jsonl")
 	eventWriter := eventspkg.NewJSONLWriter(eventsJSONL, 0)
 
+	// One-shot backfill: reconcile Cursor usage from historical events.jsonl
+	// entries into each agent's usage.jsonl. This fixes the gap where
+	// Stop events with token data were logged but never persisted to
+	// usage.jsonl (#3597). Runs once at startup in the background.
+	go func() {
+		// Small delay to let the system stabilize before the one-shot work.
+		time.Sleep(2 * time.Second)
+		appended, err := provider.CursorUsageBackfill(eventsJSONL, h.AgentsDir())
+		if err != nil {
+			log.Warn("cursor usage backfill failed", "error", err)
+		} else if appended > 0 {
+			log.Info("cursor usage backfill completed", "records", appended)
+		}
+	}()
+
 	// The one SSE hub. the daemon is single-tenant, so the bundle publishes
 	// straight into the process-wide hub supplied via Globals (owned by
 	// the caller — no closer). Legacy callers/tests that don't wire a
