@@ -78,6 +78,65 @@ func (s *Store) initSchema() error {
 	} {
 		_, _ = s.db.ExecContext(context.TODO(), alter) //nolint:errcheck // ignore if column already exists
 	}
+	if err := s.migrateLegacyCatchAll(context.TODO()); err != nil {
+		return fmt.Errorf("migrate legacy catch-all: %w", err)
+	}
+	return nil
+}
+
+// migrateLegacyCatchAll rewrites "{platform}:general" subscription rows to
+// "{platform}:*" (#3467) so Slack/Discord "#general" is no longer overloaded
+// as the catch-all key. notify_channels / message history for ":general" are
+// left alone — those are real channel traffic.
+func (s *Store) migrateLegacyCatchAll(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, s.q(
+		`SELECT channel, agent, mention_only, muted FROM notify_subscriptions`))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+
+	type row struct {
+		channel, agent string
+		mentionOnly    bool
+		muted          bool
+	}
+	var legacy []row
+	for rows.Next() {
+		var r row
+		var mentionInt, mutedInt int
+		if err := rows.Scan(&r.channel, &r.agent, &mentionInt, &mutedInt); err != nil {
+			return err
+		}
+		r.mentionOnly = mentionInt != 0
+		r.muted = mutedInt != 0
+		if IsLegacyCatchAll(r.channel) {
+			legacy = append(legacy, r)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for _, r := range legacy {
+		platform := PlatformOf(r.channel)
+		canonical := CatchAllChannel(platform)
+		if canonical == "" {
+			continue
+		}
+		// Upsert onto the canonical key, then drop the legacy row.
+		if err := s.Subscribe(ctx, canonical, r.agent, r.mentionOnly); err != nil {
+			return err
+		}
+		if r.muted {
+			if err := s.SetMuted(ctx, canonical, r.agent, true); err != nil {
+				return err
+			}
+		}
+		if err := s.Unsubscribe(ctx, r.channel, r.agent); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

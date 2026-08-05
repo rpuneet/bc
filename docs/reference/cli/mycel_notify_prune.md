@@ -5,7 +5,7 @@ Remove leftover catch-all auto-copied subscriptions
 ### Synopsis
 
 List (and optionally delete) per-channel subscriptions that look like
-copies of a platform catch-all ("{platform}:general") row.
+copies of a platform catch-all ("{platform}:*") row.
 
 Before #3464, catch-all delivery wrote permanent rows onto every real channel.
 Those rows have no provenance, so prune uses a heuristic: same agent and

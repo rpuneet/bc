@@ -5,13 +5,30 @@ import (
 	"strings"
 )
 
+// catchAllSuffix is the reserved channel leaf for platform-wide fallback
+// subscriptions (#3467). It cannot collide with a real Slack/Discord
+// "#general" channel the way the legacy ":general" leaf did.
+const catchAllSuffix = ":*"
+
+// legacyCatchAllSuffix is the pre-#3467 catch-all leaf. Still read (and
+// migrated to catchAllSuffix) so existing workspaces keep delivering.
+const legacyCatchAllSuffix = ":general"
+
 // CatchAllChannel returns the catch-all subscription key for a platform
-// ("{platform}:general"). Empty platform yields an empty string.
+// ("{platform}:*"). Empty platform yields an empty string.
 func CatchAllChannel(platform string) string {
 	if platform == "" {
 		return ""
 	}
 	return platform + catchAllSuffix
+}
+
+// LegacyCatchAllChannel returns the pre-#3467 catch-all key ("{platform}:general").
+func LegacyCatchAllChannel(platform string) string {
+	if platform == "" {
+		return ""
+	}
+	return platform + legacyCatchAllSuffix
 }
 
 // PlatformOf returns the platform prefix of a channel key ("slack:eng" → "slack").
@@ -24,15 +41,30 @@ func PlatformOf(channel string) string {
 	return channel[:i]
 }
 
-// IsCatchAll reports whether channel is exactly "{platform}:general".
+// IsCatchAll reports whether channel is the canonical catch-all ("{platform}:*").
 func IsCatchAll(channel string) bool {
 	platform := PlatformOf(channel)
 	return platform != "" && channel == CatchAllChannel(platform)
 }
 
+// IsLegacyCatchAll reports whether channel is the pre-#3467 catch-all key
+// ("{platform}:general"). Real Slack/Discord #general channels use this same
+// key, which is why #3467 moved the catch-all to ":*".
+func IsLegacyCatchAll(channel string) bool {
+	platform := PlatformOf(channel)
+	return platform != "" && channel == LegacyCatchAllChannel(platform)
+}
+
+// IsAnyCatchAll reports canonical or legacy catch-all keys. Used by prune
+// heuristics while both forms may exist in a database.
+func IsAnyCatchAll(channel string) bool {
+	return IsCatchAll(channel) || IsLegacyCatchAll(channel)
+}
+
 // FindPruneCandidates returns non-catch-all subscriptions that look like
 // leftovers from the old catch-all copy behavior (#3463/#3465): same agent
-// and mention_only as an existing "{platform}:general" row.
+// and mention_only as an existing catch-all row ("{platform}:*" or legacy
+// "{platform}:general").
 //
 // Muted rows are skipped — they are intentional mute markers (#3466), not
 // auto-copied delivery subscriptions. There is no provenance column, so this
@@ -45,7 +77,7 @@ func FindPruneCandidates(subs []Subscription) []Subscription {
 	}
 	catchAll := map[string]map[key]struct{}{} // platform → catch-all agent settings
 	for _, sub := range subs {
-		if !IsCatchAll(sub.Channel) || sub.Muted {
+		if !IsAnyCatchAll(sub.Channel) || sub.Muted {
 			continue
 		}
 		platform := PlatformOf(sub.Channel)
@@ -57,7 +89,7 @@ func FindPruneCandidates(subs []Subscription) []Subscription {
 
 	var out []Subscription
 	for _, sub := range subs {
-		if IsCatchAll(sub.Channel) || sub.Muted {
+		if IsAnyCatchAll(sub.Channel) || sub.Muted {
 			continue
 		}
 		platform := PlatformOf(sub.Channel)

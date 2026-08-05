@@ -71,6 +71,62 @@ func TestSaveChannel_FillsEmptyPlatformID(t *testing.T) {
 	}
 }
 
+// TestMigrateLegacyCatchAll moves "{platform}:general" subscription rows to
+// "{platform}:*" without touching notify_channels for real #general.
+func TestMigrateLegacyCatchAll(t *testing.T) {
+	store := setupTestStore(t)
+	ctx := context.Background()
+
+	if err := store.Subscribe(ctx, "slack:general", "root", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Subscribe(ctx, "gmail:general", "mail-bot", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetMuted(ctx, "slack:eng", "root", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveChannel(ctx, "slack:general", "slack", "C01GENERAL"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := store.migrateLegacyCatchAll(ctx); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	all, err := store.AllSubscriptions(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byCh := map[string][]Subscription{}
+	for _, sub := range all {
+		byCh[sub.Channel] = append(byCh[sub.Channel], sub)
+	}
+	if _, ok := byCh["slack:general"]; ok {
+		t.Fatalf("legacy slack:general sub should be gone, got %+v", byCh["slack:general"])
+	}
+	if _, ok := byCh["gmail:general"]; ok {
+		t.Fatalf("legacy gmail:general sub should be gone, got %+v", byCh["gmail:general"])
+	}
+	if len(byCh["slack:*"]) != 1 || byCh["slack:*"][0].Agent != "root" {
+		t.Fatalf("want root on slack:*, got %+v", byCh["slack:*"])
+	}
+	if len(byCh["gmail:*"]) != 1 || !byCh["gmail:*"][0].MentionOnly {
+		t.Fatalf("want mail-bot mention_only on gmail:*, got %+v", byCh["gmail:*"])
+	}
+	if len(byCh["slack:eng"]) != 1 || !byCh["slack:eng"][0].Muted {
+		t.Fatalf("mute row should be untouched, got %+v", byCh["slack:eng"])
+	}
+
+	channels, err := store.LoadChannels(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(channels) != 1 || channels[0].Channel != "slack:general" || channels[0].PlatformID != "C01GENERAL" {
+		t.Fatalf("notify_channels slack:general mapping must remain, got %+v", channels)
+	}
+}
+
 // TestChannelStats exercises the /api/stats/channels aggregation: message
 // counts, member counts, top senders, ordering, and the subscription-only
 // channel case.

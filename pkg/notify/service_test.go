@@ -433,7 +433,7 @@ func TestDrainDispatches(t *testing.T) {
 }
 
 // TestCatchAllDeliversWithoutCreatingSubscriptions covers the connect-app
-// flow: agents are subscribed to "{platform}:general" because the real
+// flow: agents are subscribed to "{platform}:*" because the real
 // per-conversation channel isn't known until a message arrives. Delivery must
 // work — and must not leave a subscription behind on the real channel.
 func TestCatchAllDeliversWithoutCreatingSubscriptions(t *testing.T) {
@@ -442,10 +442,10 @@ func TestCatchAllDeliversWithoutCreatingSubscriptions(t *testing.T) {
 	svc := NewService(store, sender, &mockHub{})
 	ctx := context.Background()
 
-	if err := store.Subscribe(ctx, "telegram:general", "mdrndr-manager", false); err != nil {
+	if err := store.Subscribe(ctx, "telegram:*", "mdrndr-manager", false); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Subscribe(ctx, "telegram:general", "mdrndr-tui", false); err != nil {
+	if err := store.Subscribe(ctx, "telegram:*", "mdrndr-tui", false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -469,7 +469,7 @@ func TestCatchAllDeliversWithoutCreatingSubscriptions(t *testing.T) {
 	}
 
 	// And the catch-all itself is untouched.
-	catchAll, err := store.Subscribers(ctx, "telegram:general")
+	catchAll, err := store.Subscribers(ctx, "telegram:*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -489,7 +489,7 @@ func TestCatchAllDoesNotFanOutAcrossChannels(t *testing.T) {
 	svc := NewService(store, sender, &mockHub{})
 	ctx := context.Background()
 
-	if err := store.Subscribe(ctx, "gmail:general", "fast-crane", false); err != nil {
+	if err := store.Subscribe(ctx, "gmail:*", "fast-crane", false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -514,11 +514,11 @@ func TestCatchAllDoesNotFanOutAcrossChannels(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(all) != 1 {
-		t.Fatalf("expected the single gmail:general subscription to remain the only one, got %d: %+v",
+		t.Fatalf("expected the single gmail:* subscription to remain the only one, got %d: %+v",
 			len(all), all)
 	}
-	if all[0].Channel != "gmail:general" {
-		t.Errorf("surviving subscription is %q, want gmail:general", all[0].Channel)
+	if all[0].Channel != "gmail:*" {
+		t.Errorf("surviving subscription is %q, want gmail:*", all[0].Channel)
 	}
 
 	// Delivery still reached the agent for every sender.
@@ -537,7 +537,7 @@ func TestExplicitChannelSubscriptionWinsOverCatchAll(t *testing.T) {
 	ctx := context.Background()
 
 	// Catch-all would deliver everything to broad-agent...
-	if err := store.Subscribe(ctx, "gmail:general", "broad-agent", false); err != nil {
+	if err := store.Subscribe(ctx, "gmail:*", "broad-agent", false); err != nil {
 		t.Fatal(err)
 	}
 	// ...but this channel has its own explicit, mention-only subscription.
@@ -575,7 +575,7 @@ func TestCatchAllRespectsMutedChannel(t *testing.T) {
 	svc := NewService(store, sender, &mockHub{})
 	ctx := context.Background()
 
-	if err := store.Subscribe(ctx, "telegram:general", "broad-agent", false); err != nil {
+	if err := store.Subscribe(ctx, "telegram:*", "broad-agent", false); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.SetMuted(ctx, "telegram:alice", "broad-agent", true); err != nil {
@@ -608,10 +608,10 @@ func TestMutedRowDoesNotBlockCatchAllForOtherAgents(t *testing.T) {
 	svc := NewService(store, sender, &mockHub{})
 	ctx := context.Background()
 
-	if err := store.Subscribe(ctx, "telegram:general", "agent-a", false); err != nil {
+	if err := store.Subscribe(ctx, "telegram:*", "agent-a", false); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Subscribe(ctx, "telegram:general", "agent-b", false); err != nil {
+	if err := store.Subscribe(ctx, "telegram:*", "agent-b", false); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.SetMuted(ctx, "telegram:alice", "agent-a", true); err != nil {
@@ -712,7 +712,7 @@ func TestMigratePlaceholderSubsNoOpWhenRealHasSubs(t *testing.T) {
 	svc := NewService(store, sender, &mockHub{})
 	ctx := context.Background()
 
-	if err := store.Subscribe(ctx, "telegram:general", "legacy-agent", false); err != nil {
+	if err := store.Subscribe(ctx, "telegram:*", "legacy-agent", false); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Subscribe(ctx, "telegram:ab010300", "real-agent", false); err != nil {
@@ -841,5 +841,87 @@ func TestRecordOutboundThenInboundReadsAsConversation(t *testing.T) {
 	}
 	if msgs[1].Sender != "[slack] Puneet Rai" {
 		t.Errorf("older message sender = %q, want the human's question", msgs[1].Sender)
+	}
+}
+
+// TestSlackGeneralIsNotCatchAll (#3467): subscribing to real #general must not
+// make that agent the fallback for every other Slack channel.
+func TestSlackGeneralIsNotCatchAll(t *testing.T) {
+	store := setupTestStore(t)
+	sender := &mockSender{}
+	svc := NewService(store, sender, &mockHub{})
+	ctx := context.Background()
+
+	if err := store.Subscribe(ctx, "slack:*", "catch-agent", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Subscribe(ctx, "slack:general", "general-only", false); err != nil {
+		t.Fatal(err)
+	}
+
+	svc.Dispatch("slack:eng", "slack", "alice", "", "", "hello eng", "m1", nil, nil, nil)
+	if !svc.DrainDispatches(2 * time.Second) {
+		t.Fatal("dispatch timeout")
+	}
+	calls := sender.getCalls()
+	if len(calls) != 1 || calls[0].Name != "catch-agent" {
+		t.Fatalf("eng should only hit catch-all agent, got %+v", calls)
+	}
+
+	sender.mu.Lock()
+	sender.calls = nil
+	sender.mu.Unlock()
+
+	svc.Dispatch("slack:general", "slack", "bob", "", "", "hello general", "m2", nil, nil, nil)
+	if !svc.DrainDispatches(2 * time.Second) {
+		t.Fatal("dispatch timeout")
+	}
+	calls = sender.getCalls()
+	if len(calls) != 1 || calls[0].Name != "general-only" {
+		t.Fatalf("#general should only hit general-only (explicit wins), got %+v", calls)
+	}
+}
+
+// TestLegacyCatchAllStillDelivers: pre-migration "{platform}:general" rows
+// still provide fallback until migrateLegacyCatchAll rewrites them.
+func TestLegacyCatchAllStillDelivers(t *testing.T) {
+	store := setupTestStore(t)
+	sender := &mockSender{}
+	svc := NewService(store, sender, &mockHub{})
+	ctx := context.Background()
+
+	if err := store.Subscribe(ctx, "slack:general", "legacy-root", false); err != nil {
+		t.Fatal(err)
+	}
+
+	svc.Dispatch("slack:eng", "slack", "alice", "", "", "via legacy", "m1", nil, nil, nil)
+	if !svc.DrainDispatches(2 * time.Second) {
+		t.Fatal("dispatch timeout")
+	}
+	calls := sender.getCalls()
+	if len(calls) != 1 || calls[0].Name != "legacy-root" {
+		t.Fatalf("expected legacy catch-all delivery, got %+v", calls)
+	}
+}
+
+// TestCatchAllStarDeliversToUnmatchedGeneral: with only slack:*, messages on
+// real #general fall back to the catch-all when nobody subscribed to #general.
+func TestCatchAllStarDeliversToUnmatchedGeneral(t *testing.T) {
+	store := setupTestStore(t)
+	sender := &mockSender{}
+	svc := NewService(store, sender, &mockHub{})
+	ctx := context.Background()
+
+	if err := store.Subscribe(ctx, "slack:*", "root", false); err != nil {
+		t.Fatal(err)
+	}
+
+	svc.Dispatch("slack:general", "slack", "alice", "", "", "in general", "m1", nil, nil, nil)
+	if !svc.DrainDispatches(2 * time.Second) {
+		t.Fatal("dispatch timeout")
+	}
+	calls := sender.getCalls()
+	if len(calls) != 1 || calls[0].Name != "root" {
+		t.Fatalf("expected catch-all delivery into #general, got %+v", calls)
 	}
 }

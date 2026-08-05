@@ -28,7 +28,7 @@ func (plugin) Describe() app.Descriptor {
 			"Message @BotFather on Telegram → https://t.me/BotFather — send /newbot.",
 			"Copy the bot token. Message the bot in a DM or add it to a group.",
 			"Channels appear after the first inbound message (telegram:<username|chat_id|group>).",
-			"Do not subscribe to telegram:general — that key is not a real Telegram chat.",
+			"Do not subscribe to telegram:general or telegram:* as a stand-in — those are not real Telegram chats.",
 		},
 	}
 }

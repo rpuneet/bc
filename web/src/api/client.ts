@@ -1121,14 +1121,14 @@ export const api = {
   getChannelSubscriptions: (channel: string) => {
     const { gw, ch } = splitChannel(channel);
     if (gw && ch) {
-      return request<NotifySubscription[]>(`/apps/${gw}/channels/${ch}/agents`);
+      return request<NotifySubscription[]>(`/apps/${gw}/channels/${encodeURIComponent(ch)}/agents`);
     }
     return request<NotifySubscription[]>(`/notify/subscriptions/${encodeURIComponent(channel)}`);
   },
   subscribe: (channel: string, agent: string, mentionOnly = false) => {
     const { gw, ch } = splitChannel(channel);
     if (gw && ch) {
-      return request<{ status: string }>(`/apps/${gw}/channels/${ch}/agents`, {
+      return request<{ status: string }>(`/apps/${gw}/channels/${encodeURIComponent(ch)}/agents`, {
         method: "POST",
         body: JSON.stringify({ agent, mention_only: mentionOnly }),
       });
@@ -1141,7 +1141,7 @@ export const api = {
   unsubscribe: (channel: string, agent: string) => {
     const { gw, ch } = splitChannel(channel);
     if (gw && ch) {
-      return request<{ status: string }>(`/apps/${gw}/channels/${ch}/agents/${encodeURIComponent(agent)}`, {
+      return request<{ status: string }>(`/apps/${gw}/channels/${encodeURIComponent(ch)}/agents/${encodeURIComponent(agent)}`, {
         method: "DELETE",
       });
     }
@@ -1153,7 +1153,7 @@ export const api = {
   setMentionOnly: (channel: string, agent: string, mentionOnly: boolean) => {
     const { gw, ch } = splitChannel(channel);
     if (gw && ch) {
-      return request<{ status: string }>(`/apps/${gw}/channels/${ch}/agents/${encodeURIComponent(agent)}`, {
+      return request<{ status: string }>(`/apps/${gw}/channels/${encodeURIComponent(ch)}/agents/${encodeURIComponent(agent)}`, {
         method: "PATCH",
         body: JSON.stringify({ mention_only: mentionOnly }),
       });
@@ -1166,7 +1166,7 @@ export const api = {
   setMuted: (channel: string, agent: string, muted: boolean) => {
     const { gw, ch } = splitChannel(channel);
     if (gw && ch) {
-      return request<{ status: string }>(`/apps/${gw}/channels/${ch}/agents/${encodeURIComponent(agent)}`, {
+      return request<{ status: string }>(`/apps/${gw}/channels/${encodeURIComponent(ch)}/agents/${encodeURIComponent(agent)}`, {
         method: "PATCH",
         body: JSON.stringify({ muted }),
       });
@@ -1179,7 +1179,7 @@ export const api = {
   getChannelActivity: (channel: string, limit = 50) => {
     const { gw, ch } = splitChannel(channel);
     if (gw && ch) {
-      return request<DeliveryEntry[]>(`/apps/${gw}/channels/${ch}/activity?limit=${limit}`);
+      return request<DeliveryEntry[]>(`/apps/${gw}/channels/${encodeURIComponent(ch)}/activity?limit=${limit}`);
     }
     return request<DeliveryEntry[]>(`/notify/activity/${encodeURIComponent(channel)}?limit=${limit}`);
   },

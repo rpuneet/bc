@@ -52,10 +52,12 @@ import {
 
 export type ChannelKind = "group" | "person" | null;
 
-/** Leaf segment of a channel key: "whatsapp:123@g.us" → "123@g.us". */
+/** Leaf segment of a channel key: "whatsapp:123@g.us" → "123@g.us".
+ *  Catch-all keys ("slack:*") render as "catch-all" (#3467). */
 export function channelLeaf(name: string): string {
   const parts = name.split(":");
-  return parts[parts.length - 1] || name;
+  const leaf = parts[parts.length - 1] || name;
+  return leaf === "*" ? "catch-all" : leaf;
 }
 
 /** Classify a WhatsApp channel by JID shape when no metadata exists:
