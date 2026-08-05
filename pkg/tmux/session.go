@@ -79,24 +79,18 @@ const DefaultPrefix = "mycel-"
 
 // Manager handles tmux session operations.
 type Manager struct {
-	// Session cache for reducing tmux subprocess calls (#980).
-	// Cache is invalidated on CreateSession/KillSession/RenameSession/KillServer.
-	sessionsCacheAt time.Time // When sessions cache was populated
-	hasCacheAt      time.Time // When hasSession cache was populated
+	sessionsCacheAt time.Time
+	hasCacheAt      time.Time
 	execCommand     func(name string, arg ...string) *exec.Cmd
 	sessionLocks    map[string]*sync.Mutex
-	hasSessionCache map[string]bool // Cached session existence checks
-	sessionsCache   []Session       // Cached list of sessions
-	SessionPrefix   string          // Prepended to all session names (e.g., "mycel-")
-	// DefaultShell is the absolute path of the shell used for new sessions
-	// (prefs runtime.tmux.default_shell). Empty means "/bin/bash".
-	DefaultShell string
-	cacheTTL     time.Duration // Cache TTL (default: 2 seconds)
-	// HistoryLimit is applied as tmux history-limit on create when > 0
-	// (prefs runtime.tmux.history_limit).
-	HistoryLimit int
-	cacheMu      sync.RWMutex // Protects cache fields
-	sessionMu    sync.Mutex   // Protects per-session SendKeys serialization
+	hasSessionCache map[string]bool
+	SessionPrefix   string
+	DefaultShell    string
+	sessionsCache   []Session
+	cacheTTL        time.Duration
+	HistoryLimit    int
+	cacheMu         sync.RWMutex
+	sessionMu       sync.Mutex
 }
 
 // NormalizeSessionPrefix ensures a trailing "-" so agent names do not glue
