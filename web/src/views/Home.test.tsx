@@ -15,7 +15,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { Home, SHOW_STOPPED_STORAGE_KEY } from "./Home";
+import { Home, SHOW_STOPPED_STORAGE_KEY, HOME_VIEW_MODE_KEY } from "./Home";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
 
 const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
@@ -44,6 +44,8 @@ function agent(name: string, state: string) {
 
 function mockAgentsApi(list: ReturnType<typeof agent>[]) {
   fetchMock.mockImplementation((url: string) => {
+    // Activity / logs must not match the broad "/agents" list check below.
+    if (url.includes("/activity") || url.includes("/logs")) return jsonResponse([]);
     if (url.includes("/agents")) return jsonResponse(list);
     // Home no longer gates on has_workspace (MycelHome-only daemons are valid).
     // Still mock system/info so useWorkspace / Layout banners stay quiet.
@@ -89,7 +91,7 @@ function renderHome() {
  * the name from its appearance inside the agent-filter <select> dropdown.
  */
 function agentCardVisible(name: string): boolean {
-  return screen.queryByTitle(`Open ${name} detail view`) !== null;
+  return screen.queryAllByTitle(`Open ${name} detail view`).length > 0;
 }
 
 async function waitForAgentCard(name: string) {
@@ -134,6 +136,45 @@ beforeEach(() => {
   fetchMock.mockReset();
   installLocalStorageShim();
   window.localStorage.clear();
+  // Existing card-visibility tests target the by-agent layout; #3642 defaults
+  // to chronological stream, so opt into by-agent unless a test says otherwise.
+  window.localStorage.setItem(HOME_VIEW_MODE_KEY, "by-agent");
+});
+
+describe("Home — activity view mode (#3642)", () => {
+  it("defaults to chronological stream when no preference is stored", async () => {
+    window.localStorage.removeItem(HOME_VIEW_MODE_KEY);
+    mockAgentsApi([agent("alice", "working"), agent("bob", "idle")]);
+
+    renderHome();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("home-view-stream").getAttribute("aria-pressed")).toBe("true");
+    });
+    expect(screen.getByTestId("home-chronological-stream")).toBeInTheDocument();
+    // Agent cards are the by-agent layout — absent in stream mode with no events.
+    expect(agentCardVisible("alice")).toBe(false);
+  });
+
+  it("switches to by-agent and persists the preference", async () => {
+    window.localStorage.removeItem(HOME_VIEW_MODE_KEY);
+    mockAgentsApi([agent("alice", "working")]);
+
+    const { unmount } = renderHome();
+    await waitFor(() => {
+      expect(screen.getByTestId("home-view-stream").getAttribute("aria-pressed")).toBe("true");
+    });
+
+    fireEvent.click(screen.getByTestId("home-view-by-agent"));
+    await waitForAgentCard("alice");
+    expect(window.localStorage.getItem(HOME_VIEW_MODE_KEY)).toBe("by-agent");
+    expect(screen.getByTestId("home-view-by-agent").getAttribute("aria-pressed")).toBe("true");
+
+    unmount();
+    renderHome();
+    await waitForAgentCard("alice");
+    expect(screen.getByTestId("home-view-by-agent").getAttribute("aria-pressed")).toBe("true");
+  });
 });
 
 describe("Home — show-stopped toggle", () => {
