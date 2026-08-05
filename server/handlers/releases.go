@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 )
 
 // GitHubRelease represents the shape of a GitHub release response.
@@ -18,8 +20,10 @@ type GitHubRelease struct {
 const (
 	releaseCacheTTL = 1 * time.Hour
 	ghRepo          = "rpuneet/mycel"
-	ghAPIURL        = "https://api.github.com/repos/" + ghRepo + "/releases/latest"
 )
+
+// ghAPIURL is the upstream releases endpoint. Overridable in tests.
+var ghAPIURL = "https://api.github.com/repos/" + ghRepo + "/releases/latest"
 
 // cachedRelease holds a release with its cache metadata.
 type cachedRelease struct {
@@ -34,6 +38,7 @@ type ReleaseHandler struct {
 	cache   *cachedRelease
 	httpCli *http.Client
 	mu      sync.RWMutex
+	sf      singleflight.Group
 }
 
 // NewReleaseHandler creates a new ReleaseHandler with a default HTTP client.
@@ -83,17 +88,28 @@ func (h *ReleaseHandler) getRelease(ctx context.Context) (*GitHubRelease, string
 		return cache.release, cache.status
 	}
 
-	// Cache miss or stale — fetch from GitHub
-	release, status := h.fetchRelease(ctx)
-
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.cache = &cachedRelease{
-		release:   release,
-		fetchedAt: now,
-		status:    status,
-	}
-	return release, status
+	// Coalesce concurrent refreshes so a thundering herd of About views
+	// issues one GitHub request per TTL window (#3620 CodeRabbit).
+	v, _, _ := h.sf.Do("latest", func() (any, error) { //nolint:errcheck // closure never returns an error
+		h.mu.RLock()
+		c := h.cache
+		h.mu.RUnlock()
+		if c != nil && time.Since(c.fetchedAt) < releaseCacheTTL {
+			return c, nil
+		}
+		release, status := h.fetchRelease(ctx)
+		entry := &cachedRelease{
+			release:   release,
+			fetchedAt: time.Now(),
+			status:    status,
+		}
+		h.mu.Lock()
+		h.cache = entry
+		h.mu.Unlock()
+		return entry, nil
+	})
+	entry := v.(*cachedRelease)
+	return entry.release, entry.status
 }
 
 func (h *ReleaseHandler) fetchRelease(ctx context.Context) (*GitHubRelease, string) {
