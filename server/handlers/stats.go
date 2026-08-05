@@ -120,8 +120,16 @@ func (h *StatsHandler) systemInfo(w http.ResponseWriter, r *http.Request) {
 	hostname, _ := os.Hostname() //nolint:errcheck // best-effort
 
 	workspace := ""
+	mycelHome := ""
 	if h.h != nil {
 		workspace = h.h.RootDir
+		mycelHome = h.h.StateDir()
+	}
+	if mycelHome == "" {
+		// Best-effort even when Home is nil (tests / degraded boots).
+		if mh, err := home.MycelHome(); err == nil {
+			mycelHome = mh
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -130,6 +138,7 @@ func (h *StatsHandler) systemInfo(w http.ResponseWriter, r *http.Request) {
 		"arch":          runtime.GOARCH,
 		"workspace":     workspace,
 		"has_workspace": workspace != "",
+		"mycel_home":    mycelHome,
 	})
 }
 

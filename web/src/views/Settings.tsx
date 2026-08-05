@@ -308,6 +308,8 @@ function SetupSection({
       <p className="text-xs text-mycel-text-2 max-w-prose">
         Sections below unlock one at a time as you finish each — machine checks, runtime, an agent
         tool, and your first agent. It only writes config; your agents and apps are left untouched.
+        When you create an agent, pick its git repo with Browse (native folder picker + scan) —
+        the daemon does not need a project workspace.
       </p>
 
       <div className="space-y-1.5">
@@ -664,6 +666,93 @@ function LogsFields({ data, onChange }: { data: Record<string, unknown>; onChang
   );
 }
 
+/** MycelHome (install root) + remembered projects scan root for Create Agent Browse. */
+function MycelHomeFields() {
+  const [mycelHome, setMycelHome] = useState("");
+  const [scanRoot, setScanRoot] = useState(() => {
+    try {
+      return localStorage.getItem("mycel.projects_scan_root") ?? "";
+    } catch {
+      return "";
+    }
+  });
+  const [picking, setPicking] = useState(false);
+  const [hint, setHint] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api.getSystemInfo()
+      .then((info) => {
+        if (!alive) return;
+        setMycelHome(info.mycel_home ?? "");
+      })
+      .catch(() => {
+        /* best-effort */
+      });
+    return () => { alive = false; };
+  }, []);
+
+  const persistScanRoot = (path: string) => {
+    setScanRoot(path);
+    try {
+      if (path) localStorage.setItem("mycel.projects_scan_root", path);
+      else localStorage.removeItem("mycel.projects_scan_root");
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const chooseScanRoot = async () => {
+    setPicking(true);
+    setHint(null);
+    try {
+      const path = await api.pickDirectory();
+      if (path) {
+        persistScanRoot(path);
+        setHint("Saved — Create Agent → Browse will scan here first.");
+      }
+    } catch {
+      setHint("Folder dialog unavailable — type a path below, or use Browse in Create Agent.");
+    } finally {
+      setPicking(false);
+    }
+  };
+
+  return (
+    <>
+      <p className="text-[11px] text-mycel-muted">
+        MycelHome is the install root (agents, prefs, vault). Override with the{" "}
+        <code className="text-mycel-text">MYCEL_HOME</code> env var and restart the daemon —
+        relocating from the UI is not supported yet. Repos are chosen per agent, not as a
+        required daemon workspace.
+      </p>
+      <Field label="MycelHome">
+        <input className={MONO_INPUT_CLS} value={mycelHome} readOnly spellCheck={false} />
+      </Field>
+      <Field label="Projects scan root">
+        <div className="flex items-center gap-2">
+          <input
+            className={MONO_INPUT_CLS}
+            value={scanRoot}
+            onChange={(e) => persistScanRoot(e.target.value)}
+            placeholder="~/Projects"
+            spellCheck={false}
+          />
+          <button
+            type="button"
+            onClick={() => { void chooseScanRoot(); }}
+            disabled={picking}
+            className="shrink-0 inline-flex items-center px-3 h-8 rounded-md border border-mycel-border bg-mycel-bg text-xs font-medium text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors disabled:opacity-50"
+          >
+            {picking ? "…" : "Choose…"}
+          </button>
+        </div>
+      </Field>
+      {hint && <p className="text-[11px] text-mycel-muted">{hint}</p>}
+    </>
+  );
+}
+
 function InjectedInstructionsSection() {
   const [text, setText] = useState("");
   const [original, setOriginal] = useState("");
@@ -1004,6 +1093,9 @@ export function Settings() {
       </Section>
 
       <Section title="advanced" dirty={isDirty("storage", "server", "logs")} defaultOpen={false} index={6}>
+        <Advanced label="MycelHome">
+          <MycelHomeFields />
+        </Advanced>
         <Advanced label="Storage">
           <StorageFields data={edited} onChange={handleChange} />
         </Advanced>

@@ -41,7 +41,7 @@ Environment Variables:
   MYCEL_WORKSPACE      Path to the agent's repo root
   MYCEL_AGENT_WORKTREE Path to agent's worktree
   MYCEL_BIN            Path to mycel binary (default: mycel in PATH)
-  MYCEL_ROOT           Override the mycel home root directory
+  MYCEL_HOME           Override the mycel home root directory (~/.mycel)
   NO_COLOR          Disable colored output
 
 Documentation: https://github.com/rpuneet/mycel

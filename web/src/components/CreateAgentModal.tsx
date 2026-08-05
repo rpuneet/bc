@@ -7,6 +7,7 @@ import type { EnvRow } from "./EnvVarsEditor";
 import { AgentAppsPicker } from "./apps/AgentAppsPicker";
 import { api } from "../api/client";
 import { MONO } from "../utils/typography";
+import { pickDirectory } from "../utils/pickDirectory";
 import { useReadiness } from "../hooks/useReadiness";
 import { CopyButton } from "./CopyButton";
 import { RevealGroup } from "./RevealGroup";
@@ -205,6 +206,13 @@ export function CreateAgentModal({
       .catch(() => {
         /* repos list is a convenience — the text input still works */
       });
+    // Remember last projects scan root from Browse / Settings.
+    try {
+      const saved = localStorage.getItem("mycel.projects_scan_root");
+      if (saved) setBrowseRoot((prev) => (prev === "" ? saved : prev));
+    } catch {
+      /* ignore */
+    }
   }, [open]);
 
   // Reset form only when the modal is first opened (open transitions to true).
@@ -273,12 +281,13 @@ export function CreateAgentModal({
   }, [existingNames]);
 
   // Scan browseRoot for git repos (POST /api/repos/discover/local).
-  const handleScan = useCallback(async () => {
-    const root = browseRoot.trim();
+  const handleScan = useCallback(async (rootOverride?: string) => {
+    const root = (rootOverride ?? browseRoot).trim();
     if (!root) {
-      setScanError("Enter a directory to scan.");
+      setScanError("Enter a directory to scan, or use Choose folder.");
       return;
     }
+    if (rootOverride) setBrowseRoot(root);
     setScanning(true);
     setScanError(null);
     setCandidates(null);
@@ -301,6 +310,26 @@ export function CreateAgentModal({
       setScanning(false);
     }
   }, [browseRoot]);
+
+  // Native folder dialog → set scan root → scan. Falls back to opening the
+  // typed-path panel when the dialog is unavailable (plain browser, cancel).
+  const handleChooseFolder = useCallback(async () => {
+    setBrowseOpen(true);
+    const picked = await pickDirectory();
+    if (!picked) {
+      if (!browseRoot && repo) {
+        setBrowseRoot(repo.replace(/\/[^/]*$/, "") || "/");
+      }
+      return;
+    }
+    setBrowseRoot(picked);
+    try {
+      localStorage.setItem("mycel.projects_scan_root", picked);
+    } catch {
+      /* ignore */
+    }
+    await handleScan(picked);
+  }, [browseRoot, repo, handleScan]);
 
   const handleCreate = useCallback(async () => {
     const trimmed = name.trim();
@@ -487,14 +516,7 @@ export function CreateAgentModal({
                 />
                 <button
                   type="button"
-                  onClick={() => {
-                    setBrowseOpen((prev) => !prev);
-                    // Seed the scan root with the parent of the current
-                    // path so one Scan click usually finds siblings.
-                    if (!browseOpen && browseRoot === "" && repo) {
-                      setBrowseRoot(repo.replace(/\/[^/]*$/, "") || "/");
-                    }
-                  }}
+                  onClick={() => { void handleChooseFolder(); }}
                   aria-pressed={browseOpen}
                   className={`shrink-0 inline-flex items-center px-3 h-8 rounded-md border text-xs font-medium transition-colors ${
                     browseOpen
@@ -543,6 +565,15 @@ export function CreateAgentModal({
                       spellCheck={false}
                       autoComplete="off"
                     />
+                    <button
+                      type="button"
+                      onClick={() => { void handleChooseFolder(); }}
+                      disabled={scanning}
+                      className="shrink-0 inline-flex items-center px-3 h-8 rounded-md border border-mycel-border bg-mycel-surface text-xs font-medium text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors disabled:opacity-50"
+                      title="Open native folder picker"
+                    >
+                      Choose…
+                    </button>
                     <button
                       type="button"
                       onClick={() => { void handleScan(); }}

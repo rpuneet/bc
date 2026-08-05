@@ -322,7 +322,9 @@ All timeseries endpoints accept `from`/`to` (RFC3339, default: last hour) and `i
 |--------|------|-------------|
 | GET | `/api/stats/summary` | Fleet overview: agent counts, channel/message totals, cost, roles, tools, uptime. |
 | GET | `/api/stats/system` | Host snapshot: hostname, OS/arch, CPU, memory, disk, Go version, goroutines, uptime. |
-| GET | `/api/system/info` | Minimal host info: `{hostname, os, arch}`. |
+| GET | `/api/system/info` | Minimal host info: `{hostname, os, arch, workspace, has_workspace, mycel_home}`. |
+| POST | `/api/system/pick-directory` | Loopback-only native folder dialog (Finder / zenity / Windows folder browser). Returns `{"path"}` or `204` if canceled. |
+| POST | `/api/system/open-url` | Loopback-only: open an http(s) URL in the host browser. |
 
 ### Agent timeseries
 
