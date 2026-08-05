@@ -92,7 +92,7 @@ func (h *TemplateHandler) list(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		
+
 		// Reject unsupported fields
 		if req.ToolPolicies != nil {
 			httpError(w, "tool_policies is not yet supported", http.StatusBadRequest)
@@ -106,7 +106,7 @@ func (h *TemplateHandler) list(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "system_prompt_file is not yet supported", http.StatusBadRequest)
 			return
 		}
-		
+
 		if req.Name == "" {
 			httpError(w, "template name is required", http.StatusBadRequest)
 			return
@@ -217,7 +217,7 @@ func (h *TemplateHandler) byName(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "system_prompt_file is not yet supported", http.StatusBadRequest)
 			return
 		}
-		
+
 		// Determine the prompt to write:
 		// - explicit string (including "") → use as-is (allows clearing the prompt)
 		// - field absent (nil) → preserve the existing prompt
