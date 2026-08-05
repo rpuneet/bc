@@ -85,7 +85,7 @@ graph LR
 | Target | Trigger | Platform |
 |--------|---------|----------|
 | Docs | `docs/**` push to main | GitHub Pages (MkDocs) via `pages.yml` |
-| Landing (with embedded docs) | Every push to main | Cloudflare Pages via `wrangler` in `cd-main.yml` |
+| Landing (with embedded docs) | Every push to main | Cloudflare Pages via `wrangler` in `cd-main.yml` (not the Pages GitHub-app builder) |
 | Docker image | Every push to main | GHCR: `ghcr.io/rpuneet/mycel:main` (+ `:main-<sha>`) via `cd-main.yml` |
 | npm package | After a successful release (or manual) | npm via `cd-npm.yml` |
 
@@ -122,7 +122,7 @@ graph LR
 |--------|---------|---------|
 | `GITHUB_TOKEN` | All workflows | Checkout, releases, GHCR push, gitleaks |
 | `HOMEBREW_TAP_TOKEN` | Release | Push formula to tap repo |
-| `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` | CD (main) | `wrangler pages deploy` for the landing site |
+| `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` | CD (main), Cloudflare Pages git controls | `wrangler pages deploy` for the landing site; optional `workflow_dispatch` to disable Pages GitHub-app preview builds (`cloudflare-pages-git.yml`, see #3452) |
 | `NPM_TOKEN` | CD (npm) | Publish the npm package |
 
 ## Workflow Files
@@ -132,6 +132,7 @@ graph LR
 | `ci.yml` | Push main, PRs | Core CI pipeline (lint, tests, web/landing, build; full tests + security + container scan on main) |
 | `pr-quality.yml` | PRs | Advisory quality checks |
 | `cd-main.yml` | Every push to main | Publish Docker `:main` images to GHCR + deploy landing (with embedded docs) to Cloudflare Pages via `wrangler` |
+| `cloudflare-pages-git.yml` | Manual (`workflow_dispatch`) | Patch Pages project: turn off GitHub-app preview/production git builds so PRs stop getting a red "Cloudflare Pages" check (#3452). Wrangler CD unchanged. |
 | `cd-npm.yml` | After a successful Release run, or manual dispatch | Publish the npm package |
 | `release.yml` | Tag `v*` or manual dispatch | Build + publish releases (Linux GoReleaser, native macOS, Homebrew formula, SBOM) |
 | `pages.yml` | Push main (docs paths) | Build MkDocs site and deploy to GitHub Pages |
