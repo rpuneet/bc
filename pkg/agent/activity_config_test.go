@@ -34,8 +34,8 @@ func TestWriteActivityConfigPerProvider(t *testing.T) {
 		},
 		{
 			tool: "agy",
-			want: ".agents/hooks.json",
-			why:  "agy reads lifecycle hooks from .agents/hooks.json",
+			want: "",
+			why:  "agy is tailed from its transcript and needs no cooperation (was hooks, now transcript)",
 		},
 		{
 			tool: "cursor",
