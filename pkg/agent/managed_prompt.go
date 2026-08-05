@@ -153,7 +153,7 @@ func syncManagedPromptFile(promptFile, managedBlock string) error {
 	}
 	out.WriteString(managedBlock)
 
-	if err := os.MkdirAll(filepath.Dir(cleaned), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(cleaned), 0o750); err != nil {
 		return fmt.Errorf("mkdir prompt dir: %w", err)
 	}
 	if err := os.WriteFile(cleaned, []byte(out.String()), 0o600); err != nil {
