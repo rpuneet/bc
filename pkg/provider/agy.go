@@ -228,6 +228,20 @@ func (p *AgyProvider) HasResumableSession(_ string) bool {
 
 // ActivityMode reports that agy emits activity via lifecycle hooks
 // (.agents/hooks.json) that POST to the daemon's hook endpoint, exactly like Claude.
+//
+// TODO(#3531): agy's hooks fire correctly for state transitions, but do not
+// provide JSON payload on stdin as documented. This results in agents showing
+// state (working/idle) but no prompt or tool details. The hook command handles
+// empty stdin gracefully by falling back to event/state only.
+//
+// Investigation shows agy writes a session transcript to:
+//   ~/.gemini/antigravity-cli/brain/<conversation-id>/.system_generated/logs/transcript.jsonl
+//
+// A potential fix is to implement TranscriptParser, change ActivityMode to
+// ActivityModeTranscript, and parse the transcript file. This would require:
+//   - Implementing ParseTranscriptLine for agy's format
+//   - Updating TranscriptGlobs to use the correct global path pattern
+//   - Potentially implementing TranscriptFileSelector like codex does
 func (p *AgyProvider) ActivityMode() string { return ActivityModeHooks }
 
 // WriteHookConfig writes agy lifecycle-hook settings into the agent worktree.
