@@ -355,6 +355,26 @@ func (s *Store) AllSubscriptions(ctx context.Context) ([]Subscription, error) {
 	return subs, rows.Err()
 }
 
+// ChannelsForAgent returns the channel keys an agent is subscribed to
+// (excluding muted rows). Used to populate the mycel-managed prompt (#3648).
+func (s *Store) ChannelsForAgent(ctx context.Context, agent string) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, s.q(
+		`SELECT channel FROM notify_subscriptions WHERE agent = ? AND muted = 0 ORDER BY channel`), agent)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []string
+	for rows.Next() {
+		var ch string
+		if err := rows.Scan(&ch); err != nil {
+			return nil, err
+		}
+		out = append(out, ch)
+	}
+	return out, rows.Err()
+}
+
 // LogDelivery records a delivery attempt.
 func (s *Store) LogDelivery(ctx context.Context, e DeliveryEntry) error {
 	_, err := s.db.ExecContext(ctx, s.q(

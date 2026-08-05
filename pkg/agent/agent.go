@@ -517,6 +517,10 @@ type Manager struct { //nolint:govet // field order is intentional for readabili
 	// settings API mutates in place, so edits take effect on the next spawn.
 	wsConfig *home.Config
 
+	// channelLister supplies notification subscriptions for the mycel-managed
+	// prompt block (#3648). Optional — nil omits the subscriptions section body.
+	channelLister ChannelLister
+
 	// providersConfig holds the global provider command overrides
 	// (prefs.json `providers.<tool>.command`). Used by
 	// getAgentCommand to layer a user-supplied command on top of the
@@ -1451,10 +1455,9 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	if setupErr := SetupAgentFromRoleAndTemplate(ctx, repoPath, name, string(existing.Role), wtDir, agentRuntime, existing.Tool, existing.Template); setupErr != nil {
 		log.Warn("agent setup failed on restart", "agent", name, "error", setupErr)
 	}
-	appendAppPrompt(wtDir, existing.Tool, m.appsConfig)
-	if err := appendInjectedInstructions(ctx, injectedPromptFile(wtDir, existing.Tool), m.wsConfig,
+	if err := m.syncManagedPromptForAgent(ctx, wtDir, existing.Tool, name, string(existing.Role),
 		resolveRoleMCPServers(repoPath, string(existing.Role)), secretEnvKeys); err != nil {
-		log.Warn("failed to append injected instructions", "agent", name, "error", err)
+		log.Warn("failed to sync managed prompt", "agent", name, "error", err)
 	}
 
 	if err := rt.CreateSessionWithEnv(ctx, name, wtDir, agentCmd, env); err != nil {
@@ -1681,11 +1684,10 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		agent.Task = fmt.Sprintf("agent setup failed: %v", setupErr)
 	}
 
-	// Append platform credential instructions to the agent's prompt file
-	appendAppPrompt(wtDir, effectiveTool, m.appsConfig)
-	if err := appendInjectedInstructions(ctx, injectedPromptFile(wtDir, effectiveTool), m.wsConfig,
+	// Sync mycel-managed prompt section (apps, subscriptions, injected instructions).
+	if err := m.syncManagedPromptForAgent(ctx, wtDir, effectiveTool, name, string(role),
 		resolveRoleMCPServers(repoPath, string(role)), secretEnvKeys); err != nil {
-		log.Warn("failed to append injected instructions", "agent", name, "error", err)
+		log.Warn("failed to sync managed prompt", "agent", name, "error", err)
 	}
 
 	// Validate required tools before starting — fail fast with clear errors.
@@ -3394,35 +3396,6 @@ func appPromptInstructions(apps map[string]app.InstanceConfig) string {
 	return sb.String()
 }
 
-// appendAppPrompt appends platform credential instructions to the agent's
-// CLAUDE.md (or provider-equivalent prompt file) if connected apps exist.
-func appendAppPrompt(targetDir, toolName string, apps map[string]app.InstanceConfig) {
-	instructions := appPromptInstructions(apps)
-	if instructions == "" {
-		return
-	}
-
-	// targetDir is an agent worktree path derived from validated names;
-	// reject traversal segments as defense in depth.
-	targetDir = filepath.Clean(targetDir)
-	if strings.Contains(targetDir, "..") {
-		log.Warn("refusing to append app prompt to traversal path", "dir", targetDir)
-		return
-	}
-
-	adapter := resolveConfigAdapter(toolName)
-	promptFile := filepath.Join(targetDir, adapter.PromptFile())
-	f, err := os.OpenFile(promptFile, os.O_APPEND|os.O_WRONLY, 0600) //nolint:gosec // controlled agent repo path
-	if err != nil {
-		log.Debug("cannot append app prompt, prompt file not writable", "path", promptFile, "error", err)
-		return
-	}
-	defer f.Close() //nolint:errcheck
-	if _, err := f.WriteString(instructions); err != nil {
-		log.Warn("failed to append app prompt instructions", "path", promptFile, "error", err)
-	}
-}
-
 // injectedPromptFile resolves the prompt file path (CLAUDE.md or the
 // provider-equivalent) inside an agent worktree for the given tool.
 func injectedPromptFile(targetDir, toolName string) string {
@@ -3430,43 +3403,11 @@ func injectedPromptFile(targetDir, toolName string) string {
 	return filepath.Join(targetDir, adapter.PromptFile())
 }
 
-// appendInjectedInstructions appends the mycel-authored injected-instructions
-// block to an agent's prompt file. The block carries the authored text plus an
-// auto-generated summary of the MCP servers and credential env var NAMES the
-// agent has access to. Secret VALUES are never written — only key names.
-//
-// It is a no-op (returns nil) when no instructions are configured.
+// appendInjectedInstructions syncs the mycel-managed prompt block for tests
+// and any remaining call sites. Prefer syncManagedPromptForAgent / syncAgentManagedPrompt
+// which also include apps + subscriptions (#3648).
 func appendInjectedInstructions(ctx context.Context, promptFile string, cfg *home.Config, mcpServers, secretEnvKeys []string) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if cfg == nil || strings.TrimSpace(cfg.InjectedInstructions) == "" {
-		return nil
-	}
-
-	// promptFile is derived from a validated agent worktree path; reject
-	// traversal segments as defense in depth.
-	cleaned := filepath.Clean(promptFile)
-	if strings.Contains(cleaned, "..") {
-		return fmt.Errorf("refusing to write injected instructions to traversal path %q", promptFile)
-	}
-
-	var sb strings.Builder
-	sb.WriteString("\n## mycel instructions\n\n")
-	sb.WriteString(strings.TrimSpace(cfg.InjectedInstructions))
-	sb.WriteString("\n\n### Available resources\n")
-	sb.WriteString("MCP servers: " + summarizeNames(mcpServers) + "\n")
-	sb.WriteString("Credential env vars: " + summarizeNames(secretEnvKeys) + "\n")
-
-	f, err := os.OpenFile(cleaned, os.O_APPEND|os.O_WRONLY, 0600) //nolint:gosec // controlled agent repo path
-	if err != nil {
-		return fmt.Errorf("open prompt file: %w", err)
-	}
-	defer f.Close() //nolint:errcheck
-	if _, err := f.WriteString(sb.String()); err != nil {
-		return fmt.Errorf("write injected instructions: %w", err)
-	}
-	return nil
+	return syncAgentManagedPrompt(ctx, promptFile, cfg, nil, "", "", mcpServers, secretEnvKeys, nil)
 }
 
 // summarizeNames renders a sorted, comma-separated list of names, or the
