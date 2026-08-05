@@ -278,12 +278,13 @@ func (s *Service) deliverToSubscribers(ctx context.Context, d deliverable) {
 		log.Warn("notify: failed to get subscribers", "channel", channel, "error", subErr)
 		return
 	}
+	active, mutedAgents := partitionSubs(subs)
 
 	// The connect-app flow subscribes agents to "{platform}:general" as a
 	// catch-all, because the real channel is not known until a message
 	// arrives (Telegram DMs land on telegram:<username|chat_id>, mail on
-	// gmail:<sender>). When a channel has no subscribers of its own, fall
-	// back to the catch-all's subscribers for this delivery.
+	// gmail:<sender>). When a channel has no active subscribers of its own,
+	// fall back to the catch-all's subscribers for this delivery.
 	//
 	// This is deliberately a read, not a write. Copying the catch-all onto
 	// each new channel used to leave a permanent subscription behind, and
@@ -291,16 +292,20 @@ func (s *Service) deliverToSubscribers(ctx context.Context, d deliverable) {
 	// WhatsApp per chat) turned one catch-all row into dozens nobody asked
 	// for — see #3463. An explicit subscription on the real channel still
 	// wins, so per-channel settings keep working.
-	if len(subs) == 0 && platform != "" {
+	//
+	// Muted rows on the real channel suppress catch-all for that agent only
+	// (#3466) and do not count as active subscribers.
+	if len(active) == 0 && platform != "" {
 		fallback, fErr := s.catchAllSubscribers(ctx, platform, channel)
 		if fErr != nil {
 			log.Warn("notify: catch-all lookup failed", "platform", platform, "channel", channel, "error", fErr)
 		} else if len(fallback) > 0 {
-			subs = fallback
+			active = filterCatchAll(fallback, mutedAgents)
 			log.Info("notify: delivering via catch-all subscription",
-				"channel", channel, "catch_all", platform+catchAllSuffix, "agents", len(fallback))
+				"channel", channel, "catch_all", platform+catchAllSuffix, "agents", len(active))
 		}
 	}
+	subs = active
 
 	log.Info("notify: dispatch", "channel", channel, "sender", sender, "subscribers", len(subs))
 
@@ -316,6 +321,9 @@ func (s *Service) deliverToSubscribers(ctx context.Context, d deliverable) {
 
 	// Deliver to each subscribed agent
 	for _, sub := range subs {
+		if sub.Muted {
+			continue
+		}
 		// Self-skip: don't echo agent's own message back
 		if strings.EqualFold(sub.Agent, rawSender) {
 			continue
@@ -395,6 +403,40 @@ func (s *Service) SetMentionOnly(ctx context.Context, channel, agent string, men
 	return s.store.SetMentionOnly(ctx, channel, agent, mentionOnly)
 }
 
+// SetMuted upserts or clears a mute that suppresses catch-all for this
+// agent on the channel (#3466).
+func (s *Service) SetMuted(ctx context.Context, channel, agent string, muted bool) error {
+	return s.store.SetMuted(ctx, channel, agent, muted)
+}
+
+// partitionSubs splits channel rows into active subscribers and a mute set.
+// Muted rows must not count as active (that would block catch-all for everyone).
+func partitionSubs(subs []Subscription) (active []Subscription, muted map[string]bool) {
+	muted = make(map[string]bool)
+	for _, sub := range subs {
+		if sub.Muted {
+			muted[strings.ToLower(sub.Agent)] = true
+			continue
+		}
+		active = append(active, sub)
+	}
+	return active, muted
+}
+
+func filterCatchAll(fallback []Subscription, muted map[string]bool) []Subscription {
+	if len(muted) == 0 {
+		return fallback
+	}
+	out := make([]Subscription, 0, len(fallback))
+	for _, sub := range fallback {
+		if muted[strings.ToLower(sub.Agent)] {
+			continue
+		}
+		out = append(out, sub)
+	}
+	return out
+}
+
 // ChannelSubscriptions returns all subscriptions for a channel.
 func (s *Service) ChannelSubscriptions(ctx context.Context, channel string) ([]Subscription, error) {
 	return s.store.Subscribers(ctx, channel)
@@ -454,6 +496,7 @@ func (s *Service) deliverOutboundToSubscribers(ctx context.Context, channel, sen
 		log.Warn("notify: failed to get subscribers for outbound", "channel", channel, "error", subErr)
 		return
 	}
+	active, mutedAgents := partitionSubs(subs)
 
 	// Extract platform from channel name (e.g., "slack:general" -> "slack")
 	platform := ""
@@ -461,20 +504,21 @@ func (s *Service) deliverOutboundToSubscribers(ctx context.Context, channel, sen
 		platform = channel[:idx]
 	}
 
-	// Fallback to catch-all subscription if no direct subscribers
-	if len(subs) == 0 && platform != "" {
+	// Fallback to catch-all subscription if no active direct subscribers
+	if len(active) == 0 && platform != "" {
 		catchAll := platform + catchAllSuffix
 		if channel != "" && channel != catchAll && strings.HasPrefix(channel, platform+":") {
 			fallback, fErr := s.store.Subscribers(ctx, catchAll)
 			if fErr != nil {
 				log.Warn("notify: catch-all lookup failed for outbound", "platform", platform, "channel", channel, "error", fErr)
 			} else if len(fallback) > 0 {
-				subs = fallback
+				active = filterCatchAll(fallback, mutedAgents)
 				log.Info("notify: delivering outbound via catch-all subscription",
-					"channel", channel, "catch_all", catchAll, "agents", len(fallback))
+					"channel", channel, "catch_all", catchAll, "agents", len(active))
 			}
 		}
 	}
+	subs = active
 
 	log.Info("notify: outbound fan-out", "channel", channel, "sender", sender, "subscribers", len(subs))
 
@@ -506,6 +550,9 @@ func (s *Service) deliverOutboundToSubscribers(ctx context.Context, channel, sen
 
 	// Deliver to each subscribed agent
 	for _, sub := range subs {
+		if sub.Muted {
+			continue
+		}
 		// Self-skip: don't echo agent's own message back
 		if strings.EqualFold(sub.Agent, rawSender) {
 			continue

@@ -567,6 +567,67 @@ func TestExplicitChannelSubscriptionWinsOverCatchAll(t *testing.T) {
 	}
 }
 
+// TestCatchAllRespectsMutedChannel: mute on the real channel suppresses
+// catch-all for that agent only (#3466).
+func TestCatchAllRespectsMutedChannel(t *testing.T) {
+	store := setupTestStore(t)
+	sender := &mockSender{}
+	svc := NewService(store, sender, &mockHub{})
+	ctx := context.Background()
+
+	if err := store.Subscribe(ctx, "telegram:general", "broad-agent", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetMuted(ctx, "telegram:alice", "broad-agent", true); err != nil {
+		t.Fatal(err)
+	}
+
+	svc.Dispatch("telegram:alice", "telegram", "alice", "", "", "hi muted", "m1", nil, nil, nil)
+	if !svc.DrainDispatches(2 * time.Second) {
+		t.Fatal("dispatch did not finish")
+	}
+	if calls := sender.getCalls(); len(calls) != 0 {
+		t.Fatalf("muted agent must not receive catch-all delivery, got %+v", calls)
+	}
+
+	svc.Dispatch("telegram:bob", "telegram", "bob", "", "", "hi bob", "m2", nil, nil, nil)
+	if !svc.DrainDispatches(2 * time.Second) {
+		t.Fatal("dispatch did not finish")
+	}
+	calls := sender.getCalls()
+	if len(calls) != 1 || calls[0].Name != "broad-agent" {
+		t.Fatalf("expected catch-all delivery on unmuted channel, got %+v", calls)
+	}
+}
+
+// TestMutedRowDoesNotBlockCatchAllForOtherAgents: a mute for agent A must
+// not prevent agent B from receiving via catch-all on the same channel.
+func TestMutedRowDoesNotBlockCatchAllForOtherAgents(t *testing.T) {
+	store := setupTestStore(t)
+	sender := &mockSender{}
+	svc := NewService(store, sender, &mockHub{})
+	ctx := context.Background()
+
+	if err := store.Subscribe(ctx, "telegram:general", "agent-a", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Subscribe(ctx, "telegram:general", "agent-b", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetMuted(ctx, "telegram:alice", "agent-a", true); err != nil {
+		t.Fatal(err)
+	}
+
+	svc.Dispatch("telegram:alice", "telegram", "alice", "", "", "hi", "m1", nil, nil, nil)
+	if !svc.DrainDispatches(2 * time.Second) {
+		t.Fatal("dispatch did not finish")
+	}
+	calls := sender.getCalls()
+	if len(calls) != 1 || calls[0].Name != "agent-b" {
+		t.Fatalf("expected only agent-b, got %+v", calls)
+	}
+}
+
 // TestDispatchAutomatedFeedsWithoutWakingAgents pins the notification-mail
 // policy: machine-generated mail still lands in the channel feed and reaches
 // the web UI, but no agent is prompted. Without this, every GitHub

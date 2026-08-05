@@ -12,6 +12,8 @@ function AgentRow({
   onSubscribe,
   onUnsubscribe,
   onToggleMention,
+  onMute,
+  onUnmute,
 }: {
   agent: Agent;
   sub?: NotifySubscription;
@@ -19,9 +21,13 @@ function AgentRow({
   onSubscribe: () => void;
   onUnsubscribe: () => void;
   onToggleMention: () => void;
+  onMute: () => void;
+  onUnmute: () => void;
 }) {
   const isStopped = agent.state === "stopped";
   const roleColor = getRoleColor(agent.role);
+  const muted = Boolean(sub?.muted);
+  const active = Boolean(sub && !sub.muted);
 
   return (
     <motion.div
@@ -33,15 +39,12 @@ function AgentRow({
       className={`px-3 py-2 transition-colors duration-100 hover:bg-mycel-surface-hover ${isStopped && !sub ? "opacity-50" : ""}`}
     >
       <div className="flex items-center gap-2">
-        {/* Living character + name + status dot */}
         <AgentChip
           name={agent.name}
           state={agent.state}
           size={20}
           className="flex-1 text-mycel-text"
         />
-
-        {/* Role */}
         <span
           className={`text-[8px] px-1.5 py-0.5 rounded-md ${roleColor.bg} ${roleColor.text} font-semibold uppercase tracking-wider shrink-0`}
         >
@@ -49,20 +52,33 @@ function AgentRow({
         </span>
       </div>
 
-      {/* Actions */}
       <div className="flex items-center gap-1.5 mt-1.5 ml-7">
-        {sub ? (
+        {muted ? (
+          <>
+            <span className="text-[10px] px-2 py-0.5 rounded-md border border-mycel-border text-mycel-muted">
+              muted
+            </span>
+            <button
+              type="button"
+              onClick={onUnmute}
+              disabled={loading}
+              className="text-[10px] text-mycel-muted hover:text-mycel-accent transition-colors ml-auto"
+            >
+              unmute
+            </button>
+          </>
+        ) : active ? (
           <>
             <button
               type="button"
               onClick={onToggleMention}
               className={`text-[10px] px-2 py-0.5 rounded-md border transition-all duration-150 ${
-                sub.mention_only
+                sub!.mention_only
                   ? "border-mycel-accent bg-mycel-accent-subtle text-mycel-accent"
                   : "border-mycel-border text-mycel-muted hover:border-mycel-border-strong"
               }`}
             >
-              {sub.mention_only ? "@ mentions" : "all msgs"}
+              {sub!.mention_only ? "@ mentions" : "all msgs"}
             </button>
             <button
               type="button"
@@ -74,14 +90,25 @@ function AgentRow({
             </button>
           </>
         ) : (
-          <button
-            type="button"
-            onClick={onSubscribe}
-            disabled={loading}
-            className="text-[10px] text-mycel-muted hover:text-mycel-accent transition-colors"
-          >
-            + subscribe
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={onSubscribe}
+              disabled={loading}
+              className="text-[10px] text-mycel-muted hover:text-mycel-accent transition-colors"
+            >
+              + subscribe
+            </button>
+            <button
+              type="button"
+              onClick={onMute}
+              disabled={loading}
+              className="text-[10px] text-mycel-muted hover:text-mycel-text transition-colors ml-auto"
+              title="Suppress catch-all delivery for this channel"
+            >
+              mute
+            </button>
+          </>
         )}
       </div>
     </motion.div>
@@ -144,25 +171,62 @@ export function SubscriptionPanel({
     } catch { /* */ }
   };
 
-  const subscribedAgents = agents.filter((a) => subMap.has(a.name));
+  const handleMute = async (agentName: string) => {
+    setLoading(true);
+    try {
+      await api.setMuted(channelName, agentName, true);
+      await fetchData();
+    } catch { /* */ }
+    setLoading(false);
+  };
 
-  // Sort agents by availability: working (green) > idle (amber) > stopped (gray, dimmed)
+  const handleUnmute = async (agentName: string) => {
+    setLoading(true);
+    try {
+      await api.setMuted(channelName, agentName, false);
+      await fetchData();
+    } catch { /* */ }
+    setLoading(false);
+  };
+
   const agentSortOrder = (agent: { state: string }) => {
     if (agent.state === "working" || agent.state === "running") return 0;
     if (agent.state === "stopped") return 2;
-    return 1; // idle or other states
+    return 1;
   };
+
+  const listeningAgents = agents
+    .filter((a) => {
+      const s = subMap.get(a.name);
+      return s && !s.muted;
+    })
+    .sort((a, b) => agentSortOrder(a) - agentSortOrder(b) || a.name.localeCompare(b.name));
+
+  const mutedAgents = agents
+    .filter((a) => subMap.get(a.name)?.muted)
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const availableAgents = agents
     .filter((a) => !subMap.has(a.name))
     .sort((a, b) => agentSortOrder(a) - agentSortOrder(b) || a.name.localeCompare(b.name));
+
+  const rowProps = (agent: Agent) => ({
+    agent,
+    sub: subMap.get(agent.name),
+    loading,
+    onSubscribe: () => handleSubscribe(agent.name),
+    onUnsubscribe: () => handleUnsubscribe(agent.name),
+    onToggleMention: () =>
+      handleToggleMention(agent.name, subMap.get(agent.name)?.mention_only ?? false),
+    onMute: () => handleMute(agent.name),
+    onUnmute: () => handleUnmute(agent.name),
+  });
 
   return (
     <aside
       className="w-56 shrink-0 border-l border-mycel-border flex flex-col bg-mycel-bg"
       style={{ scrollbarWidth: "thin", scrollbarColor: "var(--mycel-scrollbar-thumb) transparent" }}
     >
-      {/* Header */}
       <div className="px-3 py-3 border-b border-mycel-border">
         <h3 className="text-[11px] font-medium text-mycel-muted uppercase tracking-[0.08em]">
           Agents
@@ -171,42 +235,39 @@ export function SubscriptionPanel({
 
       <div className="flex-1 overflow-auto">
         <AnimatePresence>
-          {/* Subscribed */}
-          {subscribedAgents.length > 0 && (
+          {listeningAgents.length > 0 && (
             <div>
               <div className="px-3 pt-3 pb-1">
                 <div className="flex items-center gap-1.5">
                   <span className="w-1 h-1 rounded-full bg-mycel-success" />
                   <span className="text-[10px] font-medium text-mycel-success uppercase tracking-[0.08em]">
-                    Listening ({subscribedAgents.length})
+                    Listening ({listeningAgents.length})
                   </span>
                 </div>
               </div>
-              {subscribedAgents.map((agent) => (
-                <AgentRow
-                  key={agent.name}
-                  agent={agent}
-                  sub={subMap.get(agent.name)}
-                  loading={loading}
-                  onSubscribe={() => handleSubscribe(agent.name)}
-                  onUnsubscribe={() => handleUnsubscribe(agent.name)}
-                  onToggleMention={() =>
-                    handleToggleMention(
-                      agent.name,
-                      subMap.get(agent.name)?.mention_only ?? false,
-                    )
-                  }
-                />
+              {listeningAgents.map((agent) => (
+                <AgentRow key={agent.name} {...rowProps(agent)} />
               ))}
             </div>
           )}
 
-          {/* Divider */}
-          {subscribedAgents.length > 0 && availableAgents.length > 0 && (
+          {mutedAgents.length > 0 && (
+            <div>
+              <div className="px-3 pt-3 pb-1">
+                <span className="text-[10px] font-medium text-mycel-muted uppercase tracking-[0.08em]">
+                  Muted ({mutedAgents.length})
+                </span>
+              </div>
+              {mutedAgents.map((agent) => (
+                <AgentRow key={agent.name} {...rowProps(agent)} />
+              ))}
+            </div>
+          )}
+
+          {(listeningAgents.length > 0 || mutedAgents.length > 0) && availableAgents.length > 0 && (
             <div className="mx-3 my-2 border-t border-mycel-border" />
           )}
 
-          {/* Available */}
           {availableAgents.length > 0 && (
             <div>
               <div className="px-3 pt-2 pb-1">
@@ -215,14 +276,7 @@ export function SubscriptionPanel({
                 </span>
               </div>
               {availableAgents.map((agent) => (
-                <AgentRow
-                  key={agent.name}
-                  agent={agent}
-                  loading={loading}
-                  onSubscribe={() => handleSubscribe(agent.name)}
-                  onUnsubscribe={() => handleUnsubscribe(agent.name)}
-                  onToggleMention={() => {}}
-                />
+                <AgentRow key={agent.name} {...rowProps(agent)} />
               ))}
             </div>
           )}

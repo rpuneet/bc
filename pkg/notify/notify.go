@@ -50,6 +50,9 @@ type Subscription struct {
 	Agent       string    `json:"agent"`
 	ID          int64     `json:"id"`
 	MentionOnly bool      `json:"mention_only"`
+	// Muted suppresses catch-all delivery for this agent on this channel
+	// without counting as an active subscription (#3466).
+	Muted bool `json:"muted"`
 }
 
 // DeliveryEntry records one delivery attempt in the activity log.

@@ -74,6 +74,7 @@ func (s *Store) initSchema() error {
 	for _, alter := range []string{
 		`ALTER TABLE notify_channels ADD COLUMN avatar_url TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE notify_messages ADD COLUMN sender_avatar TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE notify_subscriptions ADD COLUMN muted INTEGER NOT NULL DEFAULT 0`,
 	} {
 		_, _ = s.db.ExecContext(context.TODO(), alter) //nolint:errcheck // ignore if column already exists
 	}
@@ -86,6 +87,7 @@ CREATE TABLE IF NOT EXISTS notify_subscriptions (
     channel      TEXT NOT NULL,
     agent        TEXT NOT NULL,
     mention_only INTEGER NOT NULL DEFAULT 0,
+    muted        INTEGER NOT NULL DEFAULT 0,
     created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     UNIQUE(channel, agent)
 );
@@ -143,6 +145,7 @@ CREATE TABLE IF NOT EXISTS notify_subscriptions (
     channel      TEXT NOT NULL,
     agent        TEXT NOT NULL,
     mention_only INTEGER NOT NULL DEFAULT 0,
+    muted        INTEGER NOT NULL DEFAULT 0,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(channel, agent)
 );
@@ -192,16 +195,17 @@ CREATE INDEX IF NOT EXISTS idx_notify_messages_channel ON notify_messages(channe
 CREATE INDEX IF NOT EXISTS idx_notify_messages_chan_sender ON notify_messages(channel, sender);
 `
 
-// Subscribe adds an agent to a channel. If already subscribed, this is a no-op.
+// Subscribe adds an agent to a channel. If already subscribed, this is a no-op
+// for the row and clears muted (an explicit subscribe means deliver).
 func (s *Store) Subscribe(ctx context.Context, channel, agent string, mentionOnly bool) error {
 	mentionInt := 0
 	if mentionOnly {
 		mentionInt = 1
 	}
 	_, err := s.db.ExecContext(ctx, s.q(
-		`INSERT INTO notify_subscriptions (channel, agent, mention_only)
-		 VALUES (?, ?, ?)
-		 ON CONFLICT(channel, agent) DO UPDATE SET mention_only = excluded.mention_only`),
+		`INSERT INTO notify_subscriptions (channel, agent, mention_only, muted)
+		 VALUES (?, ?, ?, 0)
+		 ON CONFLICT(channel, agent) DO UPDATE SET mention_only = excluded.mention_only, muted = 0`),
 		channel, agent, mentionInt)
 	return err
 }
@@ -226,10 +230,25 @@ func (s *Store) SetMentionOnly(ctx context.Context, channel, agent string, menti
 	return err
 }
 
-// Subscribers returns all subscriptions for a channel.
+// SetMuted upserts a mute row for (channel, agent). muted=true suppresses
+// catch-all delivery; muted=false removes the mute row so catch-all applies
+// again (#3466).
+func (s *Store) SetMuted(ctx context.Context, channel, agent string, muted bool) error {
+	if !muted {
+		return s.Unsubscribe(ctx, channel, agent)
+	}
+	_, err := s.db.ExecContext(ctx, s.q(
+		`INSERT INTO notify_subscriptions (channel, agent, mention_only, muted)
+		 VALUES (?, ?, 0, 1)
+		 ON CONFLICT(channel, agent) DO UPDATE SET muted = 1`),
+		channel, agent)
+	return err
+}
+
+// Subscribers returns all subscriptions for a channel (including muted rows).
 func (s *Store) Subscribers(ctx context.Context, channel string) ([]Subscription, error) {
 	rows, err := s.db.QueryContext(ctx, s.q(
-		`SELECT id, channel, agent, mention_only, created_at FROM notify_subscriptions WHERE channel = ?`),
+		`SELECT id, channel, agent, mention_only, muted, created_at FROM notify_subscriptions WHERE channel = ?`),
 		channel)
 	if err != nil {
 		return nil, err
@@ -239,12 +258,13 @@ func (s *Store) Subscribers(ctx context.Context, channel string) ([]Subscription
 	var subs []Subscription
 	for rows.Next() {
 		var sub Subscription
-		var mentionInt int
+		var mentionInt, mutedInt int
 		var createdStr string
-		if err := rows.Scan(&sub.ID, &sub.Channel, &sub.Agent, &mentionInt, &createdStr); err != nil {
+		if err := rows.Scan(&sub.ID, &sub.Channel, &sub.Agent, &mentionInt, &mutedInt, &createdStr); err != nil {
 			return nil, err
 		}
 		sub.MentionOnly = mentionInt != 0
+		sub.Muted = mutedInt != 0
 		sub.CreatedAt, _ = time.Parse(time.RFC3339, createdStr) //nolint:errcheck // DB-written timestamp
 		subs = append(subs, sub)
 	}
@@ -254,7 +274,7 @@ func (s *Store) Subscribers(ctx context.Context, channel string) ([]Subscription
 // AllSubscriptions returns all subscriptions across all channels.
 func (s *Store) AllSubscriptions(ctx context.Context) ([]Subscription, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, channel, agent, mention_only, created_at FROM notify_subscriptions ORDER BY channel, agent`)
+		`SELECT id, channel, agent, mention_only, muted, created_at FROM notify_subscriptions ORDER BY channel, agent`)
 	if err != nil {
 		return nil, err
 	}
@@ -263,12 +283,13 @@ func (s *Store) AllSubscriptions(ctx context.Context) ([]Subscription, error) {
 	var subs []Subscription
 	for rows.Next() {
 		var sub Subscription
-		var mentionInt int
+		var mentionInt, mutedInt int
 		var createdStr string
-		if err := rows.Scan(&sub.ID, &sub.Channel, &sub.Agent, &mentionInt, &createdStr); err != nil {
+		if err := rows.Scan(&sub.ID, &sub.Channel, &sub.Agent, &mentionInt, &mutedInt, &createdStr); err != nil {
 			return nil, err
 		}
 		sub.MentionOnly = mentionInt != 0
+		sub.Muted = mutedInt != 0
 		sub.CreatedAt, _ = time.Parse(time.RFC3339, createdStr) //nolint:errcheck // DB-written timestamp
 		subs = append(subs, sub)
 	}

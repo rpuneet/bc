@@ -160,6 +160,7 @@ export interface NotifySubscription {
   channel: string;
   agent: string;
   mention_only: boolean;
+  muted?: boolean;
   created_at: string;
 }
 
@@ -1160,6 +1161,19 @@ export const api = {
     return request<{ status: string }>(`/notify/subscriptions/${encodeURIComponent(channel)}`, {
       method: "PATCH",
       body: JSON.stringify({ agent, mention_only: mentionOnly }),
+    });
+  },
+  setMuted: (channel: string, agent: string, muted: boolean) => {
+    const { gw, ch } = splitChannel(channel);
+    if (gw && ch) {
+      return request<{ status: string }>(`/apps/${gw}/channels/${ch}/agents/${encodeURIComponent(agent)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ muted }),
+      });
+    }
+    return request<{ status: string }>(`/notify/subscriptions/${encodeURIComponent(channel)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ agent, muted }),
     });
   },
   getChannelActivity: (channel: string, limit = 50) => {

@@ -19,6 +19,7 @@ type Subscription struct {
 	Agent       string    `json:"agent"`
 	ID          int64     `json:"id"`
 	MentionOnly bool      `json:"mention_only"`
+	Muted       bool      `json:"muted"`
 }
 
 // DeliveryEntry represents a delivery log entry.
