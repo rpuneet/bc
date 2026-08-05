@@ -7,7 +7,8 @@ import { useWebSocket } from "../hooks/useWebSocket";
 import { StatusBadge } from "../components/StatusBadge";
 import { EmptyState } from "../components/EmptyState";
 import { EventRow } from "../components/live/EventRow";
-import { activityItemToNode } from "../components/live/liveHelpers";
+import { activityItemToNode, partitionRunning } from "../components/live/liveHelpers";
+import { RunningSection } from "../components/live/LiveRenderers";
 import type { ToolNode } from "../components/live/liveTypes";
 import { truncate } from "../utils/text";
 import { formatAbsolute, formatRelative } from "../utils/time";
@@ -175,9 +176,8 @@ export function peekItemToNode(item: AgentActivityItem, idx: number): ToolNode {
 }
 
 /** The ⊕-row content: the agent's recent hook events rendered with the
- *  same EventRow the Live page and agent-detail Live tab use, height-
- *  capped, with a link through to the full feed. Refreshes on a light
- *  5s poll (the old raw-terminal peek was live via SSE). */
+ *  same EventRow language as Home / agent-detail Live (#3643). Height-
+ *  capped, running rows pinned, link through to the full feed. */
 function PeekActivityFeed({ agentName }: { agentName: string }) {
   const navigate = useNavigate();
   const fetcher = useCallback(
@@ -190,16 +190,38 @@ function PeekActivityFeed({ agentName }: { agentName: string }) {
     () => (items ?? []).slice(0, PEEK_EVENT_LIMIT).map(peekItemToNode),
     [items],
   );
+  const { running, rest } = useMemo(() => partitionRunning(nodes), [nodes]);
 
   return (
-    <div className="px-3 py-2">
-      <div className="rounded-lg bg-mycel-surface p-2 max-h-[320px] overflow-y-auto">
+    <div className="px-3 py-2" data-testid="agent-peek-activity">
+      <div className="rounded-lg border border-mycel-border bg-mycel-surface overflow-hidden max-h-[320px] overflow-y-auto">
+        <div className="sticky top-0 z-10 flex items-center gap-2 px-3 py-1.5 border-b border-mycel-border bg-mycel-bg/95 backdrop-blur-sm">
+          <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden>
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-mycel-success opacity-60 motion-reduce:hidden" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-mycel-success" />
+          </span>
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-mycel-muted">
+            Activity
+          </span>
+          {nodes.length > 0 && (
+            <span className="ml-auto text-[10px] font-mono tabular-nums text-mycel-muted">
+              {nodes.length}
+            </span>
+          )}
+        </div>
         {loading && !items ? (
-          <p className="text-xs text-mycel-muted px-2 py-1.5">Loading activity…</p>
+          <p className="text-xs text-mycel-muted px-3 py-2.5">Loading activity…</p>
         ) : nodes.length === 0 ? (
-          <p className="text-xs text-mycel-muted px-2 py-1.5">No recent activity</p>
+          <p className="text-xs text-mycel-muted px-3 py-3 italic">
+            No recent events — tool calls and turns will stream here.
+          </p>
         ) : (
-          nodes.map((n) => <EventRow key={n.id} node={n} />)
+          <>
+            <RunningSection nodes={running} />
+            {rest.map((n) => (
+              <EventRow key={n.id} node={n} />
+            ))}
+          </>
         )}
       </div>
       <button
