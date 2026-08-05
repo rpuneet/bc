@@ -114,7 +114,7 @@ You control the lifecycle from the agent header in the web UI (Start / Stop / Re
 
 ### Repos
 
-The server tracks the repos agents are bound to. `GET /api/repos` lists them; the web UI adds repos via a folder picker, local filesystem discovery, or GitHub clone (`/api/repos/discover/*`, `/api/repos/clone`).
+The server tracks the repos agents are bound to. `GET /api/repos` lists them; Create Agent binds a repo via typed path, native folder picker (`POST /api/system/pick-directory`) + local scan (`POST /api/repos/discover/local`), or GitHub clone (`/api/repos/discover/github`, `/api/repos/clone`).
 
 ### Apps
 

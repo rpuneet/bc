@@ -1492,7 +1492,23 @@ export const api = {
       arch: string;
       workspace?: string;
       has_workspace?: boolean;
+      /** Install/state root (~/.mycel or MYCEL_HOME). */
+      mycel_home?: string;
     }>("/system/info"),
+
+  /** Native folder dialog via the daemon (Finder on macOS). Null = canceled. */
+  pickDirectory: async (): Promise<string | null> => {
+    const res = await fetch(`${BASE}/system/pick-directory`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    if (res.status === 204) return null;
+    if (!res.ok) throw new Error(`pick-directory failed: ${res.status}`);
+    const body = (await res.json()) as { path?: string };
+    return typeof body.path === "string" && body.path !== "" ? body.path : null;
+  },
+
   /** Autodetected host package managers (brew/apt/npm/…) with versions. */
   getPackageManagers: () =>
     request<PackageManagersResponse>("/system/package-managers"),

@@ -409,6 +409,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	// BrowserOpenURL, so window.open is a no-op; the UI posts the URL here
 	// instead. Loopback-only, http/https-only, exec'd as a single argv (no shell).
 	handlers.NewOpenURLHandler().Register(mux)
+	handlers.NewPickDirectoryHandler().Register(mux)
 	// Per-repo cost rollup. Handler is nil-safe and returns 503 when the
 	// global ledger isn't wired.
 	mux.Handle("/api/global/costs", handlers.NewGlobalCostsHandler(svc.Costs))

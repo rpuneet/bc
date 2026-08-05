@@ -38,6 +38,9 @@ func TestSystemInfoReportsWorkspace(t *testing.T) {
 	if body["workspace"] != abs {
 		t.Fatalf("workspace = %v, want %q", body["workspace"], abs)
 	}
+	if mh, _ := body["mycel_home"].(string); mh == "" {
+		t.Fatal("mycel_home missing or empty")
+	}
 }
 
 func TestSystemInfoReportsNoWorkspace(t *testing.T) {
@@ -61,5 +64,8 @@ func TestSystemInfoReportsNoWorkspace(t *testing.T) {
 	}
 	if ws, _ := body["workspace"].(string); ws != "" {
 		t.Fatalf("workspace = %q, want empty", ws)
+	}
+	if mh, _ := body["mycel_home"].(string); mh == "" {
+		t.Fatal("mycel_home missing or empty")
 	}
 }
