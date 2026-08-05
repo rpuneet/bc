@@ -93,7 +93,7 @@ func (s *Server) Start() {
 	publishDaemonAddr(s.URL())
 
 	go func() {
-		err := cmd.RunServerCtx(ctx, s.addr, s.repoRoot, "*", s.apiKey)
+		err := cmd.RunServerCtx(ctx, s.addr, s.repoRoot, cmd.ResolveCORSOrigin(), s.apiKey)
 		if err != nil && strings.Contains(err.Error(), "address already in use") {
 			// Lost the port race to a daemon that came up between the
 			// probe and the bind — become a client of it instead.
