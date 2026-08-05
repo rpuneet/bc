@@ -117,11 +117,11 @@ func Automated() DispatchOption {
 	return func(o *dispatchOpts) { o.automated = true }
 }
 
-// RecordOutbound stores a message an agent sent out to a platform channel, so
-// channel history reads as a conversation rather than only the half that came
-// in. Inbound messages are stored by Dispatch; outbound ones have no dispatch
-// to hang off, because nothing needs delivering — they are already on their way
-// to the platform.
+// RecordOutbound stores a message an agent sent out to a platform channel,
+// so channel history reads as a conversation rather than only the half that came
+// in. It also delivers the message to other subscribed agents (excluding the
+// sender) because platform echoes (like Slack bot_message events) may not be
+// reliable for waking other agents.
 //
 // Called after the gateway reports a successful send. Errors are logged rather
 // than returned: the message has already left, so failing the caller's send
@@ -136,6 +136,9 @@ func (s *Service) RecordOutbound(channel, sender, content string) {
 		log.Warn("notify: save outbound message failed", "channel", channel, "sender", sender, "error", err)
 		return
 	}
+
+	// Deliver to other subscribed agents (local fan-out)
+	s.deliverOutboundToSubscribers(ctx, channel, sender, content)
 
 	// Same event shape the inbound path publishes, so an open channel view
 	// appends the message live instead of waiting for a refetch.
@@ -439,4 +442,104 @@ func (s *Service) PruneOldActivity(ctx context.Context, keepPerChannel int) erro
 		}
 	}
 	return nil
+}
+
+// deliverOutboundToSubscribers delivers an outbound message to other subscribed
+// agents (excluding the sender). Used for local fan-out when platform echoes
+// (like Slack bot_message events) may not be reliable.
+func (s *Service) deliverOutboundToSubscribers(ctx context.Context, channel, sender, content string) {
+	// Get subscribers for this channel
+	subs, subErr := s.store.Subscribers(ctx, channel)
+	if subErr != nil {
+		log.Warn("notify: failed to get subscribers for outbound", "channel", channel, "error", subErr)
+		return
+	}
+
+	// Extract platform from channel name (e.g., "slack:general" -> "slack")
+	platform := ""
+	if idx := strings.Index(channel, ":"); idx > 0 {
+		platform = channel[:idx]
+	}
+
+	// Fallback to catch-all subscription if no direct subscribers
+	if len(subs) == 0 && platform != "" {
+		catchAll := platform + catchAllSuffix
+		if channel != "" && channel != catchAll && strings.HasPrefix(channel, platform+":") {
+			fallback, fErr := s.store.Subscribers(ctx, catchAll)
+			if fErr != nil {
+				log.Warn("notify: catch-all lookup failed for outbound", "platform", platform, "channel", channel, "error", fErr)
+			} else if len(fallback) > 0 {
+				subs = fallback
+				log.Info("notify: delivering outbound via catch-all subscription",
+					"channel", channel, "catch_all", catchAll, "agents", len(fallback))
+			}
+		}
+	}
+
+	log.Info("notify: outbound fan-out", "channel", channel, "sender", sender, "subscribers", len(subs))
+
+	// Extract mentions from content for mention_only filtering
+	mentions := extractMentions(content)
+	mentionSet := make(map[string]bool, len(mentions))
+	for _, m := range mentions {
+		mentionSet[strings.ToLower(m)] = true
+	}
+
+	// Strip platform prefix from sender for self-skip comparison
+	// Gateway messages arrive as "[slack] agent-name" but subscriptions
+	// store bare agent names.
+	rawSender := platformPrefixRe.ReplaceAllString(sender, "")
+
+	// Create notification payload
+	payload, err := json.Marshal(Notification{
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Channel:   channel,
+		Platform:  platform,
+		Sender:    sender,
+		Content:   content,
+		Mentions:  mentions,
+	})
+	if err != nil {
+		log.Error("notify: marshal outbound notification", "error", err)
+		return
+	}
+
+	// Deliver to each subscribed agent
+	for _, sub := range subs {
+		// Self-skip: don't echo agent's own message back
+		if strings.EqualFold(sub.Agent, rawSender) {
+			continue
+		}
+
+		// @mention filter: if mention_only, skip unless agent is mentioned
+		if sub.MentionOnly && !mentionSet[strings.ToLower(sub.Agent)] {
+			continue
+		}
+
+		sendErr := s.agents.Send(ctx, sub.Agent, string(payload))
+		status := StatusDelivered
+		errStr := ""
+		switch {
+		case sendErr == nil:
+			log.Info("notify: outbound delivered", "agent", sub.Agent, "channel", channel)
+		case agentOfflineRe.MatchString(sendErr.Error()):
+			// Subscribed agent was offline when the message arrived
+			log.Debug("notify: outbound delivery skipped (agent offline)", "agent", sub.Agent, "channel", channel)
+			continue
+		default:
+			status = StatusFailed
+			errStr = sendErr.Error()
+			log.Warn("notify: outbound delivery failed", "agent", sub.Agent, "channel", channel, "error", sendErr)
+		}
+
+		if logErr := s.store.LogDelivery(ctx, DeliveryEntry{
+			Channel: channel,
+			Agent:   sub.Agent,
+			Status:  status,
+			Error:   errStr,
+			Preview: truncate(content, 120),
+		}); logErr != nil {
+			log.Warn("notify: log outbound delivery failed", "error", logErr)
+		}
+	}
 }
