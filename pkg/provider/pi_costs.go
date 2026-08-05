@@ -31,18 +31,18 @@ type piCostLine struct {
 }
 
 type piCostMessage struct {
+	Usage    *piCostUsage `json:"usage,omitempty"`
 	Role     string       `json:"role"`
 	Provider string       `json:"provider,omitempty"`
 	Model    string       `json:"model,omitempty"`
-	Usage    *piCostUsage `json:"usage,omitempty"`
 }
 
 type piCostUsage struct {
+	Cost       *piCostUSD `json:"cost,omitempty"`
 	Input      int64      `json:"input"`
 	Output     int64      `json:"output"`
 	CacheRead  int64      `json:"cacheRead"`
 	CacheWrite int64      `json:"cacheWrite"`
-	Cost       *piCostUSD `json:"cost,omitempty"`
 }
 
 type piCostUSD struct {
