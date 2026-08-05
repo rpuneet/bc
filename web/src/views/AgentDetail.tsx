@@ -1138,12 +1138,8 @@ function SettingsTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) 
 
         {/* ── APPS ── */}
         <section>
-          <SectionRule>Apps</SectionRule>
+          <SectionRule>Notifications</SectionRule>
           <AgentAppsCard agentName={agent.name} />
-          <p className="mt-2 text-xs text-mycel-muted leading-relaxed">
-            App channels this agent listens to — messages route here from connected
-            platforms (Slack, Telegram, WhatsApp, …).
-          </p>
         </section>
 
         {/* ── RUNTIME INFO ── */}

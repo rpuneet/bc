@@ -1,7 +1,5 @@
 /**
- * AgentAppsCard — the "Apps" card on the agent detail Config tab.
- * Lists only this agent's channel subscriptions, offers add/remove, and
- * routes the mutations through the /api/apps subscription endpoints.
+ * AgentAppsCard — Notifications subscriptions on the agent detail Config tab.
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -32,13 +30,15 @@ const sources = [
   { name: "slack:general", description: "", members: [], member_count: 0 },
   { name: "telegram:standup", description: "", members: [], member_count: 0 },
   { name: "whatsapp:family", description: "", members: [], member_count: 0 },
+  { name: "gmail:alerts", description: "", members: [], member_count: 0 },
+  { name: "gmail:news", description: "", members: [], member_count: 0 },
 ];
 
 function mockRoutes() {
   fetchMock.mockImplementation((url: RequestInfo | URL, init?: RequestInit) => {
     const u = String(url);
     if (u.includes("/notify/subscriptions")) return jsonResponse(subs);
-    if (u.includes("/api/apps/channels")) return jsonResponse(sources);
+    if (u.includes("/api/apps/channels") || u.includes("/apps/channels")) return jsonResponse(sources);
     if (init?.method === "POST" || init?.method === "DELETE") {
       return jsonResponse({ status: "ok" });
     }
@@ -51,7 +51,7 @@ beforeEach(() => {
 });
 
 describe("AgentAppsCard", () => {
-  it("lists only this agent's app channel subscriptions", async () => {
+  it("lists only this agent's notification channel subscriptions", async () => {
     mockRoutes();
     render(
       <MemoryRouter>
@@ -63,52 +63,66 @@ describe("AgentAppsCard", () => {
       expect(screen.getByText("general")).toBeInTheDocument();
     });
     expect(screen.getByText("standup")).toBeInTheDocument();
-    // The mention-only state renders per subscription.
     expect(screen.getByText("@ mentions")).toBeInTheDocument();
     expect(screen.getByText("all msgs")).toBeInTheDocument();
-    // whatsapp:family belongs to no subscription — only in the add list.
-    const select = screen.getByLabelText("Channel to subscribe");
-    expect(select).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "whatsapp:family" })).toBeInTheDocument();
-    // Already-subscribed channels don't appear in the add list.
-    expect(screen.queryByRole("option", { name: "slack:general" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Add notification channel")).toBeInTheDocument();
   });
 
-  it("subscribes via the /api/apps channel-agents route", async () => {
+  it("opens a searchable grouped picker and subscribes", async () => {
     mockRoutes();
     render(
       <MemoryRouter>
         <AgentAppsCard agentName="bot-1" />
       </MemoryRouter>,
     );
+
     await waitFor(() => {
-      expect(screen.getByLabelText("Channel to subscribe")).toBeInTheDocument();
+      expect(screen.getByLabelText("Add notification channel")).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText("Channel to subscribe"), {
-      target: { value: "whatsapp:family" },
+    fireEvent.click(screen.getByLabelText("Add notification channel"));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Search channels")).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByRole("button", { name: "Subscribe" }));
+
+    // Group headers for available platforms (gmail + whatsapp; slack/telegram already subscribed).
+    expect(screen.getByText("Gmail")).toBeInTheDocument();
+    expect(screen.getByText("Whatsapp")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Search channels"), {
+      target: { value: "family" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("family")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("alerts")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("family"));
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(
         (c) =>
-          String(c[0]) === "/api/apps/whatsapp/channels/family/agents" &&
+          String(c[0]).includes("/api/apps/whatsapp/channels/family/agents") &&
           (c[1] as RequestInit | undefined)?.method === "POST",
       );
-      expect(post).toBeDefined();
-      const body = JSON.parse(String((post![1] as RequestInit).body)) as Record<string, unknown>;
-      expect(body.agent).toBe("bot-1");
+      expect(post).toBeTruthy();
+      expect(JSON.parse(String((post![1] as RequestInit).body))).toEqual({
+        agent: "bot-1",
+        mention_only: false,
+      });
     });
   });
 
-  it("removes a subscription via DELETE on the same route", async () => {
+  it("unsubscribes via the apps channel-agents route", async () => {
     mockRoutes();
     render(
       <MemoryRouter>
         <AgentAppsCard agentName="bot-1" />
       </MemoryRouter>,
     );
+
     await waitFor(() => {
       expect(screen.getByText("general")).toBeInTheDocument();
     });
@@ -116,12 +130,13 @@ describe("AgentAppsCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Unsubscribe from slack:general" }));
 
     await waitFor(() => {
-      const del = fetchMock.mock.calls.find(
-        (c) =>
-          String(c[0]) === "/api/apps/slack/channels/general/agents/bot-1" &&
-          (c[1] as RequestInit | undefined)?.method === "DELETE",
-      );
-      expect(del).toBeDefined();
+      expect(
+        fetchMock.mock.calls.some(
+          (c) =>
+            String(c[0]) === "/api/apps/slack/channels/general/agents/bot-1" &&
+            (c[1] as RequestInit | undefined)?.method === "DELETE",
+        ),
+      ).toBe(true);
     });
   });
 });
