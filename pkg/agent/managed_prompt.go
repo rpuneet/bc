@@ -158,25 +158,25 @@ func syncManagedPromptFile(promptFile, managedBlock string) error {
 		return fmt.Errorf("mkdir prompt dir: %w", err)
 	}
 	// Atomic replace so a crash mid-write cannot leave a truncated prompt.
-	tmp, err := os.CreateTemp(dir, ".mycel-prompt-*.tmp")
-	if err != nil {
-		return fmt.Errorf("create temp prompt file: %w", err)
+	tmp, createErr := os.CreateTemp(dir, ".mycel-prompt-*.tmp")
+	if createErr != nil {
+		return fmt.Errorf("create temp prompt file: %w", createErr)
 	}
 	tmpName := tmp.Name()
 	defer func() { _ = os.Remove(tmpName) }()
-	if _, err := tmp.Write([]byte(out.String())); err != nil {
+	if _, writeErr := tmp.Write([]byte(out.String())); writeErr != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("write temp prompt file: %w", err)
+		return fmt.Errorf("write temp prompt file: %w", writeErr)
 	}
-	if err := tmp.Chmod(0o600); err != nil {
+	if chmodErr := tmp.Chmod(0o600); chmodErr != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("chmod temp prompt file: %w", err)
+		return fmt.Errorf("chmod temp prompt file: %w", chmodErr)
 	}
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("close temp prompt file: %w", err)
+	if closeErr := tmp.Close(); closeErr != nil {
+		return fmt.Errorf("close temp prompt file: %w", closeErr)
 	}
-	if err := os.Rename(tmpName, cleaned); err != nil {
-		return fmt.Errorf("replace prompt file: %w", err)
+	if renameErr := os.Rename(tmpName, cleaned); renameErr != nil {
+		return fmt.Errorf("replace prompt file: %w", renameErr)
 	}
 	return nil
 }
