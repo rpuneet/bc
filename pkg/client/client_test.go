@@ -93,10 +93,12 @@ func TestNew(t *testing.T) {
 
 func TestNew_EmptyAddr(t *testing.T) {
 	// With no env var AND no addr file, should use default.
-	// Point HOME at an empty tempdir so the test doesn't see the
-	// developer's live ~/.mycel/run/daemon.addr.
+	// Point MYCEL_HOME/HOME at empty tempdirs so the test doesn't see the
+	// developer's live ~/.mycel/run/daemon.addr (#3011).
 	os.Unsetenv("MYCEL_DAEMON_ADDR") //nolint:errcheck
-	t.Setenv("HOME", t.TempDir())
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	t.Setenv("MYCEL_HOME", filepath.Join(tmp, ".mycel"))
 	c := New("")
 	if c.BaseURL != DefaultHTTPAddr {
 		t.Errorf("BaseURL = %q, want %q", c.BaseURL, DefaultHTTPAddr)
@@ -117,8 +119,12 @@ func TestNew_EnvAddr(t *testing.T) {
 func TestNew_DaemonAddrFile(t *testing.T) {
 	os.Unsetenv("MYCEL_DAEMON_ADDR") //nolint:errcheck
 	tmp := t.TempDir()
+	// MycelHome prefers MYCEL_HOME over HOME — pin both so a live
+	// developer MYCEL_HOME / daemon.addr cannot shadow the fixture (#3011).
+	mycel := filepath.Join(tmp, ".mycel")
 	t.Setenv("HOME", tmp)
-	bcDir := filepath.Join(tmp, ".mycel", "run")
+	t.Setenv("MYCEL_HOME", mycel)
+	bcDir := filepath.Join(mycel, "run")
 	if err := os.MkdirAll(bcDir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -137,8 +143,10 @@ func TestNew_DaemonAddrFile(t *testing.T) {
 // override via env without deleting the file.
 func TestNew_EnvWinsOverFile(t *testing.T) {
 	tmp := t.TempDir()
+	mycel := filepath.Join(tmp, ".mycel")
 	t.Setenv("HOME", tmp)
-	bcDir := filepath.Join(tmp, ".mycel", "run")
+	t.Setenv("MYCEL_HOME", mycel)
+	bcDir := filepath.Join(mycel, "run")
 	if err := os.MkdirAll(bcDir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
