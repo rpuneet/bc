@@ -86,17 +86,17 @@ type Manager struct {
 	execCommand     func(name string, arg ...string) *exec.Cmd
 	sessionLocks    map[string]*sync.Mutex
 	hasSessionCache map[string]bool // Cached session existence checks
+	sessionsCache   []Session       // Cached list of sessions
 	SessionPrefix   string          // Prepended to all session names (e.g., "mycel-")
 	// DefaultShell is the absolute path of the shell used for new sessions
 	// (prefs runtime.tmux.default_shell). Empty means "/bin/bash".
 	DefaultShell string
+	cacheTTL     time.Duration // Cache TTL (default: 2 seconds)
 	// HistoryLimit is applied as tmux history-limit on create when > 0
 	// (prefs runtime.tmux.history_limit).
-	HistoryLimit  int
-	sessionsCache []Session     // Cached list of sessions
-	cacheTTL      time.Duration // Cache TTL (default: 2 seconds)
-	cacheMu       sync.RWMutex  // Protects cache fields
-	sessionMu     sync.Mutex    // Protects per-session SendKeys serialization
+	HistoryLimit int
+	cacheMu      sync.RWMutex // Protects cache fields
+	sessionMu    sync.Mutex   // Protects per-session SendKeys serialization
 }
 
 // NormalizeSessionPrefix ensures a trailing "-" so agent names do not glue
