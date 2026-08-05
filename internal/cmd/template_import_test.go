@@ -31,8 +31,8 @@ func writeImportFile(t *testing.T, doc template.ImportDoc) string {
 
 // fakeTemplateAPI is an in-memory /api/templates + /health handler for CLI tests.
 type fakeTemplateAPI struct {
-	mu   sync.Mutex
 	data map[string]client.TemplateInfo
+	mu   sync.Mutex
 }
 
 func newFakeTemplateAPI() *fakeTemplateAPI {

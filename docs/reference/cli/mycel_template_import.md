@@ -4,26 +4,14 @@ Import a template from a file, URL, or the marketplace catalog
 
 ### Synopsis
 
-Import a template into the global template store (~/.mycel/templates/).
+Import a template into the daemon template store.
 
 <source> may be:
   - a path to a local JSON file describing the template
   - an http(s) URL to a template JSON document
   - the name of a template already known to the marketplace catalog
-    (mycel marketplace list --type template)
 
-The JSON document has the same shape as 'mycel template show', plus an
-optional "system_prompt" string field carrying the system prompt text:
-
-  {
-    "name": "my-template",
-    "description": "...",
-    "mcps": ["mycel"],
-    "system_prompt": "You are..."
-  }
-
-Importing a name that already exists in the store updates it in place;
-pass --force to allow the overwrite.
+Importing a name that already exists updates it in place when --force is set.
 
 ```
 mycel template import <source> [flags]

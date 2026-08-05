@@ -12,7 +12,7 @@ type TemplatesClient struct {
 }
 
 // TemplateInfo is a template as returned by /api/templates.
-type TemplateInfo struct {
+type TemplateInfo struct { //nolint:govet // field order matches JSON/API contract
 	Name             string   `json:"name"`
 	Description      string   `json:"description,omitempty"`
 	Label            string   `json:"label,omitempty"`
@@ -30,7 +30,7 @@ type TemplateInfo struct {
 
 // templateWriteBody is the create/update payload. SystemPrompt is a pointer
 // so PUT can clear the prompt with an explicit empty string.
-type templateWriteBody struct {
+type templateWriteBody struct { //nolint:govet // field order matches JSON/API contract
 	Name            string   `json:"name"`
 	Description     string   `json:"description,omitempty"`
 	Label           string   `json:"label,omitempty"`
