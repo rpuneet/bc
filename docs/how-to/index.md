@@ -7,7 +7,7 @@ Task-oriented guides for common operations.
 | [Configure mycel](configure.md) | prefs.json structure, providers, runtime backends, and validation |
 | [Set up apps](set-up-apps.md) | Connect external platforms and subscribe agents |
 | [Manage secrets](manage-secrets.md) | The encrypted vault, `${secret:NAME}` references, repo overrides |
-| [Inject instructions](inject-instructions.md) | Add a global instruction block to every agent's prompt |
+| [Inject instructions](inject-instructions.md) | Mycel-managed prompt section (instructions, MCP, apps, subscriptions) |
 | [Use agent templates](use-templates.md) | The 36 built-in templates, guardrails, and writing your own |
 | [Browse the marketplace](browse-the-marketplace.md) | Discover and install agent templates |
 | [Read insights](read-insights.md) | Costs, stats, and activity surfaces |

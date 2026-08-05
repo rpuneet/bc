@@ -364,6 +364,7 @@ func buildServicesFromHome(ctx context.Context, globals *Globals, h *home.Home) 
 		degraded["notify"] = "notify store unavailable: " + err.Error()
 	} else {
 		notifyService = notifypkg.NewServiceWithContext(svcCtx, ns, agentSvc, hub)
+		agentMgr.SetChannelLister(ns)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

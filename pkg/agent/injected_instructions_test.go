@@ -10,8 +10,7 @@ import (
 	"github.com/rpuneet/mycel/pkg/home"
 )
 
-// writeEmptyPromptFile creates an empty prompt file so appendInjectedInstructions
-// (which opens with O_APPEND|O_WRONLY, no O_CREATE) can write to it.
+// writeEmptyPromptFile creates a seeded prompt file for append/sync tests.
 func writeEmptyPromptFile(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -22,53 +21,12 @@ func writeEmptyPromptFile(t *testing.T) string {
 	return p
 }
 
-func TestAppendInjectedInstructions_AppendsBlock(t *testing.T) {
-	p := writeEmptyPromptFile(t)
-	cfg := &home.Config{
-		InjectedInstructions: "Always report status before and after work.",
-	}
-
-	err := appendInjectedInstructions(
-		context.Background(),
-		p,
-		cfg,
-		[]string{"mycel", "github"},             // intentionally unsorted
-		[]string{"SLACK_BOT_TOKEN", "GH_TOKEN"}, // key NAMES only
-	)
-	if err != nil {
-		t.Fatalf("appendInjectedInstructions: %v", err)
-	}
-
-	data, err := os.ReadFile(p) //nolint:gosec // test file path from t.TempDir
-	if err != nil {
-		t.Fatalf("read prompt file: %v", err)
-	}
-	got := string(data)
-
-	for _, want := range []string{
-		"# existing prompt",                              // pre-existing content preserved
-		"## mycel instructions",                          // block header
-		"Always report status before and after work.",    // authored text
-		"### Available resources",                        // resources sub-header
-		"MCP servers: github, mycel",                     // sorted MCP names
-		"Credential env vars: GH_TOKEN, SLACK_BOT_TOKEN", // sorted key NAMES
-	} {
-		if !strings.Contains(got, want) {
-			t.Errorf("prompt file missing %q\n---\n%s", want, got)
-		}
-	}
-}
-
-// TestAppendInjectedInstructions_NoSecretValues proves that only credential env
-// var NAMES are written — a secret VALUE handed to the function via env would
-// never reach the prompt because the function only ever receives names.
 func TestAppendInjectedInstructions_NoSecretValues(t *testing.T) {
 	p := writeEmptyPromptFile(t)
 	cfg := &home.Config{InjectedInstructions: "Do the thing."}
 
 	const secretValue = "xoxb-super-secret-token-value" //nolint:gosec // fake token used to assert non-leakage
 
-	// Only the NAME is passed. The value must never be written.
 	if err := appendInjectedInstructions(
 		context.Background(),
 		p,
@@ -79,12 +37,7 @@ func TestAppendInjectedInstructions_NoSecretValues(t *testing.T) {
 		t.Fatalf("appendInjectedInstructions: %v", err)
 	}
 
-	data, err := os.ReadFile(p) //nolint:gosec // test file path from t.TempDir
-	if err != nil {
-		t.Fatalf("read prompt file: %v", err)
-	}
-	got := string(data)
-
+	got := readFile(t, p)
 	if strings.Contains(got, secretValue) {
 		t.Fatalf("secret value leaked into prompt file:\n%s", got)
 	}
@@ -96,30 +49,19 @@ func TestAppendInjectedInstructions_NoSecretValues(t *testing.T) {
 	}
 }
 
-func TestAppendInjectedInstructions_EmptyIsNoop(t *testing.T) {
+func TestAppendInjectedInstructions_EmptyStillWritesManagedShell(t *testing.T) {
+	// Empty injected text still syncs the managed block (identity / resources)
+	// so spawn always has a stable mycel section (#3648).
 	p := writeEmptyPromptFile(t)
-	before, err := os.ReadFile(p) //nolint:gosec // test file path from t.TempDir
-	if err != nil {
-		t.Fatalf("read prompt file: %v", err)
+	if err := appendInjectedInstructions(context.Background(), p, &home.Config{InjectedInstructions: ""}, []string{"mycel"}, []string{"GH_TOKEN"}); err != nil {
+		t.Fatal(err)
 	}
-
-	// Empty / whitespace-only instructions must not touch the file.
-	for _, cfg := range []*home.Config{
-		nil,
-		{InjectedInstructions: ""},
-		{InjectedInstructions: "   \n\t "},
-	} {
-		if appendErr := appendInjectedInstructions(context.Background(), p, cfg, []string{"mycel"}, []string{"GH_TOKEN"}); appendErr != nil {
-			t.Fatalf("appendInjectedInstructions: %v", appendErr)
-		}
+	got := readFile(t, p)
+	if !strings.Contains(got, managedPromptStart) {
+		t.Fatalf("expected managed block even with empty instructions:\n%s", got)
 	}
-
-	after, err := os.ReadFile(p) //nolint:gosec // test file path from t.TempDir
-	if err != nil {
-		t.Fatalf("read prompt file: %v", err)
-	}
-	if string(before) != string(after) {
-		t.Errorf("prompt file changed on no-op:\nbefore=%q\nafter=%q", before, after)
+	if !strings.Contains(got, "MCP servers: mycel") {
+		t.Fatalf("expected MCP summary:\n%s", got)
 	}
 }
 
