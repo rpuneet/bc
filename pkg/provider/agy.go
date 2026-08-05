@@ -2,18 +2,20 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // AgyProvider implements the Provider interface for the Antigravity CLI
 // (`agy`), Google's terminal agent running the Gemini 3.x family. It matches
 // the Claude provider's integration depth: model selection, resume by
 // conversation ID or bare continue, dynamic + static model listing,
-// resumable-session detection, and hook-based activity reporting.
+// resumable-session detection, and activity reporting via session transcript.
 type AgyProvider struct {
 	AgyConfigAdapter // embeds ConfigAdapter implementation (.agents layout)
 	name             string
@@ -80,7 +82,7 @@ func SafeAgyModelName(model string) bool {
 
 // shellSingleQuote wraps s in single quotes for safe interpolation into a
 // shell command line, escaping any embedded single quote via the standard
-// '\” idiom. Callers must still gate the value through SafeAgyModelName; the
+// '\' idiom. Callers must still gate the value through SafeAgyModelName; the
 // escape here is defense in depth.
 func shellSingleQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
@@ -226,26 +228,141 @@ func (p *AgyProvider) HasResumableSession(_ string) bool {
 	return false
 }
 
-// ActivityMode reports that agy emits activity via lifecycle hooks
-// (.agents/hooks.json) that POST to the daemon's hook endpoint, exactly like Claude.
-func (p *AgyProvider) ActivityMode() string { return ActivityModeHooks }
+// ActivityMode reports that agy exposes activity via an on-disk session
+// transcript the daemon tails. This is ActivityModeTranscript (not hooks)
+// because agy's hooks do not pipe JSON payload on stdin as documented.
+//
+// Fixes #3531: agy's hooks fire for state transitions but provide no payload,
+// resulting in agents showing state but no prompt/tool details. The transcript
+// approach allows full activity reporting including prompts and tool usage.
+func (p *AgyProvider) ActivityMode() string { return ActivityModeTranscript }
 
-// WriteHookConfig writes agy lifecycle-hook settings into the agent worktree.
-// daemonAddr and agentID are unused: the generated hook commands resolve the
-// daemon address and agent identity at runtime via the MYCEL_DAEMON_ADDR and
-// MYCEL_AGENT_ID environment variables set on the agent session.
-func (p *AgyProvider) WriteHookConfig(worktreeDir, _, _ string) error {
-	return WriteAgyHookSettings(worktreeDir)
+// WriteHookConfig is a no-op for agy: activity is sourced by tailing its
+// session transcript, not via hooks.
+func (p *AgyProvider) WriteHookConfig(_, _, _ string) error { return nil }
+
+// agyTranscriptsRoot resolves agy's transcript root directory. agy stores
+// session transcripts under ~/.gemini/antigravity-cli/brain/<conversation-id>/.system_generated/logs/
+var agyTranscriptsRoot = func() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".gemini", "antigravity-cli", "brain")
 }
 
-// TranscriptGlobs returns glob patterns matching the agy CLI's session
-// transcript for an agent working in cwd. The CLI writes its transcript to
-// <cwd>/.gemini/antigravity-cli/transcript.jsonl.
+// TranscriptGlobs returns glob patterns matching agy's session transcript files.
+// agy writes transcripts to ~/.gemini/antigravity-cli/brain/<conversation-id>/.system_generated/logs/transcript.jsonl
+// The cwd parameter is ignored because agy stores transcripts in a global location,
+// not per-worktree. Returns nil if cwd is empty.
 func (p *AgyProvider) TranscriptGlobs(cwd string) []string {
 	if cwd == "" {
 		return nil
 	}
-	return []string{filepath.Join(cwd, ".gemini", "antigravity-cli", "transcript.jsonl")}
+	root := agyTranscriptsRoot()
+	if root == "" {
+		return nil
+	}
+	return []string{filepath.Join(root, "*", ".system_generated", "logs", "transcript.jsonl")}
+}
+
+// agyTranscriptLine is one JSONL entry in an agy transcript file.
+type agyTranscriptLine struct {
+	StepIndex int           `json:"step_index"`
+	Source    string        `json:"source"`
+	Type      string        `json:"type"`
+	Status    string        `json:"status"`
+	CreatedAt string        `json:"created_at"`
+	Content   string        `json:"content,omitempty"`
+	Thinking  string        `json:"thinking,omitempty"`
+	ToolCalls []agyToolCall `json:"tool_calls,omitempty"`
+	Error     string        `json:"error,omitempty"`
+	ErrorCode int           `json:"error_code,omitempty"`
+}
+
+// agyToolCall represents a tool call in agy's transcript.
+type agyToolCall struct {
+	Name string `json:"name"`
+	Args any    `json:"args,omitempty"`
+}
+
+// ParseTranscriptLine turns one agy JSONL line into zero or more activity
+// events. Unrecognized or malformed lines yield (nil, nil).
+func (p *AgyProvider) ParseTranscriptLine(line []byte) ([]TranscriptActivity, error) {
+	line = []byte(strings.TrimSpace(string(line)))
+	if len(line) == 0 {
+		return nil, nil
+	}
+
+	var entry agyTranscriptLine
+	if err := json.Unmarshal(line, &entry); err != nil {
+		return nil, nil // tolerate malformed lines mid-stream
+	}
+
+	ts, _ := time.Parse(time.RFC3339, entry.CreatedAt)
+
+	switch entry.Type {
+	case "USER_INPUT":
+		// Extract prompt from content - strip USER_REQUEST wrapper
+		prompt := extractAgyPrompt(entry.Content)
+		if prompt == "" {
+			return nil, nil
+		}
+		return []TranscriptActivity{{
+			Event:     "UserPromptSubmit",
+			Prompt:    prompt,
+			Timestamp: ts,
+		}}, nil
+
+	case "PLANNER_RESPONSE":
+		// Model planning response may include tool calls
+		if len(entry.ToolCalls) == 0 {
+			return nil, nil
+		}
+		var activities []TranscriptActivity
+		for _, tc := range entry.ToolCalls {
+			if tc.Name != "" {
+				activities = append(activities, TranscriptActivity{
+					Event:     "PreToolUse",
+					ToolName:  tc.Name,
+					ToolInput: tc.Args,
+					Timestamp: ts,
+				})
+			}
+		}
+		return activities, nil
+
+	case "RUN_COMMAND":
+		// Tool execution results - skip as we can't accurately map PostToolUse
+		// without state tracking
+		return nil, nil
+
+	default:
+		return nil, nil
+	}
+}
+
+// extractAgyPrompt extracts the user prompt from agy's USER_INPUT content.
+// agy wraps prompts in <USER_REQUEST> tags, so we extract the inner content.
+func extractAgyPrompt(content string) string {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return ""
+	}
+
+	// Extract content between <USER_REQUEST> and </USER_REQUEST>
+	if start := strings.Index(content, "<USER_REQUEST>"); start != -1 {
+		if end := strings.Index(content[start:], "</USER_REQUEST>"); end != -1 {
+			content = content[start+len("<USER_REQUEST>") : start+end]
+		}
+	}
+
+	// Strip <ADDITIONAL_METADATA> if present
+	if metaStart := strings.Index(content, "<ADDITIONAL_METADATA>"); metaStart != -1 {
+		content = strings.TrimSpace(content[:metaStart])
+	}
+
+	return strings.TrimSpace(content)
 }
 
 // Ensure AgyProvider implements all declared interfaces.
@@ -257,3 +374,4 @@ var _ SessionCustomizer = (*AgyProvider)(nil)
 var _ SessionResumer = (*AgyProvider)(nil)
 var _ ResumableSessionDetector = (*AgyProvider)(nil)
 var _ ActivitySource = (*AgyProvider)(nil)
+var _ TranscriptParser = (*AgyProvider)(nil)
