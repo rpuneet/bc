@@ -332,30 +332,16 @@ export function CreateAgentModal({
     setSubmitError(null);
     setSubmitting(true);
     try {
-      const res = await fetch("/api/agents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: trimmed,
-          template,
-          tool: provider,
-          model: model || undefined,
-          runtime_backend: runtime,
-          repo: repoPath,
-          task: task || undefined,
-          env: Object.keys(env).length > 0 ? env : undefined,
-        }),
+      const body = await api.createAgent({
+        name: trimmed,
+        template,
+        tool: provider,
+        model: model || undefined,
+        runtime,
+        repo: repoPath,
+        task: task || undefined,
+        env: Object.keys(env).length > 0 ? env : undefined,
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({})) as { error?: string };
-        setSubmitError(err.error ?? "Failed to create agent");
-        setSubmitting(false);
-        return;
-      }
-      const body = await res.json().catch(() => ({})) as {
-        name?: string;
-        agents?: { name: string }[];
-      };
       const firstLeaf = body.agents?.[0]?.name;
       const primary = firstLeaf || body.name || trimmed;
       // Wire the selected app channel subscriptions — best effort; the

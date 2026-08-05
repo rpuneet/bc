@@ -219,7 +219,6 @@ MCP server registry (distinct from per-agent `.mcp.json`, see Agents).
 |--------|------|-------------|
 | GET | `/api/tools` | List tools. Query: repeatable `type=` filter (`cli`, `mcp`, ...). Paginated. |
 | POST | `/api/tools` | Add a tool. Returns `201`. |
-| POST | `/api/tools/check` | Health-check all tools (binary lookup per type). Returns `[{name, type, status, error?}]`. |
 | GET | `/api/tools/{name}` | Get one tool. |
 | PUT | `/api/tools/{name}` | Update a tool (name taken from the URL). |
 | DELETE | `/api/tools/{name}` | Delete. Returns `204`. |
@@ -414,7 +413,7 @@ Attachment upload/download (channel attachments and shared screenshots).
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/files/upload` | Multipart upload. Fields: `file` (required), `channel` (required), `sender` (optional, default `web`). Returns `201` with file metadata. |
+| POST | `/api/files/upload` | Multipart upload. Fields: `file` (required), `channel` (required), `sender` (optional, default `web`). Returns `201` with file metadata. Used by gateways/agents; the web UI currently downloads only. |
 | GET | `/api/files/{id}` | Download/serve a stored file (inline, cached for a day). |
 
 ---
@@ -428,7 +427,7 @@ Read-only code browsing for agent worktrees. All endpoints take `worktree=<agent
 | GET | `/api/code/tree` | Directory listing. Query: `path`, `worktree`, `show_hidden=1`. Returns `[{name, path, is_dir, size?}]` (`.git` and `.mycel` hidden at top level by default). |
 | GET | `/api/code/file` | File contents (max 2 MiB). Query: `path` (required), `worktree`. |
 | GET | `/api/code/diff` | `git diff main...HEAD` for the worktree as `text/plain`. Query: `worktree`, `path` (optional narrow). Empty body for the `main` worktree or missing `main` ref. |
-| GET | `/api/code/search` | ripgrep-backed search. Query: `q` (required, ≤1024 chars), `worktree`, `path` (subdir), `max` (default 500, max 2000), `case=1` (case-insensitive), `regex=1` (regex instead of literal). Returns `{"matches":[{path, line, col, text, before, after}], "truncated", "elapsed_ms"}`. |
+| GET | `/api/code/search` | ripgrep-backed search (API-only; no web UI caller yet). Query: `q` (required, ≤1024 chars), `worktree`, `path` (subdir), `max` (default 500, max 2000), `case=1` (case-insensitive), `regex=1` (regex instead of literal). Returns `{"matches":[{path, line, col, text, before, after}], "truncated", "elapsed_ms"}`. |
 
 `GET /api/code` (no sub-path) returns `404` with a hint listing the sub-routes.
 

@@ -669,7 +669,6 @@ precedence, so per-channel settings such as mention-only still work.
 ```mermaid
 graph TD
     NS[NotificationSidebar.tsx] --> GF[GatewayFeed.tsx]
-    NS --> SP[SubscriptionPanel.tsx]
     NS --> SW[SetupWizard.tsx]
 
     GF --> ML[MessageList.tsx]

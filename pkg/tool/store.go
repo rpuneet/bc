@@ -528,7 +528,7 @@ func (s *Store) Update(ctx context.Context, t *Tool) error {
 
 // UpdateHealth persists a fresh health_status + last_checked timestamp for
 // a tool without touching its other mutable fields. Used by the manual
-// /api/tools/check force-refresh and the background auto-check loop, so
+// /api/tools/unified/check force-refresh and the background auto-check loop, so
 // GET /api/tools always serves recently-verified status instead of the
 // seed-time default.
 func (s *Store) UpdateHealth(ctx context.Context, name, status, lastChecked string) error {

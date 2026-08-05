@@ -122,6 +122,13 @@ export interface Agent {
   missing_secrets?: string[];
 }
 
+/** Response from POST /api/agents — primary agent fields plus optional team leafs. */
+export interface CreateAgentResponse extends Agent {
+  team?: string;
+  agents?: Agent[];
+  missing?: string[];
+}
+
 export interface AgentConfig {
   system_prompt: string;
   mcp_servers: string[];
@@ -396,16 +403,6 @@ export interface AgentModelCostBreakdown {
   cost_usd: number;
   input_tokens: number;
   output_tokens: number;
-}
-
-export interface FileAttachment {
-  id: string;
-  filename: string;
-  mime_type: string;
-  size: number;
-  channel: string;
-  sender: string;
-  created_at: string;
 }
 
 export interface DailyCost {
@@ -971,26 +968,25 @@ export const api = {
     /** Optional when `template` is given: the server defaults the role to
      *  "base" so a template alone is enough to describe an agent. */
     role?: string;
-    /** Template to provision the agent from. The endpoint has always
-     *  accepted this; the type omitted it, so the create dialog had to bypass
-     *  this client with a raw fetch to ask for one. */
+    /** Template to provision the agent from. */
     template?: string;
     tool?: string;
     model?: string;
+    /** Runtime backend (`tmux` / `docker`). Server also accepts `runtime_backend`. */
     runtime?: string;
     /** Absolute path of the git repo to bind to. Empty binds to the repo the
      *  daemon was booted against. */
     repo?: string;
     /** Optional first instruction — recorded on the agent and delivered after spawn (#3589). */
     task?: string;
-    /** Name of an existing agent to attach this one to as a child. */
+    /** Name of an existing agent to attach this one as a child of. */
     parent?: string;
     /** Environment variables for the agent. Values may hold
      *  `${secret:NAME}` references resolved from the vault at spawn. */
     env?: Record<string, string>;
   }) =>
     tap(
-      request<Agent>("/agents", {
+      request<CreateAgentResponse>("/agents", {
         method: "POST",
         body: JSON.stringify(opts),
       }),
@@ -1480,18 +1476,8 @@ export const api = {
   getAgentComputedStats: (name: string) =>
     request<ComputedStats>(`/agents/${encodeURIComponent(name)}/stats-computed`),
 
-  /** Upload a file attachment. */
-  uploadFile: async (file: File, channel: string, sender: string) => {
-    const form = new FormData();
-    form.append("file", file);
-    form.append("channel", channel);
-    form.append("sender", sender);
-    const res = await fetch(`${BASE}/files/upload`, { method: "POST", body: form });
-    if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-    return res.json() as Promise<FileAttachment>;
-  },
-
-  /** Get file download URL. */
+  /** Get file download URL. Uploads go through POST /api/files/upload
+   *  directly (gateway/agents); the web UI has no upload affordance yet. */
   getFileUrl: (id: string) => `${BASE}/files/${encodeURIComponent(id)}`,
 
   /** Full machine-readiness report — tmux, git, provider CLIs, docker images. */

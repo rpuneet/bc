@@ -20,7 +20,6 @@ func NewToolHandler(store *tool.Store) *ToolHandler {
 
 // Register mounts tool routes on mux.
 func (h *ToolHandler) Register(mux *http.ServeMux) {
-	mux.HandleFunc("/api/tools/check", h.checkAll)
 	mux.HandleFunc("/api/tools", h.list)
 	mux.HandleFunc("/api/tools/", h.byName)
 }
@@ -73,25 +72,6 @@ func (h *ToolHandler) list(w http.ResponseWriter, r *http.Request) {
 	default:
 		methodNotAllowed(w)
 	}
-}
-
-// checkAll is the manual force-refresh: it runs a fresh health check on
-// every tool right now and persists the result via store.CheckAll,
-// independent of the background auto-check loop's own schedule (see
-// runToolHealthLoop in server/build_services.go).
-func (h *ToolHandler) checkAll(w http.ResponseWriter, r *http.Request) {
-	if !requireMethod(w, r, http.MethodPost) {
-		return
-	}
-	results, err := h.store.CheckAll(r.Context())
-	if err != nil {
-		httpInternalError(w, "check tools", err)
-		return
-	}
-	if results == nil {
-		results = []tool.HealthResult{}
-	}
-	writeJSON(w, http.StatusOK, results)
 }
 
 func (h *ToolHandler) byName(w http.ResponseWriter, r *http.Request) {

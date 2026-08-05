@@ -17,7 +17,7 @@ import (
 
 // TestCheckToolsOnce_WritesFreshStatus asserts the boot-time (and
 // per-interval) pass persists health_status/last_checked via the store,
-// exactly like the manual POST /api/tools/check force-refresh, so
+// exactly like the manual POST /api/tools/unified/check force-refresh, so
 // GET /api/tools serves recently-verified data without requiring a manual
 // check first.
 func TestCheckToolsOnce_WritesFreshStatus(t *testing.T) {
