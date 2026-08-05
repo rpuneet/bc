@@ -2,12 +2,20 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"math"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
+
+const perM = 1_000_000.0
+
+// RoughlyEqual compares floats with some tolerance.
+func RoughlyEqual(a, b float64) bool {
+	return math.Abs(a-b) < 0.01
+}
 
 func TestAppendAndReadCursorUsage(t *testing.T) {
 	agents := t.TempDir()
@@ -84,5 +92,90 @@ func TestCursorCalcCostUsesClaudePricingForClaudeModels(t *testing.T) {
 	want := ClaudeCalcCost("claude-sonnet-4", 1_000_000, 0, 0, 0)
 	if got != want {
 		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestCursorUsageBackfill(t *testing.T) {
+	// Set up test directories
+	agentsDir := t.TempDir()
+	eventsFile := filepath.Join(t.TempDir(), "events.jsonl")
+
+	// Create events.jsonl with 3 Stop events (2 will be new, 1 already exists)
+	eventsData := []string{
+		// Event 1: gen-1 (will be backfilled)
+		`{"type":"agent.hook","data":{"agent":"test-agent","event":"Stop","generation_id":"gen-1","session_id":"sess-1","model":"default","input_tokens":1000,"output_tokens":100,"cache_read_tokens":500,"cache_write_tokens":50}}`,
+		// Event 2: gen-2 (will be backfilled)
+		`{"type":"agent.hook","data":{"agent":"test-agent","event":"Stop","generation_id":"gen-2","session_id":"sess-1","model":"default","input_tokens":2000,"output_tokens":200,"cache_read_tokens":0,"cache_write_tokens":0}}`,
+		// Event 3: gen-3 (already exists, should be skipped)
+		`{"type":"agent.hook","data":{"agent":"test-agent","event":"Stop","generation_id":"gen-3","session_id":"sess-1","model":"default","input_tokens":3000,"output_tokens":300,"cache_read_tokens":0,"cache_write_tokens":0}}`,
+	}
+	f, err := os.Create(eventsFile) //nolint:gosec // test file
+	if err != nil {
+		t.Fatalf("create events file: %v", err)
+	}
+	for _, line := range eventsData {
+		_, werr := f.WriteString(line + "\n")
+		if werr != nil {
+			t.Fatalf("write event: %v", werr)
+		}
+	}
+	f.Close() //nolint:errcheck
+
+	// Create existing usage.jsonl with gen-3 already present
+	usageDir := filepath.Join(agentsDir, "test-agent", CursorUsageRelDir)
+	if merr := os.MkdirAll(usageDir, 0o750); merr != nil {
+		t.Fatalf("mkdir usage dir: %v", merr)
+	}
+	existingRec := CursorUsageRecord{
+		GenerationID:     "gen-3",
+		SessionID:        "sess-1",
+		Model:            "default",
+		InputTokens:      3000,
+		OutputTokens:     300,
+		CacheReadTokens:  0,
+		CacheWriteTokens: 0,
+	}
+	usageFile := filepath.Join(usageDir, CursorUsageFile)
+	existingData, _ := json.Marshal(existingRec)
+	if wferr := os.WriteFile(usageFile, append(existingData, '\n'), 0o600); wferr != nil { //nolint:gosec // test file
+		t.Fatalf("write existing usage: %v", wferr)
+	}
+
+	// Run backfill
+	appended, err := CursorUsageBackfill(eventsFile, agentsDir)
+	if err != nil {
+		t.Fatalf("CursorUsageBackfill: %v", err)
+	}
+	if appended != 2 {
+		t.Errorf("appended = %d, want 2 (gen-1 and gen-2)", appended)
+	}
+
+	// Read back usage.jsonl and verify 3 records exist
+	recs, err := readCursorUsageFile(usageFile)
+	if err != nil {
+		t.Fatalf("read usage file: %v", err)
+	}
+	if len(recs) != 3 {
+		t.Errorf("got %d records, want 3", len(recs))
+	}
+
+	// Verify costs match expected values
+	costGen1 := float64(1000)*0.60/perM + float64(100)*2.50/perM
+	costGen2 := float64(2000)*0.60/perM + float64(200)*2.50/perM
+	costGen3 := float64(3000)*0.60/perM + float64(300)*2.50/perM
+	expectedCosts := map[string]float64{"gen-1": costGen1, "gen-2": costGen2, "gen-3": costGen3}
+	for _, rec := range recs {
+		if rec.GenerationID == "" {
+			t.Errorf("record missing generation_id")
+			continue
+		}
+		wantCost, ok := expectedCosts[rec.GenerationID]
+		if !ok {
+			t.Errorf("unexpected generation_id: %s", rec.GenerationID)
+			continue
+		}
+		if !RoughlyEqual(rec.CostUSD, wantCost) {
+			t.Errorf("gen-%s cost = %.2f, want %.2f", rec.GenerationID, rec.CostUSD, wantCost)
+		}
 	}
 }
