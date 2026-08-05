@@ -52,7 +52,7 @@ func TestSyncManagedPrompt_Idempotent(t *testing.T) {
 func TestSyncManagedPrompt_StripsLegacyAppends(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "CLAUDE.md")
-	legacy := "# role\n\n## mycel instructions\n\nold text\n\n## Platform Credentials\n\n- FOO: bar.\n"
+	legacy := "# role\n\n## mycel instructions\n\nold text\n\n## Platform Credentials\n\n- FOO: bar.\n\n## My conventions\n\nKeep me.\n"
 	if err := os.WriteFile(p, []byte(legacy), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -67,8 +67,26 @@ func TestSyncManagedPrompt_StripsLegacyAppends(t *testing.T) {
 	if strings.Contains(got, "- FOO: bar.") {
 		t.Fatalf("legacy credentials not stripped:\n%s", got)
 	}
+	if !strings.Contains(got, "## My conventions") || !strings.Contains(got, "Keep me.") {
+		t.Fatalf("user content after legacy heading was lost:\n%s", got)
+	}
 	if !strings.Contains(got, "new") || !strings.Contains(got, managedPromptStart) {
 		t.Fatalf("managed block missing:\n%s", got)
+	}
+}
+
+func TestStripManagedSections_OrphanStart(t *testing.T) {
+	in := "# role\n\n" + managedPromptStart + "\npartial\n\n## after orphan\n\nkeep\n"
+	got := stripManagedSections(in)
+	if strings.Contains(got, managedPromptStart) || strings.Contains(got, "partial") {
+		t.Fatalf("orphan start not stripped:\n%s", got)
+	}
+	// Orphan start drops through EOF (no end marker), so trailing content goes too.
+	if strings.Contains(got, "keep") {
+		t.Fatalf("expected orphan-to-EOF strip:\n%s", got)
+	}
+	if !strings.Contains(got, "# role") {
+		t.Fatalf("role lost:\n%s", got)
 	}
 }
 

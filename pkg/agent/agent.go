@@ -1455,7 +1455,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	if setupErr := SetupAgentFromRoleAndTemplate(ctx, repoPath, name, string(existing.Role), wtDir, agentRuntime, existing.Tool, existing.Template); setupErr != nil {
 		log.Warn("agent setup failed on restart", "agent", name, "error", setupErr)
 	}
-	if err := m.syncManagedPromptForAgent(ctx, wtDir, existing.Tool, name, string(existing.Role),
+	if err := m.syncManagedPromptForAgent(ctx, wtDir, toolName, name, string(existing.Role),
 		resolveRoleMCPServers(repoPath, string(existing.Role)), secretEnvKeys); err != nil {
 		log.Warn("failed to sync managed prompt", "agent", name, "error", err)
 	}

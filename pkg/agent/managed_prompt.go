@@ -153,11 +153,30 @@ func syncManagedPromptFile(promptFile, managedBlock string) error {
 	}
 	out.WriteString(managedBlock)
 
-	if err := os.MkdirAll(filepath.Dir(cleaned), 0o750); err != nil {
+	dir := filepath.Dir(cleaned)
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("mkdir prompt dir: %w", err)
 	}
-	if err := os.WriteFile(cleaned, []byte(out.String()), 0o600); err != nil {
-		return fmt.Errorf("write prompt file: %w", err)
+	// Atomic replace so a crash mid-write cannot leave a truncated prompt.
+	tmp, err := os.CreateTemp(dir, ".mycel-prompt-*.tmp")
+	if err != nil {
+		return fmt.Errorf("create temp prompt file: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+	if _, err := tmp.Write([]byte(out.String())); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("write temp prompt file: %w", err)
+	}
+	if err := tmp.Chmod(0o600); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("chmod temp prompt file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close temp prompt file: %w", err)
+	}
+	if err := os.Rename(tmpName, cleaned); err != nil {
+		return fmt.Errorf("replace prompt file: %w", err)
 	}
 	return nil
 }
@@ -166,31 +185,47 @@ func syncManagedPromptFile(promptFile, managedBlock string) error {
 func stripManagedSections(content string) string {
 	for {
 		start := strings.Index(content, managedPromptStart)
-		end := strings.Index(content, managedPromptEnd)
-		if start >= 0 && end > start {
-			end += len(managedPromptEnd)
-			// Drop a leading newline left behind the block.
-			if start > 0 && content[start-1] == '\n' {
-				start--
-			}
-			content = content[:start] + content[end:]
-			continue
+		if start < 0 {
+			break
 		}
-		break
+		end := strings.Index(content[start:], managedPromptEnd)
+		if end >= 0 {
+			end = start + end + len(managedPromptEnd)
+		} else {
+			// Orphan start marker (no end) — drop from marker to EOF so the
+			// next sync does not stack another managed block after it.
+			end = len(content)
+		}
+		if start > 0 && content[start-1] == '\n' {
+			start--
+		}
+		content = content[:start] + content[end:]
 	}
 
-	// Strip legacy append-only blocks that predate markers (#3648).
+	// Strip legacy append-only sections that predate markers (#3648).
+	// Bound each strip to the next markdown H2 so user content after a
+	// coincidental heading is preserved.
 	for {
-		idx := lastLegacyManagedIndex(content)
+		idx, hdrLen := lastLegacyManagedIndex(content)
 		if idx < 0 {
 			break
 		}
-		content = content[:idx]
+		bodyStart := idx + hdrLen
+		next := strings.Index(content[bodyStart:], "\n## ")
+		var sectionEnd int
+		if next < 0 {
+			sectionEnd = len(content)
+		} else {
+			sectionEnd = bodyStart + next
+		}
+		content = content[:idx] + content[sectionEnd:]
 	}
 	return content
 }
 
-func lastLegacyManagedIndex(content string) int {
+// lastLegacyManagedIndex finds the last legacy mycel heading and the length
+// of the matched header string (including a leading newline when present).
+func lastLegacyManagedIndex(content string) (idx, hdrLen int) {
 	candidates := []string{
 		"\n## mycel instructions\n",
 		"\n## Platform Credentials\n",
@@ -198,12 +233,14 @@ func lastLegacyManagedIndex(content string) int {
 		"## Platform Credentials\n",
 	}
 	best := -1
+	bestLen := 0
 	for _, c := range candidates {
 		if i := strings.LastIndex(content, c); i > best {
 			best = i
+			bestLen = len(c)
 		}
 	}
-	return best
+	return best, bestLen
 }
 
 // syncAgentManagedPrompt builds and writes the managed block for one agent.
@@ -222,8 +259,6 @@ func syncAgentManagedPrompt(
 	if cfg != nil {
 		injected = cfg.InjectedInstructions
 	}
-	// Skip writing an empty managed block when there is nothing useful —
-	// but still strip legacy/managed sections so restarts clean up.
 	block := buildManagedPromptBlock(ManagedPromptInput{
 		AgentName:            agentName,
 		Role:                 role,
