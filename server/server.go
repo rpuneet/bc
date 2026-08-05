@@ -276,15 +276,15 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	// Wire gateway inbound callback for notify dispatch and SSE publish.
 	if svc.Gateway != nil {
-		svc.Gateway.SetInboundHandler(func(ch, sender, senderID, senderAvatar, content, messageID string, mentions []string, raw json.RawMessage, automated bool) {
+		svc.Gateway.SetInboundHandler(func(p gateway.InboundParams) {
 			// Publish SSE event for web UI (non-blocking)
 			if hub != nil {
 				hub.Publish("channel.message", map[string]any{
-					"channel": ch,
+					"channel": p.Channel,
 					"message": map[string]any{
-						"sender":     sender,
-						"avatar_url": senderAvatar,
-						"content":    content,
+						"sender":     p.Sender,
+						"avatar_url": p.SenderAvatar,
+						"content":    p.Content,
 						"type":       "text",
 					},
 				})
@@ -293,14 +293,14 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 			// Handles @mention filtering and delivery logging.
 			if svc.Notify != nil {
 				platform := ""
-				if idx := strings.Index(ch, ":"); idx > 0 {
-					platform = ch[:idx]
+				if idx := strings.Index(p.Channel, ":"); idx > 0 {
+					platform = p.Channel[:idx]
 				}
 				var opts []notify.DispatchOption
-				if automated {
+				if p.Automated {
 					opts = append(opts, notify.Automated())
 				}
-				svc.Notify.Dispatch(ch, platform, sender, senderID, senderAvatar, content, messageID, mentions, nil, raw, opts...)
+				svc.Notify.Dispatch(p.Channel, platform, p.Sender, p.SenderID, p.SenderAvatar, p.Content, p.MessageID, p.Mentions, nil, p.Raw, opts...)
 			}
 		})
 

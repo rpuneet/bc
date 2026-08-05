@@ -1,3 +1,5 @@
+// Package gateway orchestrates external notification platforms (Telegram, WhatsApp, Slack, etc.)
+// and routes messages between them and mycel agents.
 package gateway
 
 import (
@@ -12,6 +14,38 @@ import (
 
 	"github.com/rpuneet/mycel/pkg/log"
 )
+
+// InboundParams wraps the parameters for an inbound message callback to avoid
+// positional parameter misordering.
+type InboundParams struct {
+	// Channel is the mycel channel name (e.g. "telegram:general")
+	Channel string
+	// Sender is the display name of the message originator
+	Sender string
+	// SenderID is the platform-native sender identifier (e.g. WhatsApp JID)
+	// so callers can use it for follow-up operations such as reactions
+	SenderID string
+	// SenderAvatar is the raw platform avatar URL for the sender when the
+	// adapter cheaply resolved one (empty otherwise → initials fallback)
+	SenderAvatar string
+	// Content is the text content of the message, often derived from the adapter's
+	// native content field, but falls back to a JSON serialization of Raw
+	// when that is empty
+	Content string
+	// MessageID is the platform-native message identifier, used for reaction tracking
+	MessageID string
+	// Mentions is a list of platform-native identifiers extracted from the message
+	// that match member JIDs (e.g. WhatsApp JID user parts) - used for agent
+	// notifications to specific receivers
+	Mentions []string
+	// Raw is the original platform JSON blob, unprocessed, for debug or
+	// advanced parsing when content isn't sufficient
+	Raw json.RawMessage
+	// Automated marks machine-generated events that should reach the channel
+	// feed without waking subscribed agents (notification mail and similar
+	// — feed-worthy, but no agent should be woken)
+	Automated bool
+}
 
 // PersistedChannel is a saved channel → platform_id mapping with
 // optional display metadata.
@@ -72,7 +106,7 @@ type Manager struct {
 	// adapter cheaply resolved one (empty otherwise → initials fallback).
 	// automated marks machine-generated events that should reach the channel
 	// feed without waking subscribed agents.
-	onInbound func(channel, sender, senderID, senderAvatar, content, messageID string, mentions []string, raw json.RawMessage, automated bool)
+	onInbound func(params InboundParams)
 	// onOutbound is called after a message has been successfully handed to a
 	// platform, so the channel's stored history holds both sides of the
 	// conversation. Inbound messages are recorded from onInbound; without this
@@ -118,12 +152,9 @@ func (m *Manager) SetChannelStore(store ChannelStore) {
 }
 
 // SetInboundHandler sets the callback for inbound messages from external platforms.
-// The callback receives the mycel channel name, sender display name, platform-native
-// sender id (e.g. WhatsApp JID — used for follow-up reactions), text content,
-// platform-native message ID, pre-extracted mentions (e.g. WhatsApp JID user parts),
-// the raw platform payload, and whether the event is machine-generated
-// (notification mail and similar — feed-worthy, but no agent should be woken).
-func (m *Manager) SetInboundHandler(fn func(channel, sender, senderID, senderAvatar, content, messageID string, mentions []string, raw json.RawMessage, automated bool)) {
+// The callback receives inbound message parameters wrapped in a struct to avoid
+// positional parameter misordering.
+func (m *Manager) SetInboundHandler(fn func(params InboundParams)) {
 	m.onInbound = fn
 }
 
@@ -261,7 +292,7 @@ func (m *Manager) StartAdapter(adapter NotificationAdapter) error {
 		handler := func(n Notification) {
 			m.handleNotification(name, n)
 		}
-		if err := adapter.Start(ctx, handler); err != nil && ctx.Err() == nil {
+		if err := adapter.Start(ctx, handler); err != nil && ctx.Err() != nil {
 			log.Error("gateway: adapter stopped with error", "adapter", name, "error", err)
 		}
 	}()
@@ -803,7 +834,17 @@ func (m *Manager) handleNotification(platform string, n Notification) {
 		content = string(n.Raw)
 	}
 	if m.onInbound != nil {
-		m.onInbound(channel, sender, n.SenderID, n.SenderAvatar, content, n.MessageID, n.Mentions, n.Raw, n.Automated)
+		m.onInbound(InboundParams{
+			Channel:      channel,
+			Sender:       sender,
+			SenderID:     n.SenderID,
+			SenderAvatar: n.SenderAvatar,
+			Content:      content,
+			MessageID:    n.MessageID,
+			Mentions:     n.Mentions,
+			Raw:          n.Raw,
+			Automated:    n.Automated,
+		})
 	}
 }
 
