@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
  * never flashes zeros. If the API is unavailable or rate-limited, the cached
  * numbers simply stay — graceful degradation, no error UI.
  *
- * Cached fallbacks refreshed 2026-08-05 from the live API.
+ * Cached fallbacks refreshed 2026-08-04 from the live API.
  */
 export const REPO = "rpuneet/mycel";
 
@@ -23,7 +23,7 @@ export type GitHubStats = {
   version: string; // release tag, e.g. "v0.4.6"
   live: boolean; // true once real API data has replaced the fallback
   /** Resolved desktop asset URLs for the latest release (signed preferred). */
-  desktopUrls: Record<DesktopOS, string>;
+  desktopUrls: Partial<Record<DesktopOS, string>>;
 };
 
 /**
@@ -51,21 +51,22 @@ export function pickDesktopAsset(
   os: DesktopOS,
   version: string,
   assetNames: readonly string[],
-): string {
+): string | undefined {
   const candidates = desktopAssetCandidates(os, version);
-  return candidates.find((n) => assetNames.includes(n)) ?? candidates[0];
+  return candidates.find((n) => assetNames.includes(n));
 }
 
 export function desktopUrlsFromAssets(
   tag: string,
   assetNames: readonly string[],
-): Record<DesktopOS, string> {
+): Partial<Record<DesktopOS, string>> {
   const base = `https://github.com/${REPO}/releases/download/${tag}`;
-  return {
-    mac: `${base}/${pickDesktopAsset("mac", tag, assetNames)}`,
-    linux: `${base}/${pickDesktopAsset("linux", tag, assetNames)}`,
-    windows: `${base}/${pickDesktopAsset("windows", tag, assetNames)}`,
-  };
+  const out: Partial<Record<DesktopOS, string>> = {};
+  for (const os of ["mac", "linux", "windows"] as const) {
+    const name = pickDesktopAsset(os, tag, assetNames);
+    if (name) out[os] = `${base}/${name}`;
+  }
+  return out;
 }
 
 /**
@@ -137,11 +138,8 @@ export function useGitHubStats(): GitHubStats {
           if (names.length > 0) {
             next.desktopUrls = desktopUrlsFromAssets(rel.tag_name, names);
           } else {
-            next.desktopUrls = {
-              mac: desktopDownloadUrl("mac", rel.tag_name),
-              linux: desktopDownloadUrl("linux", rel.tag_name),
-              windows: desktopDownloadUrl("windows", rel.tag_name),
-            };
+            // Live release with no assets — do not invent download hrefs.
+            next.desktopUrls = {};
           }
         }
       } catch {

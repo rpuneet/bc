@@ -28,6 +28,8 @@ const ORDER: DesktopOS[] = ["mac", "linux", "windows"];
  *
  * Desktop URLs come from the latest GitHub release asset list (signed zip
  * preferred; falls back to `*-UNSIGNED.zip` when that is what shipped).
+ * Missing OS assets are hidden — never linked to a filename that is not
+ * on the release (#3619 CodeRabbit).
  */
 export function DownloadButtons() {
   const { desktopUrls } = useGitHubStats();
@@ -43,39 +45,53 @@ export function DownloadButtons() {
 
   const primary = OS_META[os];
   const PrimaryIcon = primary.icon;
-  const others = ORDER.filter((o) => o !== os);
-  const unsignedMac = /UNSIGNED/.test(desktopUrls.mac);
+  const primaryHref = desktopUrls[os];
+  const others = ORDER.filter((o) => o !== os && desktopUrls[o]);
+  const unsignedMac = Boolean(desktopUrls.mac && /UNSIGNED/.test(desktopUrls.mac));
 
   return (
     <div className="flex flex-col items-center gap-3">
-      <Link
-        href={desktopUrls[os]}
-        className="group inline-flex h-12 items-center gap-2.5 rounded-lg bg-primary px-7 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-[0_0_24px_color-mix(in_srgb,var(--primary)_32%,transparent)] active:scale-[0.97]"
-      >
-        <PrimaryIcon className="h-[18px] w-[18px]" aria-hidden="true" />
-        {primary.label}
-        <Download
-          className="h-3.5 w-3.5 opacity-70 transition-transform group-hover:translate-y-0.5"
-          aria-hidden="true"
-        />
-      </Link>
+      {primaryHref ? (
+        <Link
+          href={primaryHref}
+          className="group inline-flex h-12 items-center gap-2.5 rounded-lg bg-primary px-7 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-[0_0_24px_color-mix(in_srgb,var(--primary)_32%,transparent)] active:scale-[0.97]"
+        >
+          <PrimaryIcon className="h-[18px] w-[18px]" aria-hidden="true" />
+          {primary.label}
+          <Download
+            className="h-3.5 w-3.5 opacity-70 transition-transform group-hover:translate-y-0.5"
+            aria-hidden="true"
+          />
+        </Link>
+      ) : (
+        <span
+          className="inline-flex h-12 items-center gap-2.5 rounded-lg border border-outline-variant/30 px-7 text-sm font-semibold text-on-surface-variant"
+          aria-disabled="true"
+        >
+          <PrimaryIcon className="h-[18px] w-[18px]" aria-hidden="true" />
+          {primary.short} build unavailable
+        </span>
+      )}
 
-      <div className="flex items-center gap-2">
-        {others.map((o) => {
-          const meta = OS_META[o];
-          const Icon = meta.icon;
-          return (
-            <Link
-              key={o}
-              href={desktopUrls[o]}
-              className="inline-flex items-center gap-1.5 rounded-md border border-outline-variant/20 px-3 py-1.5 font-body text-xs font-medium text-on-surface-variant transition-colors hover:border-primary/30 hover:text-primary active:scale-[0.97]"
-            >
-              <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-              {meta.short}
-            </Link>
-          );
-        })}
-      </div>
+      {others.length > 0 ? (
+        <div className="flex items-center gap-2">
+          {others.map((o) => {
+            const meta = OS_META[o];
+            const Icon = meta.icon;
+            const href = desktopUrls[o]!;
+            return (
+              <Link
+                key={o}
+                href={href}
+                className="inline-flex items-center gap-1.5 rounded-md border border-outline-variant/20 px-3 py-1.5 font-body text-xs font-medium text-on-surface-variant transition-colors hover:border-primary/30 hover:text-primary active:scale-[0.97]"
+              >
+                <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                {meta.short}
+              </Link>
+            );
+          })}
+        </div>
+      ) : null}
 
       {unsignedMac && os === "mac" ? (
         <p className="max-w-sm text-center font-body text-xs text-on-surface-variant/80">
