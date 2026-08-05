@@ -112,12 +112,18 @@ describe("OverviewStrip", () => {
 // ── ActivityFeed ─────────────────────────────────────────────────────
 
 describe("ActivityFeed", () => {
-  it("renders recent channel messages as compact rows", async () => {
+  it("renders recent channel messages as compact rows with identity avatars", async () => {
     fetchMock.mockImplementation((url: RequestInfo | URL) => {
       const u = String(url);
       if (u.includes("/apps/channels/") && u.includes("/history")) {
         return jsonResponse([
-          { id: 1, sender: "alice", content: "deploy is green", created_at: new Date().toISOString() },
+          {
+            id: 1,
+            sender: "alice",
+            content: "deploy is green",
+            created_at: new Date().toISOString(),
+            avatar_url: "https://example.com/alice.png",
+          },
         ]);
       }
       if (u.includes("/apps/channels")) {
@@ -133,6 +139,7 @@ describe("ActivityFeed", () => {
 
     expect(await screen.findByText("deploy is green")).toBeInTheDocument();
     expect(screen.getByText("alice")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "alice" })).toHaveAttribute("src", "https://example.com/alice.png");
     // Header links to the full activity page.
     expect(screen.getByRole("link", { name: /view all/ })).toHaveAttribute("href", "/apps/activity");
   });

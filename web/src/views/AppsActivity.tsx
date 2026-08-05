@@ -218,7 +218,7 @@ export function AppsActivity() {
             />
           </div>
         ) : (
-          <ul className="rounded-lg border border-mycel-border overflow-hidden divide-y divide-mycel-border bg-mycel-surface">
+          <ul className="rounded-lg border border-mycel-border overflow-hidden divide-y divide-mycel-border bg-mycel-surface" data-testid="apps-activity-list">
             {filtered.map((m, i) => {
               const sender = cleanSender(m.sender);
               return (
@@ -241,7 +241,7 @@ export function AppsActivity() {
                           <AppIcon base={sourcePlatform(m.channel)} size={11} />
                           <span className="truncate max-w-[160px]">{channelLeaf(m.channel)}</span>
                         </span>
-                        <time className="ml-auto shrink-0 text-[11px] text-mycel-muted tabular-nums" title={new Date(m.created_at).toLocaleString()}>
+                        <time className="ml-auto shrink-0 text-[11px] text-mycel-muted tabular-nums font-mono" title={new Date(m.created_at).toLocaleString()}>
                           {formatRelative(m.created_at)}
                         </time>
                       </div>
