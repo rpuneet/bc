@@ -1,0 +1,73 @@
+# One-shot / ops control for the Cloudflare Pages *GitHub app* integration.
+#
+# Production landing deploys are owned by wrangler in cd-main.yml. The Pages
+# GitHub app still posts a "Cloudflare Pages" check on every PR; when its
+# build config is wrong that check fails in ~0s and trains everyone to ignore
+# red Xes (#3452).
+#
+# This workflow patches the Pages project so automatic git preview (and
+# optionally production) builds are off. Wrangler CD is unaffected.
+#
+#   gh workflow run cloudflare-pages-git.yml
+
+name: Cloudflare Pages git controls
+
+on:
+  workflow_dispatch:
+    inputs:
+      preview_deployment_setting:
+        description: Controls PR/preview git builds (none = no GitHub check spam)
+        type: choice
+        options: [none, all, custom]
+        default: none
+      production_deployments_enabled:
+        description: Automatic production-branch git deploys (false = wrangler-only)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  configure:
+    name: Patch Pages project
+    runs-on: ubuntu-latest
+    steps:
+      - name: GET current project
+        id: get
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID secrets missing"
+            exit 1
+          fi
+          url="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/mycel"
+          curl -sS -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "$url" \
+            | tee /tmp/pages-project.json \
+            | jq '{success, errors, result: (.result | {name, subdomain, preview_deployment_setting, production_deployments_enabled, production_branch, source: .source.type})}'
+
+      - name: PATCH git deployment controls
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIEW: ${{ inputs.preview_deployment_setting }}
+          PROD_GIT: ${{ inputs.production_deployments_enabled }}
+        run: |
+          set -euo pipefail
+          url="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/mycel"
+          body=$(jq -n \
+            --arg preview "$PREVIEW" \
+            --argjson prod "$PROD_GIT" \
+            '{preview_deployment_setting: $preview, production_deployments_enabled: $prod}')
+          echo "PATCH body: $body"
+          curl -sS -X PATCH \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data "$body" \
+            "$url" \
+            | tee /tmp/pages-patch.json \
+            | jq '{success, errors, result: (.result | {name, preview_deployment_setting, production_deployments_enabled, production_branch})}'
+          jq -e '.success == true' /tmp/pages-patch.json >/dev/null
