@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -55,10 +56,10 @@ func (n *NotifyClient) ListSubscriptions(ctx context.Context) ([]Subscription, e
 func (n *NotifyClient) ChannelSubscriptions(ctx context.Context, channel string) ([]Subscription, error) {
 	var subs []Subscription
 	if gw, ch := splitGatewayChannel(channel); gw != "" {
-		err := n.client.get(ctx, fmt.Sprintf("/api/apps/%s/channels/%s/agents", gw, ch), &subs)
+		err := n.client.get(ctx, fmt.Sprintf("/api/apps/%s/channels/%s/agents", gw, url.PathEscape(ch)), &subs)
 		return subs, err
 	}
-	err := n.client.get(ctx, fmt.Sprintf("/api/notify/subscriptions/%s", channel), &subs)
+	err := n.client.get(ctx, fmt.Sprintf("/api/notify/subscriptions/%s", url.PathEscape(channel)), &subs)
 	return subs, err
 }
 
@@ -66,7 +67,7 @@ func (n *NotifyClient) ChannelSubscriptions(ctx context.Context, channel string)
 func (n *NotifyClient) Subscribe(ctx context.Context, channel, agent string, mentionOnly bool) error {
 	body := map[string]any{"agent": agent, "mention_only": mentionOnly}
 	if gw, ch := splitGatewayChannel(channel); gw != "" {
-		return n.client.post(ctx, fmt.Sprintf("/api/apps/%s/channels/%s/agents", gw, ch), body, nil)
+		return n.client.post(ctx, fmt.Sprintf("/api/apps/%s/channels/%s/agents", gw, url.PathEscape(ch)), body, nil)
 	}
 	body["channel"] = channel
 	return n.client.post(ctx, "/api/notify/subscriptions", body, nil)
@@ -75,18 +76,18 @@ func (n *NotifyClient) Subscribe(ctx context.Context, channel, agent string, men
 // Unsubscribe removes an agent from a channel.
 func (n *NotifyClient) Unsubscribe(ctx context.Context, channel, agent string) error {
 	if gw, ch := splitGatewayChannel(channel); gw != "" {
-		return n.client.delete(ctx, fmt.Sprintf("/api/apps/%s/channels/%s/agents/%s", gw, ch, agent))
+		return n.client.delete(ctx, fmt.Sprintf("/api/apps/%s/channels/%s/agents/%s", gw, url.PathEscape(ch), url.PathEscape(agent)))
 	}
-	return n.client.delete(ctx, fmt.Sprintf("/api/notify/subscriptions/%s?agent=%s", channel, agent))
+	return n.client.delete(ctx, fmt.Sprintf("/api/notify/subscriptions/%s?agent=%s", url.PathEscape(channel), url.QueryEscape(agent)))
 }
 
 // Activity returns recent delivery log entries for a channel.
 func (n *NotifyClient) Activity(ctx context.Context, channel string, limit int) ([]DeliveryEntry, error) {
 	var entries []DeliveryEntry
 	if gw, ch := splitGatewayChannel(channel); gw != "" {
-		err := n.client.get(ctx, fmt.Sprintf("/api/apps/%s/channels/%s/activity?limit=%d", gw, ch, limit), &entries)
+		err := n.client.get(ctx, fmt.Sprintf("/api/apps/%s/channels/%s/activity?limit=%d", gw, url.PathEscape(ch), limit), &entries)
 		return entries, err
 	}
-	err := n.client.get(ctx, fmt.Sprintf("/api/notify/activity/%s?limit=%d", channel, limit), &entries)
+	err := n.client.get(ctx, fmt.Sprintf("/api/notify/activity/%s?limit=%d", url.PathEscape(channel), limit), &entries)
 	return entries, err
 }

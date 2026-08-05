@@ -280,7 +280,7 @@ func (s *Service) deliverToSubscribers(ctx context.Context, d deliverable) {
 	}
 	active, mutedAgents := partitionSubs(subs)
 
-	// The connect-app flow subscribes agents to "{platform}:general" as a
+	// The connect-app flow subscribes agents to "{platform}:*" as a
 	// catch-all, because the real channel is not known until a message
 	// arrives (Telegram DMs land on telegram:<username|chat_id>, mail on
 	// gmail:<sender>). When a channel has no active subscribers of its own,
@@ -302,7 +302,7 @@ func (s *Service) deliverToSubscribers(ctx context.Context, d deliverable) {
 		} else if len(fallback) > 0 {
 			active = filterCatchAll(fallback, mutedAgents)
 			log.Info("notify: delivering via catch-all subscription",
-				"channel", channel, "catch_all", platform+catchAllSuffix, "agents", len(active))
+				"channel", channel, "catch_all", CatchAllChannel(platform), "agents", len(active))
 		}
 	}
 	subs = active
@@ -366,26 +366,37 @@ func (s *Service) deliverToSubscribers(ctx context.Context, d deliverable) {
 	}
 }
 
-// catchAllSuffix is the channel the connect-app flow subscribes agents to when
-// the real per-conversation channel cannot be known in advance.
-const catchAllSuffix = ":general"
-
-// catchAllSubscribers returns the subscribers of "{platform}:general" so a
+// catchAllSubscribers returns subscribers of the platform catch-all so a
 // channel with no subscribers of its own can still be delivered. It only
 // reads: writing a subscription per channel is what produced the runaway
 // subscription lists in #3463.
 //
-// Returns nothing when realChannel is the catch-all itself (already handled by
-// the normal lookup) or belongs to another platform.
+// Canonical key is "{platform}:*" (#3467). Legacy "{platform}:general" rows
+// are merged in until migrateLegacyCatchAll rewrites them, so Slack/Discord
+// "#general" can be a real channel without owning the fallback.
+//
+// Returns nothing when realChannel is the canonical catch-all itself (already
+// handled by the normal lookup) or belongs to another platform.
 func (s *Service) catchAllSubscribers(ctx context.Context, platform, realChannel string) ([]Subscription, error) {
-	catchAll := platform + catchAllSuffix
+	catchAll := CatchAllChannel(platform)
 	if realChannel == "" || realChannel == catchAll {
 		return nil, nil
 	}
 	if !strings.HasPrefix(realChannel, platform+":") {
 		return nil, nil
 	}
-	return s.store.Subscribers(ctx, catchAll)
+
+	canonical, err := s.store.Subscribers(ctx, catchAll)
+	if err != nil {
+		return nil, err
+	}
+	if len(canonical) > 0 {
+		// Canonical catch-all owns fallback. Do not also pull
+		// "{platform}:general" — that key is a real Slack/Discord channel.
+		return canonical, nil
+	}
+	// Pre-migration workspaces still store catch-all on ":general".
+	return s.store.Subscribers(ctx, LegacyCatchAllChannel(platform))
 }
 
 // Subscribe adds an agent to a channel.
@@ -506,16 +517,13 @@ func (s *Service) deliverOutboundToSubscribers(ctx context.Context, channel, sen
 
 	// Fallback to catch-all subscription if no active direct subscribers
 	if len(active) == 0 && platform != "" {
-		catchAll := platform + catchAllSuffix
-		if channel != "" && channel != catchAll && strings.HasPrefix(channel, platform+":") {
-			fallback, fErr := s.store.Subscribers(ctx, catchAll)
-			if fErr != nil {
-				log.Warn("notify: catch-all lookup failed for outbound", "platform", platform, "channel", channel, "error", fErr)
-			} else if len(fallback) > 0 {
-				active = filterCatchAll(fallback, mutedAgents)
-				log.Info("notify: delivering outbound via catch-all subscription",
-					"channel", channel, "catch_all", catchAll, "agents", len(active))
-			}
+		fallback, fErr := s.catchAllSubscribers(ctx, platform, channel)
+		if fErr != nil {
+			log.Warn("notify: catch-all lookup failed for outbound", "platform", platform, "channel", channel, "error", fErr)
+		} else if len(fallback) > 0 {
+			active = filterCatchAll(fallback, mutedAgents)
+			log.Info("notify: delivering outbound via catch-all subscription",
+				"channel", channel, "catch_all", CatchAllChannel(platform), "agents", len(active))
 		}
 	}
 	subs = active

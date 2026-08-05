@@ -16,7 +16,8 @@ import { AppIcon } from "./PlatformIcons";
 
 function channelLeaf(ch: string): string {
   const i = ch.lastIndexOf(":");
-  return i >= 0 ? ch.slice(i + 1) : ch;
+  const leaf = i >= 0 ? ch.slice(i + 1) : ch;
+  return leaf === "*" ? "catch-all" : leaf;
 }
 
 function ChannelGlyph({ channel }: { channel: string }) {

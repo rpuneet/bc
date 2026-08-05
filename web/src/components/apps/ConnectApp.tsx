@@ -323,7 +323,7 @@ function AgentSubscriptionStep({
       const res = await api.getApps();
       const inst = (res.instances ?? []).find((i) => i.name === instanceName);
       const discovered = (inst?.channels ?? []).filter(
-        (ch) => ch && !ch.endsWith(":general"),
+        (ch) => ch && !ch.endsWith(":*") && !ch.endsWith(":general"),
       );
       setChannels(discovered);
       setSelectedChannels((prev) => {
@@ -403,11 +403,11 @@ function AgentSubscriptionStep({
     setSaving(true);
     try {
       // Telegram: only subscribe to real discovered channels. Never invent
-      // telegram:general — DMs arrive as telegram:<username|chat_id>.
-      // Other apps keep the historical <instance>:general default for now.
+      // a catch-all placeholder — DMs arrive as telegram:<username|chat_id>.
+      // Other apps subscribe to <instance>:* (platform catch-all; #3467).
       const targets = isTelegram
         ? [...selectedChannels]
-        : [`${instanceName}:general`];
+        : [`${instanceName}:*`];
 
       if (targets.length > 0 && selected.size > 0) {
         await Promise.all(
@@ -469,7 +469,7 @@ function AgentSubscriptionStep({
             ) : channels.length === 0 ? (
               <div className="text-xs text-mycel-muted bg-mycel-surface-hover border border-mycel-border rounded-md px-3 py-2">
                 No Telegram chats discovered yet. Message the bot in a DM (or a group),
-                then click Refresh. Agents subscribed to a fake <code className="text-mycel-text-2">telegram:general</code> channel
+                then click Refresh. Agents subscribed to a fake <code className="text-mycel-text-2">telegram:*</code> catch-all
                 never receive real traffic.
               </div>
             ) : (

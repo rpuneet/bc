@@ -4,14 +4,14 @@ import "testing"
 
 func TestFindPruneCandidates(t *testing.T) {
 	subs := []Subscription{
-		{Channel: "gmail:general", Agent: "fast-crane", MentionOnly: false},
+		{Channel: "gmail:*", Agent: "fast-crane", MentionOnly: false},
 		{Channel: "gmail:alertsbank", Agent: "fast-crane", MentionOnly: false},
 		{Channel: "gmail:newslettereconomictimes", Agent: "fast-crane", MentionOnly: false},
 		// deliberate: different mention_only than catch-all
 		{Channel: "gmail:focused", Agent: "fast-crane", MentionOnly: true},
 		// no catch-all for whatsapp — not a candidate
 		{Channel: "whatsapp:alice", Agent: "fast-crane", MentionOnly: false},
-		{Channel: "telegram:general", Agent: "broad", MentionOnly: false},
+		{Channel: "telegram:*", Agent: "broad", MentionOnly: false},
 		{Channel: "telegram:dm-bob", Agent: "broad", MentionOnly: false},
 		// mute marker must not be pruned
 		{Channel: "telegram:noisy", Agent: "broad", MentionOnly: false, Muted: true},
@@ -39,6 +39,17 @@ func TestFindPruneCandidates(t *testing.T) {
 	}
 }
 
+func TestFindPruneCandidates_LegacyCatchAll(t *testing.T) {
+	subs := []Subscription{
+		{Channel: "gmail:general", Agent: "fast-crane", MentionOnly: false},
+		{Channel: "gmail:alertsbank", Agent: "fast-crane", MentionOnly: false},
+	}
+	got := FindPruneCandidates(subs)
+	if len(got) != 1 || got[0].Channel != "gmail:alertsbank" {
+		t.Fatalf("legacy catch-all should still seed prune heuristic, got %+v", got)
+	}
+}
+
 func TestFindPruneCandidates_NoCatchAll(t *testing.T) {
 	subs := []Subscription{
 		{Channel: "gmail:only-explicit", Agent: "a", MentionOnly: false},
@@ -50,7 +61,8 @@ func TestFindPruneCandidates_NoCatchAll(t *testing.T) {
 
 func TestFindPruneCandidates_SkipsCatchAllItself(t *testing.T) {
 	subs := []Subscription{
-		{Channel: "slack:general", Agent: "root", MentionOnly: false},
+		{Channel: "slack:*", Agent: "root", MentionOnly: false},
+		{Channel: "slack:general", Agent: "root", MentionOnly: false}, // legacy form
 	}
 	if got := FindPruneCandidates(subs); len(got) != 0 {
 		t.Fatalf("catch-all itself must never be a candidate, got %+v", got)
@@ -73,8 +85,10 @@ func TestFilterPruneByPlatform(t *testing.T) {
 
 func TestIsCatchAll(t *testing.T) {
 	cases := map[string]bool{
-		"gmail:general":   true,
-		"slack:general":   true,
+		"gmail:*":         true,
+		"slack:*":         true,
+		"gmail:general":   false, // legacy — use IsLegacyCatchAll
+		"slack:general":   false,
 		"slack:eng":       false,
 		"general":         false,
 		"":                false,
@@ -85,5 +99,11 @@ func TestIsCatchAll(t *testing.T) {
 		if got := IsCatchAll(ch); got != want {
 			t.Errorf("IsCatchAll(%q)=%v want %v", ch, got, want)
 		}
+	}
+	if !IsLegacyCatchAll("slack:general") || IsLegacyCatchAll("slack:*") {
+		t.Fatal("IsLegacyCatchAll mismatch")
+	}
+	if !IsAnyCatchAll("slack:*") || !IsAnyCatchAll("gmail:general") {
+		t.Fatal("IsAnyCatchAll mismatch")
 	}
 }
