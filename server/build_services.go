@@ -639,8 +639,8 @@ type toolHealthChecker interface {
 // runToolHealthLoop runs store.CheckAll once immediately (off the request
 // path, so it never delays daemon startup) and then on a fixed interval,
 // keeping every tool's health_status fresh without requiring a manual
-// POST /api/tools/check. See tool.Store.CheckAll for the check itself and
-// ToolHandler.checkAll for the manual force-refresh that shares it.
+// POST /api/tools/unified/check. See tool.Store.CheckAll for the check itself and
+// UnifiedToolsHandler.checkAll for the manual force-refresh that shares it.
 func runToolHealthLoop(ctx context.Context, store toolHealthChecker) {
 	checkToolsOnce(ctx, store)
 	ticker := time.NewTicker(toolHealthCheckInterval)

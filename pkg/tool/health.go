@@ -59,7 +59,7 @@ func checkOne(t *Tool) HealthResult {
 // health_status + last_checked back via UpdateHealth, so subsequent
 // List/Get calls serve recently-verified status rather than the seed-time
 // default. Used by both the manual force-refresh endpoint
-// (POST /api/tools/check) and the background auto-check loop started at
+// (POST /api/tools/unified/check) and the background auto-check loop started at
 // daemon boot. A persistence failure for one tool does not abort the batch.
 func (s *Store) CheckAll(ctx context.Context) ([]HealthResult, error) {
 	tools, err := s.List(ctx)

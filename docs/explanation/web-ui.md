@@ -123,7 +123,7 @@ All components are local to `web/src/components/` — there is no shared cross-f
 | `StatusBadge.tsx` | Colored pill for agent states |
 | `Table.tsx` | Generic typed table |
 | `Toast.tsx` | Transient notifications |
-| `WebTerminal.tsx`, `InlineTerminal.tsx` | Terminal rendering for agent sessions |
+| `WebTerminal.tsx` | Terminal rendering for agent sessions |
 | `AgentPeekPanel.tsx` | Quick agent inspection panel |
 | `CommandPalette.tsx` (+ `useCommandPalette`) | Keyboard-driven navigation/actions |
 | `CreateAgentModal.tsx` | Agent creation flow — required Repo field with known-repos dropdown and a Browse picker (`POST /api/repos/discover/local`) |
@@ -165,7 +165,7 @@ Response and event types live in `web/src/api/types.ts`. The full endpoint surfa
 - A 10-second timeout flags slow responses via `timedOut` for loading UX.
 - `refresh()` allows event-driven refetch (e.g., an SSE event triggers an immediate poll).
 
-Other hooks in `web/src/hooks/`: `useAgentActivity`, `useAgentRoles`, `useCommandPalette`, `useMediaQuery`.
+Other hooks in `web/src/hooks/`: `useAgentActivity`, `useCommandPalette`, `useMediaQuery`.
 
 ### 3.4 Data Flow: Typical View Load
 

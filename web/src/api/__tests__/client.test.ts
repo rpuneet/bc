@@ -193,8 +193,8 @@ describe("api.streamProviderUpdate", () => {
 });
 
 describe("api.createAgent", () => {
-  // The endpoint has always accepted a template; the type omitted it, so the
-  // create dialog had to bypass this client with a raw fetch to ask for one.
+  // Typed client accepts template/repo/parent so CreateAgentModal no longer
+  // needs a raw fetch (#3576 / #3590).
   it("can ask for a template, and needs no role alongside it", async () => {
     fetchMock.mockReturnValue(jsonResponse({ name: "trader-1" }));
     await api.createAgent({ name: "trader-1", template: "trader" });
