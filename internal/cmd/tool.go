@@ -568,8 +568,11 @@ func runToolAdd(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Try the daemon API first
-	c := getClient()
+	// Daemon API only — no offline SQLite dual-write (#3646).
+	c, err := newDaemonClient(ctx)
+	if err != nil {
+		return err
+	}
 	apiTool := &client.ToolInfo{
 		Name:       name,
 		Command:    toolAddCommand,
@@ -579,53 +582,17 @@ func runToolAdd(cmd *cobra.Command, args []string) error {
 		Enabled:    true,
 	}
 
-	added, apiErr := c.Tools.Update(ctx, apiTool)
-	if apiErr == nil {
-		if toolAddJSON {
-			enc := json.NewEncoder(os.Stdout)
-			enc.SetIndent("", "  ")
-			return enc.Encode(added)
-		}
-		fmt.Printf("Added tool %s\n", ui.GreenText(name))
-		if apiTool.InstallCmd != "" {
-			fmt.Printf("Run 'mycel tool setup %s' to install it.\n", name)
-		}
-		return nil
+	added, apiErr := c.Tools.Create(ctx, apiTool)
+	if apiErr != nil {
+		return fmt.Errorf("add tool: %w", apiErr)
 	}
-
-	// Fallback: direct store access
-	s, err := openToolStore()
-	if err != nil {
-		return err
-	}
-	defer s.Close() //nolint:errcheck // best-effort close
-
-	t := &tool.Tool{
-		Name:       name,
-		Command:    toolAddCommand,
-		InstallCmd: toolAddInstall,
-		UpgradeCmd: toolAddUpgrade,
-		SlashCmds:  slashCmds,
-		Enabled:    true,
-	}
-
-	if addErr := s.Add(ctx, t); addErr != nil {
-		return fmt.Errorf("failed to add tool: %w", addErr)
-	}
-
-	addedTool, err := s.Get(ctx, name)
-	if err != nil {
-		return err
-	}
-
 	if toolAddJSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(addedTool)
+		return enc.Encode(added)
 	}
-
 	fmt.Printf("Added tool %s\n", ui.GreenText(name))
-	if t.InstallCmd != "" {
+	if apiTool.InstallCmd != "" {
 		fmt.Printf("Run 'mycel tool setup %s' to install it.\n", name)
 	}
 	return nil
@@ -768,86 +735,30 @@ func runToolEdit(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 	name := args[0]
 
-	// Try the daemon API first
-	c := getClient()
+	c, err := newDaemonClient(ctx)
+	if err != nil {
+		return err
+	}
 	apiTool, apiErr := c.Tools.Get(ctx, name)
-	if apiErr == nil && apiTool != nil {
-		changed := false
-
-		if toolEditCommand != "" {
-			apiTool.Command = toolEditCommand
-			changed = true
-		}
-		if toolEditInstall != "" {
-			apiTool.InstallCmd = toolEditInstall
-			changed = true
-		}
-		if toolEditUpgrade != "" {
-			apiTool.UpgradeCmd = toolEditUpgrade
-			changed = true
-		}
-		if toolEditSlashCmds != "" {
-			var cmds []string
-			for _, sc := range strings.Split(toolEditSlashCmds, ",") {
-				sc = strings.TrimSpace(sc)
-				if sc != "" {
-					cmds = append(cmds, sc)
-				}
-			}
-			apiTool.SlashCmds = cmds
-			changed = true
-		}
-		if toolEditEnabled != "" {
-			switch strings.ToLower(toolEditEnabled) {
-			case "true", "yes", "1":
-				apiTool.Enabled = true
-			case "false", "no", "0":
-				apiTool.Enabled = false
-			default:
-				return fmt.Errorf("--enabled must be true or false")
-			}
-			changed = true
-		}
-
-		if !changed {
-			return fmt.Errorf("no changes specified — use flags like --command, --install, --enabled")
-		}
-
-		if _, updateErr := c.Tools.Update(ctx, apiTool); updateErr != nil {
-			return fmt.Errorf("failed to update tool: %w", updateErr)
-		}
-
-		fmt.Printf("Updated tool %s\n", ui.GreenText(name))
-		return nil
+	if apiErr != nil {
+		return fmt.Errorf("get tool: %w", apiErr)
 	}
-
-	// Fallback: direct store access
-	s, err := openToolStore()
-	if err != nil {
-		return err
-	}
-	defer s.Close() //nolint:errcheck // best-effort close
-
-	t, err := s.Get(ctx, name)
-	if err != nil {
-		return err
-	}
-	if t == nil {
+	if apiTool == nil {
 		return fmt.Errorf("tool %q not found — add it with: mycel tool add %s", name, name)
 	}
 
 	changed := false
 
 	if toolEditCommand != "" {
-		t.Command = toolEditCommand
+		apiTool.Command = toolEditCommand
 		changed = true
 	}
 	if toolEditInstall != "" {
-		t.InstallCmd = toolEditInstall
+		apiTool.InstallCmd = toolEditInstall
 		changed = true
 	}
 	if toolEditUpgrade != "" {
-		t.UpgradeCmd = toolEditUpgrade
+		apiTool.UpgradeCmd = toolEditUpgrade
 		changed = true
 	}
 	if toolEditSlashCmds != "" {
@@ -858,15 +769,15 @@ func runToolEdit(cmd *cobra.Command, args []string) error {
 				cmds = append(cmds, sc)
 			}
 		}
-		t.SlashCmds = cmds
+		apiTool.SlashCmds = cmds
 		changed = true
 	}
 	if toolEditEnabled != "" {
 		switch strings.ToLower(toolEditEnabled) {
 		case "true", "yes", "1":
-			t.Enabled = true
+			apiTool.Enabled = true
 		case "false", "no", "0":
-			t.Enabled = false
+			apiTool.Enabled = false
 		default:
 			return fmt.Errorf("--enabled must be true or false")
 		}
@@ -877,8 +788,8 @@ func runToolEdit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no changes specified — use flags like --command, --install, --enabled")
 	}
 
-	if err := s.Update(ctx, t); err != nil {
-		return fmt.Errorf("failed to update tool: %w", err)
+	if _, updateErr := c.Tools.Update(ctx, apiTool); updateErr != nil {
+		return fmt.Errorf("failed to update tool: %w", updateErr)
 	}
 
 	fmt.Printf("Updated tool %s\n", ui.GreenText(name))
@@ -891,42 +802,23 @@ func runToolDelete(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 	name := args[0]
 
-	// Try the daemon API first
-	c := getClient()
+	c, err := newDaemonClient(ctx)
+	if err != nil {
+		return err
+	}
 	apiTool, apiErr := c.Tools.Get(ctx, name)
-	if apiErr == nil && apiTool != nil {
-		if apiTool.Builtin {
-			return fmt.Errorf("cannot delete built-in tool %q — disable it instead: mycel tool edit %s --enabled false", name, name)
-		}
-		if delErr := c.Tools.Delete(ctx, name); delErr != nil {
-			return fmt.Errorf("failed to delete tool: %w", delErr)
-		}
-		fmt.Printf("Deleted tool %s\n", name)
-		return nil
+	if apiErr != nil {
+		return fmt.Errorf("get tool: %w", apiErr)
 	}
-
-	// Fallback: direct store access
-	s, err := openToolStore()
-	if err != nil {
-		return err
-	}
-	defer s.Close() //nolint:errcheck // best-effort close
-
-	t, err := s.Get(ctx, name)
-	if err != nil {
-		return err
-	}
-	if t == nil {
+	if apiTool == nil {
 		return fmt.Errorf("tool %q not found", name)
 	}
-	if t.Builtin {
+	if apiTool.Builtin {
 		return fmt.Errorf("cannot delete built-in tool %q — disable it instead: mycel tool edit %s --enabled false", name, name)
 	}
-
-	if err := s.Delete(ctx, name); err != nil {
-		return fmt.Errorf("failed to delete tool: %w", err)
+	if delErr := c.Tools.Delete(ctx, name); delErr != nil {
+		return fmt.Errorf("failed to delete tool: %w", delErr)
 	}
-
 	fmt.Printf("Deleted tool %s\n", name)
 	return nil
 }

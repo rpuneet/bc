@@ -6,7 +6,7 @@ Manage agent templates
 
 Manage agent templates — reusable configurations for spawning agents.
 
-Templates are stored in ~/.mycel/templates/ (user-global).
+Templates are managed by the mycel daemon (same store as the web UI).
 
 Examples:
   mycel template list                    # List all templates

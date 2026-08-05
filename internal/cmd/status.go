@@ -55,14 +55,14 @@ func init() {
 func runStatus(cmd *cobra.Command, args []string) error {
 	log.Debug("status command started")
 
-	h, err := getRepo()
-	if err != nil {
-		return errNoRepo(err)
-	}
-
 	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
+	}
+
+	wsName := "workspace"
+	if info, infoErr := c.Stats.SystemInfo(cmd.Context()); infoErr == nil && info.Workspace != "" {
+		wsName = filepath.Base(info.Workspace)
 	}
 
 	agentList, err := c.Agents.List(cmd.Context())
@@ -95,7 +95,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			Active    int                `json:"active"`
 			Working   int                `json:"working"`
 		}{
-			Workspace: filepath.Base(h.RootDir),
+			Workspace: wsName,
 			Agents:    agentList,
 			Total:     len(agentList),
 			Active:    activeCount,
@@ -107,7 +107,6 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Summary header
-	wsName := filepath.Base(h.RootDir)
 	fmt.Printf("Repo: %s | Agents: %d | Active: %d | Working: %d\n", wsName, len(agentList), activeCount, workingCount)
 	fmt.Println(strings.Repeat("─", 60))
 	fmt.Println()

@@ -334,7 +334,7 @@ func TestMissingRequiredArgs(t *testing.T) {
 
 // TestNoRepo tests the commands that still require an enclosing
 // mycel-adopted repo. Daemon-first commands (agent list, channel list,
-// logs, cost, ...) are CWD-free and covered elsewhere.
+// logs, cost, status, ...) are CWD-free and covered elsewhere.
 func TestNoRepo(t *testing.T) {
 	origDir, err := os.Getwd()
 	if err != nil {
@@ -355,10 +355,11 @@ func TestNoRepo(t *testing.T) {
 		name string
 		args []string
 	}{
-		{
-			name: "status outside repo",
-			args: []string{"status"},
-		},
+		// status is CWD-free as of #3646 — see TestStatusNoRepo.
+	}
+
+	if len(tests) == 0 {
+		t.Skip("no remaining repo-gated commands in this suite; status moved to TestStatusNoRepo")
 	}
 
 	for _, tt := range tests {
