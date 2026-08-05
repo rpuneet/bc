@@ -27,6 +27,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // CursorUsageRelDir is the session subdirectory that holds Cursor usage
@@ -218,3 +220,158 @@ func readCursorUsageFile(path string) ([]CursorUsageRecord, error) {
 
 // Ensure CursorProvider implements CostReader.
 var _ CostReader = (*CursorProvider)(nil)
+
+// pendingCursorUsage holds a usage record with its agent name for batch append.
+type pendingCursorUsage struct {
+	agent string
+	rec   CursorUsageRecord
+}
+
+// CursorUsageBackfill scans the events JSONL for Cursor Stop events with token
+// counts that were recorded before AppendCursorUsage was wired, and appends them
+// to each agent's usage.jsonl. This fixes the gap where historical cursor token
+// Stops exist in events.jsonl but not in usage.jsonl (#3597).
+func CursorUsageBackfill(eventsPath, agentsDir string) (int, error) {
+	if eventsPath == "" || agentsDir == "" {
+		return 0, nil
+	}
+	f, err := os.Open(eventsPath) //nolint:gosec // reading from user's events log
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close() //nolint:errcheck
+
+	// Collect usage records per agent: agent name -> set of generation_ids already present
+	agentUsage := make(map[string]map[string]struct{})
+	ents, err := os.ReadDir(agentsDir)
+	if err != nil {
+		return 0, err
+	}
+	for _, e := range ents {
+		if !e.IsDir() {
+			continue
+		}
+		path := filepath.Join(agentsDir, e.Name(), CursorUsageRelDir, CursorUsageFile)
+		recs, err := readCursorUsageFile(path)
+		if err != nil || len(recs) == 0 {
+			continue
+		}
+		seen := make(map[string]struct{}, len(recs))
+		for _, rec := range recs {
+			if rec.GenerationID != "" {
+				seen[rec.GenerationID] = struct{}{}
+			}
+		}
+		agentUsage[e.Name()] = seen
+	}
+
+	// Scan events for Cursor Stop hooks with token data
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	var toAppend []pendingCursorUsage
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" {
+			continue
+		}
+		var evt struct {
+			Data map[string]any `json:"data"`
+			Type string         `json:"type"`
+		}
+		if err := json.Unmarshal([]byte(line), &evt); err != nil {
+			continue
+		}
+		if evt.Type != "agent.hook" {
+			continue
+		}
+		data := evt.Data
+		if data == nil {
+			continue
+		}
+		// Check if this is a Stop event with token data
+		event, _ := data["event"].(string)
+		if event != "Stop" {
+			continue
+		}
+		// Must have token data
+		inputTokens := toInt64(data["input_tokens"])
+		outputTokens := toInt64(data["output_tokens"])
+		if inputTokens == 0 && outputTokens == 0 {
+			continue
+		}
+		// Get agent name and generation_id
+		agent, _ := data["agent"].(string)
+		if agent == "" {
+			continue
+		}
+		generationID, _ := data["generation_id"].(string)
+		// Check if we already have this generation_id
+		if seen, ok := agentUsage[agent]; ok && generationID != "" {
+			if _, exists := seen[generationID]; exists {
+				continue // already recorded
+			}
+		}
+		// Build the usage record
+		rec := CursorUsageRecord{
+			GenerationID:     generationID,
+			SessionID:        toString(data["session_id"]),
+			Model:            toString(data["model"]),
+			InputTokens:      inputTokens,
+			OutputTokens:     outputTokens,
+			CacheReadTokens:  toInt64(data["cache_read_tokens"]),
+			CacheWriteTokens: toInt64(data["cache_write_tokens"]),
+		}
+		if rec.CostUSD == 0 {
+			rec.CostUSD = CursorCalcCost(rec.Model, rec.InputTokens, rec.OutputTokens, rec.CacheWriteTokens, rec.CacheReadTokens)
+		}
+		toAppend = append(toAppend, pendingCursorUsage{agent: agent, rec: rec})
+		// Track this generation_id to avoid duplicates within this run
+		if generationID != "" {
+			if _, ok := agentUsage[agent]; !ok {
+				agentUsage[agent] = make(map[string]struct{})
+			}
+			agentUsage[agent][generationID] = struct{}{}
+		}
+	}
+	if err := sc.Err(); err != nil {
+		return 0, err
+	}
+	// Append the collected records
+	appended := 0
+	for _, p := range toAppend {
+		if err := AppendCursorUsage(agentsDir, p.agent, p.rec); err != nil {
+			log.Warn("cursor backfill: failed to append usage", "agent", p.agent, "error", err)
+			continue
+		}
+		appended++
+	}
+	return appended, nil
+}
+
+func toInt64(v any) int64 {
+	if v == nil {
+		return 0
+	}
+	switch n := v.(type) {
+	case float64:
+		return int64(n)
+	case int64:
+		return n
+	case int:
+		return int64(n)
+	case string:
+		i, _ := strconv.ParseInt(n, 10, 64)
+		return i
+	}
+	return 0
+}
+
+func toString(v any) string {
+	if v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
