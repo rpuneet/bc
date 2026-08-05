@@ -15,6 +15,8 @@ Examples:
   mycel notify subscribe slack:eng eng-01            # Subscribe agent to channel
   mycel notify unsubscribe slack:eng eng-01          # Unsubscribe agent
   mycel notify activity slack:eng                    # Show delivery activity log
+  mycel notify prune --dry-run                       # Preview leftover catch-all copies
+  mycel notify prune --yes                           # Delete matching leftovers
 
 ### Options
 
@@ -34,6 +36,7 @@ Examples:
 * [mycel](mycel.md)	 - A simpler, more controllable agent orchestrator
 * [mycel notify activity](mycel_notify_activity.md)	 - Show delivery activity for a channel
 * [mycel notify list](mycel_notify_list.md)	 - List all agent subscriptions
+* [mycel notify prune](mycel_notify_prune.md)	 - Remove leftover catch-all auto-copied subscriptions
 * [mycel notify status](mycel_notify_status.md)	 - Show gateway connection status and subscriptions
 * [mycel notify subscribe](mycel_notify_subscribe.md)	 - Subscribe an agent to a channel
 * [mycel notify unsubscribe](mycel_notify_unsubscribe.md)	 - Unsubscribe an agent from a channel
