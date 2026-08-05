@@ -557,6 +557,10 @@ func (m *Manager) ApplyConfig(cfg *home.Config) {
 	m.appsConfig = cfg.Apps
 	m.providersConfig = &cfg.Providers
 	m.wsConfig = cfg
+	t := cfg.Runtime.Tmux
+	if t.SessionPrefix != "" || t.DefaultShell != "" || t.HistoryLimit > 0 {
+		m.ApplyTmuxRuntime(t.SessionPrefix, t.DefaultShell, t.HistoryLimit)
+	}
 }
 
 // notifyStateChange calls the onStateChange callback if set.
@@ -630,6 +634,21 @@ func normalizeRuntime(rt string) string {
 	default:
 		return rt
 	}
+}
+
+// ApplyTmuxRuntime replaces the tmux backend using prefs
+// (runtime.tmux.session_prefix / default_shell / history_limit).
+func (m *Manager) ApplyTmuxRuntime(prefix, defaultShell string, historyLimit int) {
+	if m == nil {
+		return
+	}
+	tm := tmux.NewManager(tmux.NormalizeSessionPrefix(prefix))
+	tm.DefaultShell = defaultShell
+	tm.HistoryLimit = historyLimit
+	if m.backends == nil {
+		m.backends = make(map[string]runtime.Backend)
+	}
+	m.backends["tmux"] = runtime.NewTmuxBackend(tm)
 }
 
 // NewManager creates a new agent manager with repo-scoped tmux sessions.

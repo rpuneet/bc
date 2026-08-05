@@ -465,12 +465,16 @@ func (s *Services) MCPLayeredView() *mcppkg.LayeredView {
 func newAgentManager(h *home.Home) (*agentpkg.Manager, *containerpkg.Backend, string, error) {
 	var homeCfg home.DockerRuntimeConfig
 	runtimeDefault := ""
+	sessionPrefix := agentpkg.DefaultSessionPrefix
 	if h.Config != nil {
 		homeCfg = h.Config.Runtime.Docker
 		runtimeDefault = h.Config.Runtime.Default
+		if p := h.Config.Runtime.Tmux.SessionPrefix; p != "" {
+			sessionPrefix = tmux.NormalizeSessionPrefix(p)
+		}
 	}
 	dockerCfg := containerpkg.ConfigFromHome(homeCfg)
-	be, err := containerpkg.NewBackend(dockerCfg, agentpkg.DefaultSessionPrefix, h.RootDir, provider.DefaultRegistry)
+	be, err := containerpkg.NewBackend(dockerCfg, sessionPrefix, h.RootDir, provider.DefaultRegistry)
 	if err != nil {
 		log.Warn("Docker not available — agents will use tmux runtime only", "error", err, "repo", h.RootDir)
 		reason := ""

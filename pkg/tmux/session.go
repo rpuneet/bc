@@ -79,18 +79,42 @@ const DefaultPrefix = "mycel-"
 
 // Manager handles tmux session operations.
 type Manager struct {
-	// Session cache for reducing tmux subprocess calls (#980).
-	// Cache is invalidated on CreateSession/KillSession/RenameSession/KillServer.
-	sessionsCacheAt time.Time // When sessions cache was populated
-	hasCacheAt      time.Time // When hasSession cache was populated
+	sessionsCacheAt time.Time
+	hasCacheAt      time.Time
 	execCommand     func(name string, arg ...string) *exec.Cmd
 	sessionLocks    map[string]*sync.Mutex
-	hasSessionCache map[string]bool // Cached session existence checks
-	SessionPrefix   string          // Prepended to all session names (e.g., "mycel-")
-	sessionsCache   []Session       // Cached list of sessions
-	cacheTTL        time.Duration   // Cache TTL (default: 2 seconds)
-	cacheMu         sync.RWMutex    // Protects cache fields
-	sessionMu       sync.Mutex      // Protects per-session SendKeys serialization
+	hasSessionCache map[string]bool
+	SessionPrefix   string
+	DefaultShell    string
+	sessionsCache   []Session
+	cacheTTL        time.Duration
+	HistoryLimit    int
+	cacheMu         sync.RWMutex
+	sessionMu       sync.Mutex
+}
+
+// NormalizeSessionPrefix ensures a trailing "-" so agent names do not glue
+// to the prefix. Prefs historically default to "mycel" while code used
+// "mycel-"; both become "mycel-".
+func NormalizeSessionPrefix(prefix string) string {
+	prefix = strings.TrimSpace(prefix)
+	if prefix == "" {
+		return DefaultPrefix
+	}
+	if !strings.HasSuffix(prefix, "-") {
+		return prefix + "-"
+	}
+	return prefix
+}
+
+// safeShellPath allows absolute shell paths only (no spaces / metacharacters).
+var safeShellPath = regexp.MustCompile(`^/[A-Za-z0-9._/-]+$`)
+
+func (m *Manager) sessionShell() string {
+	if m.DefaultShell != "" && safeShellPath.MatchString(m.DefaultShell) {
+		return m.DefaultShell
+	}
+	return "/bin/bash"
 }
 
 // command returns an exec.Cmd using the configured executor.
@@ -263,12 +287,19 @@ func (m *Manager) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	if dir != "" {
 		args = append(args, "-c", dir)
 	}
-	args = append(args, "bash", "-c", shellCmd)
+	args = append(args, m.sessionShell(), "-c", shellCmd)
 
 	cmd := m.command(ctx, "tmux", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to create session %s: %w (%s)", fullName, err, string(output))
+	}
+
+	if m.HistoryLimit > 0 {
+		histCmd := m.command(ctx, "tmux", "set-option", "-t", fullName, "history-limit", strconv.Itoa(m.HistoryLimit))
+		if histOut, histErr := histCmd.CombinedOutput(); histErr != nil {
+			log.Warn("tmux history-limit not applied", "session", fullName, "error", histErr, "output", string(histOut))
+		}
 	}
 
 	// Invalidate cache after creating session

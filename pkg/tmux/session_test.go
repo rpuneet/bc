@@ -509,8 +509,8 @@ func TestCreateSessionWithEnv_Success(t *testing.T) {
 	if len(*records) != 1 {
 		t.Fatalf("expected 1 call, got %d", len(*records))
 	}
-	if !slices.Contains((*records)[0].args, "bash") {
-		t.Error("expected bash in args")
+	if !slices.Contains((*records)[0].args, "/bin/bash") {
+		t.Errorf("expected /bin/bash in args, got %v", (*records)[0].args)
 	}
 }
 

@@ -87,19 +87,24 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		repoRoot = abs
 	}
 
-	// Use the prefs.json addr if --addr wasn't explicitly set.
-	if !cmd.Flags().Changed("addr") {
+	// Use the prefs.json addr / cors_origin if flags weren't explicitly set.
+	if !cmd.Flags().Changed("addr") || !cmd.Flags().Changed("cors-origin") {
 		if prefsPath, pathErr := home.PrefsPath(); pathErr == nil {
 			if cfg, loadErr := home.LoadConfig(prefsPath); loadErr == nil {
-				host := cfg.Server.Host
-				if host == "" {
-					host = "127.0.0.1"
+				if !cmd.Flags().Changed("addr") {
+					host := cfg.Server.Host
+					if host == "" {
+						host = "127.0.0.1"
+					}
+					port := 9374
+					if cfg.Server.Port > 0 {
+						port = cfg.Server.Port
+					}
+					upAddr = fmt.Sprintf("%s:%d", host, port)
 				}
-				port := 9374
-				if cfg.Server.Port > 0 {
-					port = cfg.Server.Port
+				if !cmd.Flags().Changed("cors-origin") && cfg.Server.CORSOrigin != "" {
+					upCORS = cfg.Server.CORSOrigin
 				}
-				upAddr = fmt.Sprintf("%s:%d", host, port)
 			}
 		}
 	}
@@ -145,6 +150,17 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	}
 
 	return RunServer(upAddr, repoRoot, upCORS, upAPIKey)
+}
+
+// ResolveCORSOrigin returns server.cors_origin from prefs.json when set,
+// otherwise "*". Used by the desktop embed which has no --cors-origin flag.
+func ResolveCORSOrigin() string {
+	if prefsPath, pathErr := home.PrefsPath(); pathErr == nil {
+		if cfg, loadErr := home.LoadConfig(prefsPath); loadErr == nil && cfg.Server.CORSOrigin != "" {
+			return cfg.Server.CORSOrigin
+		}
+	}
+	return "*"
 }
 
 // resolveUpRepo picks the anchor repo for `mycel up`. The daemon is
