@@ -10,22 +10,24 @@ import { OverviewStrip } from "./home/OverviewStrip";
 import { ActivityFeed } from "./home/ActivityFeed";
 import { CostCharts } from "./home/CostCharts";
 import { SystemPulse } from "./home/SystemPulse";
+import { ChronologicalStream } from "./home/ChronologicalStream";
 
 /* ── Home ───────────────────────────────────────────────────────────────
  *
- * The command-center home. The live agent stream (the AgentCard stream,
- * unchanged from the old /live view) is the centerpiece column; a dense,
- * live-streaming grid wraps around it — an overview strip up top, then an
- * activity feed, two cost charts and a system pulse in the right rail.
- * Everything ticks without a page reload: the stream + event counters run
- * on SSE, the feed polls, the cost modules refresh every 60s.
+ * The command-center home. The live agent stream is the centerpiece column
+ * (#3642): default is one chronological feed across agents (“as it comes”);
+ * “By agent” keeps the classic AgentCard grid. A dense live grid wraps
+ * around it — overview strip up top, activity feed + cost charts in the
+ * right rail. SSE drives the stream; the feed polls; costs refresh every 60s.
  *
- * Every capability from the old Live view survives (presence, search,
- * pause, type filter, export, drill-down, keyboard shortcuts) — they live
- * in the stream module's own header row and the full-width top bar.
+ * Presence, search, pause, type filter, export, drill-down, and keyboard
+ * shortcuts live in the stream header / full-width top bar.
  */
 
 export const SHOW_STOPPED_STORAGE_KEY = "mycel-live-show-stopped";
+/** localStorage key for Home activity presentation (#3642). */
+export const HOME_VIEW_MODE_KEY = "mycel-home-activity-view";
+export type HomeViewMode = "stream" | "by-agent";
 export const ACTIVE_STATES = new Set(["idle", "starting", "working", "stuck", "done"]);
 
 function readShowStopped(): boolean {
@@ -41,6 +43,25 @@ function writeShowStopped(value: boolean): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(SHOW_STOPPED_STORAGE_KEY, value ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
+
+function readViewMode(): HomeViewMode {
+  if (typeof window === "undefined") return "stream";
+  try {
+    const v = window.localStorage.getItem(HOME_VIEW_MODE_KEY);
+    return v === "by-agent" ? "by-agent" : "stream";
+  } catch {
+    return "stream";
+  }
+}
+
+function writeViewMode(value: HomeViewMode): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(HOME_VIEW_MODE_KEY, value);
   } catch {
     /* ignore */
   }
@@ -153,6 +174,7 @@ export function Home() {
   const [typeFilter, setTypeFilter] = useState<FilterType>("all");
   const [searchFilter, setSearchFilter] = useState("");
   const [showStopped, setShowStoppedState] = useState<boolean>(() => readShowStopped());
+  const [viewMode, setViewModeState] = useState<HomeViewMode>(() => readViewMode());
 
   const setShowStopped = useCallback((value: boolean | ((prev: boolean) => boolean)) => {
     setShowStoppedState((prev) => {
@@ -160,6 +182,11 @@ export function Home() {
       writeShowStopped(next);
       return next;
     });
+  }, []);
+
+  const setViewMode = useCallback((value: HomeViewMode) => {
+    writeViewMode(value);
+    setViewModeState(value);
   }, []);
   const [collapsedOverrides, setCollapsedOverrides] = useState<Map<string, boolean>>(new Map());
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
@@ -504,6 +531,39 @@ export function Home() {
             <span className="text-[10px] font-semibold text-mycel-muted uppercase tracking-widest">
               Agents live
             </span>
+            <div
+              className="inline-flex items-center rounded-md border border-mycel-border bg-mycel-surface p-0.5"
+              role="group"
+              aria-label="Activity view"
+              data-testid="home-view-mode-toggle"
+            >
+              <button
+                type="button"
+                onClick={() => setViewMode("stream")}
+                aria-pressed={viewMode === "stream"}
+                data-testid="home-view-stream"
+                className={`h-6 px-2 rounded text-[10px] font-medium transition-colors ${
+                  viewMode === "stream"
+                    ? "bg-mycel-accent-subtle text-mycel-accent"
+                    : "text-mycel-muted hover:text-mycel-text"
+                }`}
+              >
+                As it comes
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("by-agent")}
+                aria-pressed={viewMode === "by-agent"}
+                data-testid="home-view-by-agent"
+                className={`h-6 px-2 rounded text-[10px] font-medium transition-colors ${
+                  viewMode === "by-agent"
+                    ? "bg-mycel-accent-subtle text-mycel-accent"
+                    : "text-mycel-muted hover:text-mycel-text"
+                }`}
+              >
+                By agent
+              </button>
+            </div>
             <span className="ml-auto">
               <SystemPulse />
             </span>
@@ -548,10 +608,29 @@ export function Home() {
               card above the viewport changes height. */}
           <div
             ref={scrollContainerRef}
-            className="flex-1 overflow-y-auto min-h-0 space-y-2.5 relative p-3"
+            className={`flex-1 overflow-y-auto min-h-0 relative ${viewMode === "by-agent" ? "space-y-2.5 p-3" : ""}`}
             style={{ overflowAnchor: "none", scrollbarGutter: "stable" }}
           >
-            {sorted.length === 0 ? (
+            {viewMode === "stream" ? (
+              <ChronologicalStream
+                agents={sorted}
+                searchTerm={searchFilter}
+                typeFilter={typeFilter}
+                onOpenAgent={setDrillDownAgent}
+                emptyTitle={
+                  !showStopped && activeCount === 0 && stoppedCount > 0
+                    ? "No active agents"
+                    : "No activity yet"
+                }
+                emptyDescription={
+                  !showStopped && activeCount === 0 && stoppedCount > 0
+                    ? `${stoppedCount} stopped or errored ${stoppedCount === 1 ? "agent is" : "agents are"} hidden — click "(hidden)" above to reveal.`
+                    : sorted.length > 0
+                      ? "Agents are online — events will appear here as they work."
+                      : "Events will stream here in real-time as agents work."
+                }
+              />
+            ) : sorted.length === 0 ? (
               !showStopped && activeCount === 0 && stoppedCount > 0 ? (
                 <EmptyState
                   icon=">"
