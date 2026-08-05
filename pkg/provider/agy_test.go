@@ -289,11 +289,11 @@ func TestAgyHasResumableSession(t *testing.T) {
 
 func TestAgyActivitySource(t *testing.T) {
 	p := NewAgyProvider()
-	if p.ActivityMode() != ActivityModeHooks {
-		t.Errorf("ActivityMode() = %q, want %q", p.ActivityMode(), ActivityModeHooks)
+	if p.ActivityMode() != ActivityModeTranscript {
+		t.Errorf("ActivityMode() = %q, want %q", p.ActivityMode(), ActivityModeTranscript)
 	}
 	globs := p.TranscriptGlobs("/wt/eng-01")
-	if len(globs) != 1 || !strings.HasSuffix(globs[0], filepath.Join(".gemini", "antigravity-cli", "transcript.jsonl")) {
+	if len(globs) != 1 || !strings.Contains(globs[0], filepath.Join("antigravity-cli", "brain")) {
 		t.Errorf("TranscriptGlobs() = %v", globs)
 	}
 	if p.TranscriptGlobs("") != nil {
@@ -541,6 +541,77 @@ func TestAgyHookCommandsAreValidBash(t *testing.T) {
 				agyHookCommand(tc.event, tc.state, tc.stdout))
 			if out, err := cmd.CombinedOutput(); err != nil {
 				t.Errorf("bash -n rejected the %s command: %v\n%s", tc.event, err, out)
+			}
+		})
+	}
+}
+
+// TestAgyParseTranscriptLine verifies agy's transcript parser correctly
+// extracts activity events from JSONL lines.
+func TestAgyParseTranscriptLine(t *testing.T) {
+	p := NewAgyProvider()
+
+	tests := []struct {
+		name    string
+		line    string
+		want    []TranscriptActivity
+		wantErr bool
+	}{
+		{
+			name: "USER_INPUT with prompt",
+			line: `{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-07-06T21:54:52Z","content":"<USER_REQUEST>\nHello, can you help me with this task?\n</USER_REQUEST>"}`,
+			want: []TranscriptActivity{{
+				Event:  "UserPromptSubmit",
+				Prompt: "Hello, can you help me with this task?",
+			}},
+		},
+		{
+			name: "PLANNER_RESPONSE with tool calls",
+			line: `{"step_index":3,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-07-06T21:55:57Z","thinking":"I'll check the file","tool_calls":[{"name":"Read","args":{"path":"/tmp/test.txt"}}]}`,
+			want: []TranscriptActivity{{
+				Event:     "PreToolUse",
+				ToolName:  "Read",
+				ToolInput: map[string]any{"path": "/tmp/test.txt"},
+			}},
+		},
+		{
+			name:    "RUN_COMMAND - skipped",
+			line:    `{"step_index":7,"source":"MODEL","type":"RUN_COMMAND","status":"DONE","created_at":"2026-07-06T21:56:45Z","content":"exit 0"}`,
+			want:    nil,
+		},
+		{
+			name:    "empty line",
+			line:    "",
+			want:    nil,
+		},
+		{
+			name:    "invalid JSON",
+			line:    "not json at all",
+			want:    nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := p.ParseTranscriptLine([]byte(tt.line))
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ParseTranscriptLine() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if len(got) != len(tt.want) {
+				t.Errorf("ParseTranscriptLine() returned %d activities, want %d", len(got), len(tt.want))
+				return
+			}
+			for i := range got {
+				if got[i].Event != tt.want[i].Event {
+					t.Errorf("activity[%d].Event = %q, want %q", i, got[i].Event, tt.want[i].Event)
+				}
+				if got[i].Prompt != tt.want[i].Prompt {
+					t.Errorf("activity[%d].Prompt = %q, want %q", i, got[i].Prompt, tt.want[i].Prompt)
+				}
+				if got[i].ToolName != tt.want[i].ToolName {
+					t.Errorf("activity[%d].ToolName = %q, want %q", i, got[i].ToolName, tt.want[i].ToolName)
+				}
 			}
 		})
 	}
