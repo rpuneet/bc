@@ -35,10 +35,10 @@ type cachedRelease struct {
 // ReleaseHandler serves the latest GitHub release with server-side caching
 // to avoid hitting GitHub's unauthenticated rate limit from the browser.
 type ReleaseHandler struct {
-	cache   *cachedRelease
 	httpCli *http.Client
-	mu      sync.RWMutex
+	cache   *cachedRelease
 	sf      singleflight.Group
+	mu      sync.RWMutex
 }
 
 // NewReleaseHandler creates a new ReleaseHandler with a default HTTP client.
@@ -90,7 +90,7 @@ func (h *ReleaseHandler) getRelease(ctx context.Context) (*GitHubRelease, string
 
 	// Coalesce concurrent refreshes so a thundering herd of About views
 	// issues one GitHub request per TTL window (#3620 CodeRabbit).
-	v, _, _ := h.sf.Do("latest", func() (any, error) { //nolint:errcheck // closure never returns an error
+	v, err, _ := h.sf.Do("latest", func() (any, error) {
 		h.mu.RLock()
 		c := h.cache
 		h.mu.RUnlock()
@@ -108,7 +108,13 @@ func (h *ReleaseHandler) getRelease(ctx context.Context) (*GitHubRelease, string
 		h.mu.Unlock()
 		return entry, nil
 	})
-	entry := v.(*cachedRelease)
+	if err != nil {
+		return nil, "error"
+	}
+	entry, ok := v.(*cachedRelease)
+	if !ok || entry == nil {
+		return nil, "error"
+	}
 	return entry.release, entry.status
 }
 
