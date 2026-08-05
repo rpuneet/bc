@@ -4,12 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/mycel/pkg/home"
+	"github.com/rpuneet/mycel/pkg/client"
 	"github.com/rpuneet/mycel/pkg/template"
 )
 
@@ -19,7 +18,7 @@ var templateCmd = &cobra.Command{
 	Short:   "Manage agent templates",
 	Long: `Manage agent templates — reusable configurations for spawning agents.
 
-Templates are stored in ~/.mycel/templates/ (user-global).
+Templates are managed by the mycel daemon (same store as the web UI).
 
 Examples:
   mycel template list                    # List all templates
@@ -60,26 +59,14 @@ var templateDeleteCmd = &cobra.Command{
 var templateImportCmd = &cobra.Command{
 	Use:   "import <source>",
 	Short: "Import a template from a file, URL, or the marketplace catalog",
-	Long: `Import a template into the global template store (~/.mycel/templates/).
+	Long: `Import a template into the daemon template store.
 
 <source> may be:
   - a path to a local JSON file describing the template
   - an http(s) URL to a template JSON document
   - the name of a template already known to the marketplace catalog
-    (mycel marketplace list --type template)
 
-The JSON document has the same shape as 'mycel template show', plus an
-optional "system_prompt" string field carrying the system prompt text:
-
-  {
-    "name": "my-template",
-    "description": "...",
-    "mcps": ["mycel"],
-    "system_prompt": "You are..."
-  }
-
-Importing a name that already exists in the store updates it in place;
-pass --force to allow the overwrite.`,
+Importing a name that already exists updates it in place when --force is set.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runTemplateImport,
 }
@@ -96,22 +83,12 @@ func init() {
 	rootCmd.AddCommand(templateCmd)
 }
 
-// openTemplateStore returns the single user-global template store at
-// ~/.mycel/templates/.
-func openTemplateStore() (*template.Store, error) {
-	globalDir, err := home.GlobalTemplatesDir()
-	if err != nil {
-		return nil, fmt.Errorf("resolve global templates dir: %w", err)
-	}
-	return template.NewStore(globalDir), nil
-}
-
-func runTemplateList(_ *cobra.Command, _ []string) error {
-	store, err := openTemplateStore()
+func runTemplateList(cmd *cobra.Command, _ []string) error {
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	templates, err := store.List()
+	templates, err := c.Templates.List(cmd.Context())
 	if err != nil {
 		return fmt.Errorf("list templates: %w", err)
 	}
@@ -134,7 +111,7 @@ func runTemplateList(_ *cobra.Command, _ []string) error {
 
 	const mcpsHeader = "MCPS"
 	const scopeHeader = "SCOPE"
-	const colGap = 2 // spaces between columns
+	const colGap = 2
 	separatorWidth := maxNameLen + colGap + maxDescLen + colGap + len(scopeHeader) + colGap + len(mcpsHeader)
 	fmt.Printf("%-*s  %-*s  %-*s  %s\n", maxNameLen, "NAME", maxDescLen, "DESCRIPTION", len(scopeHeader), scopeHeader, mcpsHeader)
 	fmt.Println(strings.Repeat("-", separatorWidth))
@@ -144,7 +121,7 @@ func runTemplateList(_ *cobra.Command, _ []string) error {
 		if mcps == "" {
 			mcps = "\u2014"
 		}
-		scope := string(t.Scope)
+		scope := t.Scope
 		if scope == "" {
 			scope = "global"
 		}
@@ -155,12 +132,12 @@ func runTemplateList(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-func runTemplateShow(_ *cobra.Command, args []string) error {
-	store, err := openTemplateStore()
+func runTemplateShow(cmd *cobra.Command, args []string) error {
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	t, prompt, err := store.Get(args[0])
+	t, err := c.Templates.Get(cmd.Context(), args[0])
 	if err != nil {
 		return err
 	}
@@ -189,10 +166,10 @@ func runTemplateShow(_ *cobra.Command, args []string) error {
 	}
 
 	fmt.Println()
-	if prompt != "" {
+	if t.SystemPrompt != "" {
 		fmt.Println("System Prompt:")
 		fmt.Println(strings.Repeat("-", 40))
-		fmt.Println(prompt)
+		fmt.Println(t.SystemPrompt)
 	} else {
 		fmt.Println("System Prompt: (none)")
 	}
@@ -200,49 +177,38 @@ func runTemplateShow(_ *cobra.Command, args []string) error {
 	return nil
 }
 
-func runTemplateCreate(_ *cobra.Command, args []string) error {
-	store, err := openTemplateStore()
+func runTemplateCreate(cmd *cobra.Command, args []string) error {
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
 
-	name := args[0]
-	if _, err := home.EnsureGlobalDir(); err != nil {
-		return err
-	}
-
-	t := template.Template{
-		Name:        name,
-		Description: "",
-		MCPs:        []string{},
-	}
-	if err := store.Create(t, "", template.ScopeGlobal); err != nil {
-		return err
-	}
-
-	// Print the actual path so the user knows where the file landed.
-	fmt.Printf("Created template at %s\n", filepath.Join(store.GlobalDir(), name+".json"))
-	return nil
-}
-
-func runTemplateDelete(_ *cobra.Command, args []string) error {
-	store, err := openTemplateStore()
+	created, err := c.Templates.Create(cmd.Context(), client.TemplateInfo{
+		Name: args[0],
+		MCPs: []string{},
+	})
 	if err != nil {
 		return err
 	}
 
-	name := args[0]
-	if err := store.Delete(name, template.ScopeGlobal); err != nil {
-		return err
-	}
-
-	fmt.Printf("Deleted template %s\n", name)
+	fmt.Printf("Created template %s\n", created.Name)
 	return nil
 }
 
-// runTemplateImport implements `mycel template import <source>`. source can
-// be a local JSON file path, an http(s) URL to a template JSON document, or
-// the name of a template already listed in the marketplace catalog.
+func runTemplateDelete(cmd *cobra.Command, args []string) error {
+	c, err := newDaemonClient(cmd.Context())
+	if err != nil {
+		return err
+	}
+
+	if err := c.Templates.Delete(cmd.Context(), args[0]); err != nil {
+		return err
+	}
+
+	fmt.Printf("Deleted template %s\n", args[0])
+	return nil
+}
+
 func runTemplateImport(cmd *cobra.Command, args []string) error {
 	source := args[0]
 	force, err := cmd.Flags().GetBool("force")
@@ -254,15 +220,12 @@ func runTemplateImport(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	store, err := openTemplateStore()
+	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
 	}
-	if _, dirErr := home.EnsureGlobalDir(); dirErr != nil {
-		return dirErr
-	}
 
-	t, prompt, err := resolveImportSource(cmd.Context(), store, source)
+	t, prompt, err := resolveImportSource(cmd.Context(), c, source)
 	if err != nil {
 		return err
 	}
@@ -273,35 +236,42 @@ func runTemplateImport(cmd *cobra.Command, args []string) error {
 	if t.Name == "" {
 		return fmt.Errorf("imported template has no name; pass --name to set one")
 	}
-	t.Scope = ""
 
-	if _, _, getErr := store.Get(t.Name); getErr == nil {
+	info := client.TemplateInfo{
+		Name:            t.Name,
+		Description:     t.Description,
+		Label:           t.Label,
+		Provider:        t.Provider,
+		MCPs:            t.MCPs,
+		Secrets:         t.Secrets,
+		Plugins:         t.Plugins,
+		Composes:        t.Composes,
+		SystemPrompt:    prompt,
+		MaxCostUSD:      t.MaxCostUSD,
+		StuckTimeoutMin: t.StuckTimeoutMin,
+	}
+
+	if _, getErr := c.Templates.Get(cmd.Context(), t.Name); getErr == nil {
 		if !force {
 			return fmt.Errorf("template %q already exists; re-run with --force to update it", t.Name)
 		}
-		if err := store.Update(t.Name, t, prompt); err != nil {
+		if _, err := c.Templates.Update(cmd.Context(), t.Name, info); err != nil {
 			return fmt.Errorf("update template %q: %w", t.Name, err)
 		}
 		fmt.Printf("Updated template %q from %s\n", t.Name, source)
 		return nil
 	}
 
-	if err := store.Create(t, prompt, template.ScopeGlobal); err != nil {
+	if _, err := c.Templates.Create(cmd.Context(), info); err != nil {
 		return fmt.Errorf("import template %q: %w", t.Name, err)
 	}
 	fmt.Printf("Imported template %q from %s\n", t.Name, source)
 	return nil
 }
 
-// resolveImportSource resolves source into a Template + system prompt. It
-// tries, in order: an http(s) URL, a local file path, and finally a lookup
-// by name against this store directly. The last case covers "known
-// marketplace item name": the marketplace catalog's "mycel" source (see
-// pkg/marketplace.Aggregator.fetchMycel) lists exactly this store's own
-// templates, so resolving a bare name against the store is equivalent to
-// resolving it via the aggregator today, without paying for a live fetch
-// across every other registry the aggregator knows about.
-func resolveImportSource(ctx context.Context, store *template.Store, source string) (template.Template, string, error) {
+// resolveImportSource resolves source into a Template + system prompt via
+// URL, local file, or an existing daemon template name.
+func resolveImportSource(ctx context.Context, c *client.Client, source string) (template.Template, string, error) {
 	if strings.HasPrefix(source, "http://") || strings.HasPrefix(source, "https://") {
 		t, prompt, err := template.FetchImportDoc(ctx, nil, source)
 		if err != nil {
@@ -322,8 +292,19 @@ func resolveImportSource(ctx context.Context, store *template.Store, source stri
 		return t, prompt, nil
 	}
 
-	if t, prompt, err := store.Get(source); err == nil {
-		return *t, prompt, nil
+	if existing, err := c.Templates.Get(ctx, source); err == nil {
+		return template.Template{
+			Name:            existing.Name,
+			Description:     existing.Description,
+			Label:           existing.Label,
+			Provider:        existing.Provider,
+			MCPs:            existing.MCPs,
+			Secrets:         existing.Secrets,
+			Plugins:         existing.Plugins,
+			Composes:        existing.Composes,
+			MaxCostUSD:      existing.MaxCostUSD,
+			StuckTimeoutMin: existing.StuckTimeoutMin,
+		}, existing.SystemPrompt, nil
 	}
 	return template.Template{}, "", fmt.Errorf("%q is not a local file, a URL, or a known template in the store", source)
 }

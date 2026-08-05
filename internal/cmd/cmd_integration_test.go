@@ -326,7 +326,8 @@ func TestAgentReportRequiresArgs(t *testing.T) {
 // --- Status command tests ---
 
 func TestStatusNoRepo(t *testing.T) {
-	t.Setenv("MYCEL_WORKSPACE", "") // Clear MYCEL_WORKSPACE to test cwd-based discovery
+	// status is CWD-free (#3646): it talks to the daemon even outside a repo.
+	t.Setenv("MYCEL_WORKSPACE", "")
 
 	origDir, err := os.Getwd()
 	if err != nil {
@@ -339,12 +340,31 @@ func TestStatusNoRepo(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(origDir) }()
 
-	_, _, err = executeIntegrationCmd("status")
-	if err == nil {
-		t.Fatal("expected error when not in a repo, got nil")
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+		case "/api/system/info":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"workspace": "/tmp/outside-repo", "has_workspace": true,
+			})
+		case "/api/agents":
+			_ = json.NewEncoder(w).Encode([]any{})
+		default:
+			http.NotFound(w, r)
+		}
 	}
-	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected repo error, got: %v", err)
+
+	stdout, _, err := executeIntegrationCmdT(t, handler, "status")
+	if err != nil {
+		t.Fatalf("status outside repo should work via daemon, got: %v", err)
+	}
+	if !strings.Contains(stdout, "No agents configured") {
+		t.Errorf("expected empty agent list, got: %s", stdout)
+	}
+	if !strings.Contains(stdout, "outside-repo") {
+		t.Errorf("expected workspace basename from /api/system/info, got: %s", stdout)
 	}
 }
 
@@ -352,7 +372,23 @@ func TestStatusEmptyRepo(t *testing.T) {
 	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
-	stdout, _, err := executeIntegrationCmd("status")
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+		case "/api/system/info":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"workspace": "/repos/test-repo", "has_workspace": true,
+			})
+		case "/api/agents":
+			_ = json.NewEncoder(w).Encode([]any{})
+		default:
+			http.NotFound(w, r)
+		}
+	}
+
+	stdout, _, err := executeIntegrationCmdT(t, handler, "status")
 	if err != nil {
 		t.Fatalf("status returned error: %v", err)
 	}

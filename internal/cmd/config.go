@@ -342,26 +342,12 @@ func runConfigSet(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if !client.IsDaemonNotRunning(clientErr) {
-		return clientErr
+	// Mutating config must go through the daemon so the UI and CLI share one
+	// writer (#3646). Offline prefs.json writes caused "CLI ok, UI stale".
+	if client.IsDaemonNotRunning(clientErr) {
+		return fmt.Errorf("the daemon is not running — start it with 'mycel up' before changing config\n(%w)", clientErr)
 	}
-
-	// Offline fallback: direct file modification
-	cfg, configPath, err := loadGlobalConfig()
-	if err != nil {
-		return err
-	}
-
-	if err := setConfigValue(cfg, key, valueStr); err != nil {
-		return err
-	}
-
-	if err := cfg.Save(configPath); err != nil {
-		return fmt.Errorf("failed to save config: %w", err)
-	}
-
-	fmt.Printf("Set %s = %s\n", key, valueStr)
-	return nil
+	return clientErr
 }
 
 func runConfigList(cmd *cobra.Command, _ []string) error {

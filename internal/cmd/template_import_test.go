@@ -7,8 +7,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
+	"github.com/rpuneet/mycel/pkg/client"
 	"github.com/rpuneet/mycel/pkg/template"
 )
 
@@ -27,8 +29,99 @@ func writeImportFile(t *testing.T, doc template.ImportDoc) string {
 	return path
 }
 
+// fakeTemplateAPI is an in-memory /api/templates + /health handler for CLI tests.
+type fakeTemplateAPI struct {
+	mu   sync.Mutex
+	data map[string]client.TemplateInfo
+}
+
+func newFakeTemplateAPI() *fakeTemplateAPI {
+	return &fakeTemplateAPI{data: map[string]client.TemplateInfo{}}
+}
+
+func (f *fakeTemplateAPI) handler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+			return
+		}
+		switch {
+		case r.URL.Path == "/api/templates" && r.Method == http.MethodGet:
+			f.mu.Lock()
+			list := make([]client.TemplateInfo, 0, len(f.data))
+			for _, t := range f.data {
+				list = append(list, t)
+			}
+			f.mu.Unlock()
+			_ = json.NewEncoder(w).Encode(list)
+		case r.URL.Path == "/api/templates" && r.Method == http.MethodPost:
+			var body client.TemplateInfo
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			f.mu.Lock()
+			if _, ok := f.data[body.Name]; ok {
+				f.mu.Unlock()
+				http.Error(w, "already exists", http.StatusConflict)
+				return
+			}
+			f.data[body.Name] = body
+			f.mu.Unlock()
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(body)
+		case strings.HasPrefix(r.URL.Path, "/api/templates/"):
+			name := strings.TrimPrefix(r.URL.Path, "/api/templates/")
+			f.mu.Lock()
+			defer f.mu.Unlock()
+			switch r.Method {
+			case http.MethodGet:
+				t, ok := f.data[name]
+				if !ok {
+					http.NotFound(w, r)
+					return
+				}
+				_ = json.NewEncoder(w).Encode(t)
+			case http.MethodPut:
+				var body client.TemplateInfo
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				if body.Name == "" {
+					body.Name = name
+				}
+				f.data[name] = body
+				_ = json.NewEncoder(w).Encode(body)
+			case http.MethodDelete:
+				delete(f.data, name)
+				w.WriteHeader(http.StatusNoContent)
+			default:
+				http.Error(w, "method", http.StatusMethodNotAllowed)
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}
+}
+
+func (f *fakeTemplateAPI) get(name string) (client.TemplateInfo, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	t, ok := f.data[name]
+	return t, ok
+}
+
+func (f *fakeTemplateAPI) seed(t client.TemplateInfo) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.data[t.Name] = t
+}
+
 func TestTemplateImport_FromFile_Creates(t *testing.T) {
-	t.Setenv("MYCEL_HOME", t.TempDir())
+	api := newFakeTemplateAPI()
+	setTestDaemonHandler(t, api.handler())
 	defer resetFlags(templateCmd)
 
 	path := writeImportFile(t, template.ImportDoc{
@@ -48,24 +141,21 @@ func TestTemplateImport_FromFile_Creates(t *testing.T) {
 		t.Errorf("expected success line, got: %s", out)
 	}
 
-	store, storeErr := openTemplateStore()
-	if storeErr != nil {
-		t.Fatalf("open store: %v", storeErr)
-	}
-	got, prompt, getErr := store.Get("my-template")
-	if getErr != nil {
-		t.Fatalf("get imported template: %v", getErr)
+	got, ok := api.get("my-template")
+	if !ok {
+		t.Fatal("imported template missing from API store")
 	}
 	if got.Description != "from a file" {
 		t.Errorf("description = %q, want %q", got.Description, "from a file")
 	}
-	if prompt != "You are a test agent." {
-		t.Errorf("system prompt = %q, want %q", prompt, "You are a test agent.")
+	if got.SystemPrompt != "You are a test agent." {
+		t.Errorf("system prompt = %q, want %q", got.SystemPrompt, "You are a test agent.")
 	}
 }
 
 func TestTemplateImport_ExistingName_IsIdempotentWithForce(t *testing.T) {
-	t.Setenv("MYCEL_HOME", t.TempDir())
+	api := newFakeTemplateAPI()
+	setTestDaemonHandler(t, api.handler())
 	defer resetFlags(templateCmd)
 
 	path := writeImportFile(t, template.ImportDoc{
@@ -77,14 +167,11 @@ func TestTemplateImport_ExistingName_IsIdempotentWithForce(t *testing.T) {
 	}
 	resetFlags(templateCmd)
 
-	// Re-importing without --force should fail rather than silently clobber.
 	if _, _, err := executeIntegrationCmd("template", "import", path); err == nil {
 		t.Fatalf("expected second import without --force to fail")
 	}
 	resetFlags(templateCmd)
 
-	// Update the source doc and re-import with --force: should succeed and
-	// update the stored template (idempotent re-run).
 	path2 := writeImportFile(t, template.ImportDoc{
 		Template: template.Template{Name: "dup-template", Description: "v2"},
 	})
@@ -97,27 +184,22 @@ func TestTemplateImport_ExistingName_IsIdempotentWithForce(t *testing.T) {
 	}
 	resetFlags(templateCmd)
 
-	store, storeErr := openTemplateStore()
-	if storeErr != nil {
-		t.Fatalf("open store: %v", storeErr)
-	}
-	got, _, getErr := store.Get("dup-template")
-	if getErr != nil {
-		t.Fatalf("get template: %v", getErr)
+	got, ok := api.get("dup-template")
+	if !ok {
+		t.Fatal("template missing after force update")
 	}
 	if got.Description != "v2" {
 		t.Errorf("description = %q, want %q (forced update should win)", got.Description, "v2")
 	}
 
-	// A second forced re-import of the same content must also succeed
-	// (true idempotency, not just a one-time overwrite).
 	if _, _, err := executeIntegrationCmd("template", "import", path2, "--force"); err != nil {
 		t.Fatalf("repeated forced import failed: %v", err)
 	}
 }
 
 func TestTemplateImport_FromURL(t *testing.T) {
-	t.Setenv("MYCEL_HOME", t.TempDir())
+	api := newFakeTemplateAPI()
+	setTestDaemonHandler(t, api.handler())
 	defer resetFlags(templateCmd)
 
 	doc := template.ImportDoc{
@@ -139,13 +221,9 @@ func TestTemplateImport_FromURL(t *testing.T) {
 		t.Fatalf("template import from URL failed: %v\noutput: %s", err, out)
 	}
 
-	store, storeErr := openTemplateStore()
-	if storeErr != nil {
-		t.Fatalf("open store: %v", storeErr)
-	}
-	got, _, getErr := store.Get("url-template")
-	if getErr != nil {
-		t.Fatalf("get imported template: %v", getErr)
+	got, ok := api.get("url-template")
+	if !ok {
+		t.Fatal("imported template missing")
 	}
 	if got.Description != "from a url" {
 		t.Errorf("description = %q, want %q", got.Description, "from a url")
@@ -153,20 +231,10 @@ func TestTemplateImport_FromURL(t *testing.T) {
 }
 
 func TestTemplateImport_KnownLocalName_IsIdempotent(t *testing.T) {
-	// A "marketplace item name" that is already a template in this store
-	// (the only TypeTemplate source today is this same store) should
-	// resolve without a file or URL argument, and re-running with --force
-	// should be a safe no-op.
-	t.Setenv("MYCEL_HOME", t.TempDir())
+	api := newFakeTemplateAPI()
+	api.seed(client.TemplateInfo{Name: "already-local", Description: "seed", SystemPrompt: "seed prompt"})
+	setTestDaemonHandler(t, api.handler())
 	defer resetFlags(templateCmd)
-
-	store, storeErr := openTemplateStore()
-	if storeErr != nil {
-		t.Fatalf("open store: %v", storeErr)
-	}
-	if err := store.Create(template.Template{Name: "already-local", Description: "seed"}, "seed prompt", template.ScopeGlobal); err != nil {
-		t.Fatalf("seed template: %v", err)
-	}
 
 	if _, _, err := executeIntegrationCmd("template", "import", "already-local", "--force"); err != nil {
 		t.Fatalf("import of known local name failed: %v", err)
@@ -179,7 +247,8 @@ func TestTemplateImport_KnownLocalName_IsIdempotent(t *testing.T) {
 }
 
 func TestTemplateImport_UnknownSource_Fails(t *testing.T) {
-	t.Setenv("MYCEL_HOME", t.TempDir())
+	api := newFakeTemplateAPI()
+	setTestDaemonHandler(t, api.handler())
 	defer resetFlags(templateCmd)
 
 	if _, _, err := executeIntegrationCmd("template", "import", "not-a-file-or-url-or-known-template"); err == nil {
@@ -188,7 +257,8 @@ func TestTemplateImport_UnknownSource_Fails(t *testing.T) {
 }
 
 func TestTemplateImport_NameOverride(t *testing.T) {
-	t.Setenv("MYCEL_HOME", t.TempDir())
+	api := newFakeTemplateAPI()
+	setTestDaemonHandler(t, api.handler())
 	defer resetFlags(templateCmd)
 
 	path := writeImportFile(t, template.ImportDoc{
@@ -199,11 +269,7 @@ func TestTemplateImport_NameOverride(t *testing.T) {
 		t.Fatalf("import with --name failed: %v", err)
 	}
 
-	store, storeErr := openTemplateStore()
-	if storeErr != nil {
-		t.Fatalf("open store: %v", storeErr)
-	}
-	if _, _, err := store.Get("renamed"); err != nil {
-		t.Errorf("expected template stored under overridden name %q: %v", "renamed", err)
+	if _, ok := api.get("renamed"); !ok {
+		t.Errorf("expected template stored under overridden name %q", "renamed")
 	}
 }

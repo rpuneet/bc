@@ -37,6 +37,15 @@ func (t *ToolsClient) Get(ctx context.Context, name string) (*ToolInfo, error) {
 	return &tool, nil
 }
 
+// Create adds a new tool configuration.
+func (t *ToolsClient) Create(ctx context.Context, tool *ToolInfo) (*ToolInfo, error) {
+	var created ToolInfo
+	if err := t.client.post(ctx, "/api/tools", tool, &created); err != nil {
+		return nil, err
+	}
+	return &created, nil
+}
+
 // Update updates an existing tool's configuration.
 func (t *ToolsClient) Update(ctx context.Context, tool *ToolInfo) (*ToolInfo, error) {
 	var updated ToolInfo

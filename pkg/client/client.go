@@ -50,6 +50,7 @@ type Client struct {
 	Doctor     *DoctorClient
 	Settings   *SettingsClient
 	Stats      *StatsClient
+	Templates  *TemplatesClient
 	BaseURL    string
 }
 
@@ -79,6 +80,7 @@ func New(addr string) *Client {
 	c.Doctor = &DoctorClient{client: c}
 	c.Settings = &SettingsClient{client: c}
 	c.Stats = &StatsClient{client: c}
+	c.Templates = &TemplatesClient{client: c}
 
 	return c
 }
