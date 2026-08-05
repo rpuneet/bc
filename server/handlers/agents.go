@@ -448,6 +448,8 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 
 		// Blueprint provision (#3558): expand composes into leaf agents.
 		leaves := []string{req.Template}
+		var expandedSecrets []string
+		var rootSecrets []string
 		if req.Template != "" && h.tmplStore != nil {
 			expanded, expErr := template.Expand(h.tmplStore, req.Template)
 			if expErr != nil {
@@ -460,6 +462,10 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 			}
 			if len(expanded.Leaves) > 0 {
 				leaves = expanded.Leaves
+			}
+			expandedSecrets = expanded.Secrets
+			if root, _, gErr := h.tmplStore.Get(req.Template); gErr == nil && root != nil {
+				rootSecrets = root.Secrets
 			}
 		}
 		multi := len(leaves) > 1
@@ -480,6 +486,9 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 					leafSecrets = t.Secrets
 				}
 			}
+			// Inherit secrets declared on the blueprint root so parent-only
+			// vault keys surface as missing_secrets (#3602 CodeRabbit).
+			leafSecrets = unionStringSlice(leafSecrets, rootSecrets)
 			missing := template.FilterMissing(leafSecrets, h.secrets)
 			unionMissing = unionStringSlice(unionMissing, missing)
 
@@ -512,10 +521,17 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 				Task:           leafTask,
 			})
 			if err != nil {
+				// Best-effort rollback so a partial team does not block retry (#3602).
+				for _, c := range created {
+					_ = svc.Delete(r.Context(), c.Name, true) //nolint:errcheck // best-effort cleanup
+				}
 				httpError(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			created = append(created, a)
+		}
+		if len(expandedSecrets) > 0 {
+			unionMissing = template.FilterMissing(expandedSecrets, h.secrets)
 		}
 
 		primary := created[0]

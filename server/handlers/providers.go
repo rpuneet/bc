@@ -898,8 +898,22 @@ func (h *ProviderHandler) buildProviderInfo(
 	return info
 }
 
-// listAgents returns the raw agent list, or nil on error.
+// listAgents returns the raw agent list (including archived), or nil on error.
+// Cost attribution must see archived agents so historical spend is not
+// reclassified via model-name matching (#3594 CodeRabbit).
 func (h *ProviderHandler) listAgents(ctx context.Context) []*agent.Agent {
+	if h.agents == nil {
+		return nil
+	}
+	agents, err := h.agents.List(ctx, agent.ListOptions{IncludeArchived: true})
+	if err != nil {
+		return nil
+	}
+	return agents
+}
+
+// listLiveAgents returns non-archived agents for UI counts/summaries.
+func (h *ProviderHandler) listLiveAgents(ctx context.Context) []*agent.Agent {
 	if h.agents == nil {
 		return nil
 	}
@@ -914,7 +928,7 @@ func (h *ProviderHandler) listAgents(ctx context.Context) []*agent.Agent {
 // Used by the list endpoint which does not need full agent summaries.
 func (h *ProviderHandler) countAgents(ctx context.Context) map[string]int {
 	counts := make(map[string]int)
-	for _, a := range h.listAgents(ctx) {
+	for _, a := range h.listLiveAgents(ctx) {
 		if tool := strings.ToLower(a.Tool); tool != "" {
 			counts[tool]++
 		}
@@ -927,7 +941,7 @@ func (h *ProviderHandler) countAgents(ctx context.Context) map[string]int {
 func (h *ProviderHandler) agentSummariesByProvider(ctx context.Context) (map[string]int, map[string][]AgentSummary) {
 	counts := make(map[string]int)
 	byProvider := make(map[string][]AgentSummary)
-	for _, a := range h.listAgents(ctx) {
+	for _, a := range h.listLiveAgents(ctx) {
 		tool := strings.ToLower(a.Tool)
 		if tool == "" {
 			continue
@@ -968,15 +982,17 @@ func (h *ProviderHandler) aggregateCostsByProvider(ctx context.Context) map[stri
 	toolByAgent := make(map[string]string)
 	for _, a := range h.listAgents(ctx) {
 		if a.Tool != "" {
-			toolByAgent[a.Name] = a.Tool
+			toolByAgent[a.Name] = strings.ToLower(a.Tool)
 		}
 	}
 
 	providers := h.registry.List()
 	for _, s := range summaries {
 		tool := toolByAgent[s.AgentID]
-		if tool == "" {
-			// Host / unattributed sessions: fall back to model-name match.
+		if tool == "" && s.AgentID == "" {
+			// Host / unattributed sessions only: fall back to model-name match.
+			// A nonempty AgentID that missed the map is an archived/unknown
+			// agent — do not reclassify it by model (#3594).
 			model := strings.ToLower(s.Model)
 			for _, p := range providers {
 				if strings.Contains(model, strings.ToLower(p.Name())) {
@@ -1017,14 +1033,14 @@ func (h *ProviderHandler) costByModelForProvider(ctx context.Context, name strin
 	toolByAgent := make(map[string]string)
 	for _, a := range h.listAgents(ctx) {
 		if a.Tool != "" {
-			toolByAgent[a.Name] = a.Tool
+			toolByAgent[a.Name] = strings.ToLower(a.Tool)
 		}
 	}
 
 	byModel := map[string]*ModelCost{}
 	for _, e := range entries {
 		tool := toolByAgent[e.Agent]
-		if tool == "" && strings.Contains(strings.ToLower(e.Model), strings.ToLower(name)) {
+		if tool == "" && e.Agent == "" && strings.Contains(strings.ToLower(e.Model), strings.ToLower(name)) {
 			tool = name
 		}
 		if tool != name {

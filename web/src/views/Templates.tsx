@@ -101,6 +101,7 @@ const updateTemplate = (
     mcps: string[];
     secrets: string[];
     plugins: string[];
+    composes?: string[];
     max_cost_usd: number;
     stuck_timeout_min: number;
   },
@@ -206,6 +207,9 @@ function TemplateDetailPanel({
         mcps: splitComma(mcpsRaw),
         secrets: splitComma(secretsRaw),
         plugins: splitComma(pluginsRaw),
+        // Preserve composition — the editor does not edit composes, but
+        // omitting them on PUT would wipe multi-agent blueprints (#3610).
+        composes: detail.composes ?? [],
         max_cost_usd: parseFloat(maxCostRaw) || 0,
         stuck_timeout_min: parseInt(stuckTimeoutRaw, 10) || 0,
       });

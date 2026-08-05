@@ -155,6 +155,9 @@ export function CreateAgentModal({
               if (names.includes("blank")) return "blank";
               return names[0]!;
             });
+          } else {
+            setTemplates([]);
+            setTemplate("");
           }
         }
       })
@@ -434,7 +437,8 @@ export function CreateAgentModal({
     }
     return result;
   })();
-  const canCreate = groupComplete.repo && groupComplete.identity && groupComplete.tool;
+  const canCreate =
+    groupComplete.repo && groupComplete.identity && groupComplete.tool && template.trim() !== "";
 
   if (!open) return null;
 
