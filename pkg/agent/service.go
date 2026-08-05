@@ -574,6 +574,13 @@ const sessionStartGrace = 30 * time.Second
 // again — undoing a stop the user just asked for.
 const sessionStopGrace = 30 * time.Second
 
+// workingIdleTimeout is how long an agent in "working" state can go without
+// any activity (UpdatedAt change) before we assume it's idle. This handles
+// transcript-based providers (pi, codex) that don't send explicit idle events
+// when a task finishes. A working agent with a live session but no recent
+// activity is likely waiting for input.
+const workingIdleTimeout = 5 * time.Minute
+
 // sessionGoneReason is recorded as the agent's task so the reason is visible
 // where the state is, rather than only in an event nobody is watching.
 const sessionGoneReason = "session ended without stopping — the agent was not running"
@@ -630,6 +637,23 @@ func (s *AgentService) SyncSessions(ctx context.Context) (synced, stopped, resum
 		synced++
 		rt := s.manager.RuntimeForAgent(a.Name)
 		if rt.HasSession(ctx, a.Name) {
+			// Agent has a live session. For transcript-based providers (pi, codex)
+			// that don't send explicit idle events, check if the agent has been
+			// in "working" state without any activity for too long. If so, flip
+			// to idle since a working agent that's not producing activity is
+			// likely waiting for input.
+			if a.State == StateWorking && now.Sub(a.UpdatedAt) >= workingIdleTimeout {
+				if err := s.manager.UpdateAgentState(ctx, a.Name, StateIdle, "session idle — marked idle rather than working"); err != nil {
+					log.Warn("sync: failed to update agent state", "agent", a.Name, "error", err)
+					continue
+				}
+				log.Info("agent was working but session is idle — marked idle", "agent", a.Name)
+				s.publishEvent("agent.state_changed", map[string]any{
+					"name":   a.Name,
+					"state":  string(StateIdle),
+					"reason": "session_idle",
+				})
+			}
 			continue
 		}
 		if err := s.manager.UpdateAgentState(ctx, a.Name, StateStopped, sessionGoneReason); err != nil {
