@@ -55,8 +55,8 @@ describe("ChronologicalStream", () => {
 
     const rows = screen.getAllByTestId("home-stream-row");
     expect(rows).toHaveLength(2);
-    expect(rows[0].getAttribute("data-agent")).toBe("bob");
-    expect(rows[1].getAttribute("data-agent")).toBe("alice");
+    expect(rows[0]!.getAttribute("data-agent")).toBe("bob");
+    expect(rows[1]!.getAttribute("data-agent")).toBe("alice");
 
     fireEvent.click(screen.getByTitle("Open bob detail view"));
     expect(onOpen).toHaveBeenCalledWith("bob");
@@ -82,7 +82,7 @@ describe("ChronologicalStream", () => {
     expect(screen.getByText("Running")).toBeInTheDocument();
     const rows = screen.getAllByTestId("home-stream-row");
     // Running first, then completed (even though completed has a newer startTime).
-    expect(rows[0].textContent).toMatch(/sleep|Bash/);
+    expect(rows[0]!.textContent).toMatch(/sleep|Bash/);
   });
 
   it("shows empty state when there are no nodes", () => {
