@@ -268,7 +268,6 @@ func (p *AgyProvider) TranscriptGlobs(cwd string) []string {
 
 // agyTranscriptLine is one JSONL entry in an agy transcript file.
 type agyTranscriptLine struct {
-	ToolCalls []agyToolCall `json:"tool_calls,omitempty"`
 	Source    string        `json:"source"`
 	Type      string        `json:"type"`
 	Status    string        `json:"status"`
@@ -276,6 +275,7 @@ type agyTranscriptLine struct {
 	Content   string        `json:"content,omitempty"`
 	Thinking  string        `json:"thinking,omitempty"`
 	Error     string        `json:"error,omitempty"`
+	ToolCalls []agyToolCall `json:"tool_calls,omitempty"`
 	StepIndex int           `json:"step_index"`
 	ErrorCode int           `json:"error_code,omitempty"`
 }
