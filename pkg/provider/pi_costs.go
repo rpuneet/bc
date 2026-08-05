@@ -51,8 +51,20 @@ type piCostUSD struct {
 
 // ReadCosts implements CostReader for pi. It walks pi's session tree and
 // emits one CostEntry per assistant turn that reports usage.
+//
+// When opts.Home is set (daemon / tests), sessions are read from
+// <Home>/.pi/agent/sessions so a throwaway CostReadOptions.Home cannot
+// leak the developer's real ~/.pi tree into cost fixtures (#3011).
+// PI_CODING_AGENT_SESSION_DIR still wins when set.
 func (p *PiProvider) ReadCosts(ctx context.Context, opts CostReadOptions) ([]CostEntry, error) {
-	root := piSessionsRoot()
+	root := ""
+	if dir := os.Getenv("PI_CODING_AGENT_SESSION_DIR"); dir != "" {
+		root = dir
+	} else if opts.Home != "" {
+		root = filepath.Join(opts.Home, ".pi", "agent", "sessions")
+	} else {
+		root = piSessionsRoot()
+	}
 	if root == "" {
 		return nil, nil
 	}

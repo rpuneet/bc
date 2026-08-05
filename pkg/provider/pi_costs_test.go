@@ -9,14 +9,14 @@ import (
 )
 
 func TestPiReadCostsFromSession(t *testing.T) {
-	root := t.TempDir()
+	home := t.TempDir()
 	agents := t.TempDir()
 	agentWT := filepath.Join(agents, "fresh-otter", "worktree")
 	if err := os.MkdirAll(agentWT, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	cwdEnc := encodePiCWD(agentWT)
-	sessDir := filepath.Join(root, cwdEnc)
+	sessDir := filepath.Join(home, ".pi", "agent", "sessions", cwdEnc)
 	if err := os.MkdirAll(sessDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
@@ -31,12 +31,14 @@ func TestPiReadCostsFromSession(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Poison the global root so a regression that ignores opts.Home fails.
 	prev := piSessionsRoot
-	piSessionsRoot = func() string { return root }
+	piSessionsRoot = func() string { return filepath.Join(t.TempDir(), "should-not-read") }
 	t.Cleanup(func() { piSessionsRoot = prev })
+	t.Setenv("PI_CODING_AGENT_SESSION_DIR", "")
 
 	p := NewPiProvider()
-	entries, err := p.ReadCosts(context.Background(), CostReadOptions{AgentsDir: agents})
+	entries, err := p.ReadCosts(context.Background(), CostReadOptions{Home: home, AgentsDir: agents})
 	if err != nil {
 		t.Fatalf("ReadCosts: %v", err)
 	}
@@ -65,13 +67,13 @@ func TestPiReadCostsFromSession(t *testing.T) {
 }
 
 func TestPiReadCostsSinceFilter(t *testing.T) {
-	root := t.TempDir()
+	home := t.TempDir()
 	agents := t.TempDir()
 	wt := filepath.Join(agents, "pi-bedrock", "worktree")
 	if err := os.MkdirAll(wt, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	sessDir := filepath.Join(root, encodePiCWD(wt))
+	sessDir := filepath.Join(home, ".pi", "agent", "sessions", encodePiCWD(wt))
 	if err := os.MkdirAll(sessDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
@@ -84,11 +86,13 @@ func TestPiReadCostsSinceFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	prev := piSessionsRoot
-	piSessionsRoot = func() string { return root }
+	piSessionsRoot = func() string { return filepath.Join(t.TempDir(), "should-not-read") }
 	t.Cleanup(func() { piSessionsRoot = prev })
+	t.Setenv("PI_CODING_AGENT_SESSION_DIR", "")
 
 	since, _ := time.Parse(time.RFC3339, "2026-08-04T23:05:00Z")
 	entries, err := NewPiProvider().ReadCosts(context.Background(), CostReadOptions{
+		Home:      home,
 		AgentsDir: agents,
 		Since:     since,
 	})
