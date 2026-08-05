@@ -109,6 +109,10 @@ func AppendCursorUsage(agentsDir, agent string, rec CursorUsageRecord) error {
 	if agentsDir == "" || agent == "" {
 		return nil
 	}
+	if rec.InputTokens < 0 || rec.OutputTokens < 0 ||
+		rec.CacheReadTokens < 0 || rec.CacheWriteTokens < 0 || rec.CostUSD < 0 {
+		return nil // reject negative usage that would deflate spend (#3594)
+	}
 	if rec.InputTokens == 0 && rec.OutputTokens == 0 &&
 		rec.CacheReadTokens == 0 && rec.CacheWriteTokens == 0 {
 		return nil
@@ -163,6 +167,10 @@ func (p *CursorProvider) ReadCosts(ctx context.Context, opts CostReadOptions) ([
 		}
 		for _, rec := range recs {
 			if !opts.Since.IsZero() && rec.Timestamp.Before(opts.Since) {
+				continue
+			}
+			if rec.InputTokens < 0 || rec.OutputTokens < 0 ||
+				rec.CacheReadTokens < 0 || rec.CacheWriteTokens < 0 || rec.CostUSD < 0 {
 				continue
 			}
 			key := rec.GenerationID

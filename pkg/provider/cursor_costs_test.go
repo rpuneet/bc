@@ -87,6 +87,24 @@ func TestAppendCursorUsageSkipsEmpty(t *testing.T) {
 	}
 }
 
+func TestAppendCursorUsageRejectsNegatives(t *testing.T) {
+	agents := t.TempDir()
+	if err := AppendCursorUsage(agents, "a", CursorUsageRecord{
+		Model: "default", InputTokens: -1, OutputTokens: 10,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := AppendCursorUsage(agents, "a", CursorUsageRecord{
+		Model: "default", InputTokens: 1, OutputTokens: 1, CostUSD: -0.01,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(agents, "a", CursorUsageRelDir, CursorUsageFile)
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("expected no file for negative usage, err=%v", err)
+	}
+}
+
 func TestCursorCalcCostUsesClaudePricingForClaudeModels(t *testing.T) {
 	got := CursorCalcCost("claude-sonnet-4", 1_000_000, 0, 0, 0)
 	want := ClaudeCalcCost("claude-sonnet-4", 1_000_000, 0, 0, 0)
