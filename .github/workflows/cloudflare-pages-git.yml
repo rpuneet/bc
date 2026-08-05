@@ -47,7 +47,7 @@ jobs:
           url="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/mycel"
           curl -sS -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "$url" \
             | tee /tmp/pages-project.json \
-            | jq '{success, errors, result: (.result | {name, subdomain, preview_deployment_setting, production_deployments_enabled, production_branch, source: .source.type})}'
+            | jq '{success, errors, result: (.result | {name, subdomain, production_branch, source_type: .source.type, source_config: .source.config | {preview_deployment_setting, production_deployments_enabled, deployments_enabled, path, owner, repo_name}})}'
 
       - name: PATCH git deployment controls
         env:
@@ -58,10 +58,24 @@ jobs:
         run: |
           set -euo pipefail
           url="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/mycel"
+          # Branch controls live under source.config (not the project root).
+          # Preserve owner/repo/path so we do not disconnect the GitHub link.
           body=$(jq -n \
             --arg preview "$PREVIEW" \
             --argjson prod "$PROD_GIT" \
-            '{preview_deployment_setting: $preview, production_deployments_enabled: $prod}')
+            --slurpfile cur /tmp/pages-project.json \
+            '
+            ($cur[0].result.source.config) as $c
+            | {
+                source: {
+                  type: "github",
+                  config: ($c + {
+                    preview_deployment_setting: $preview,
+                    production_deployments_enabled: $prod
+                  })
+                }
+              }
+            ')
           echo "PATCH body: $body"
           curl -sS -X PATCH \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
@@ -69,5 +83,9 @@ jobs:
             --data "$body" \
             "$url" \
             | tee /tmp/pages-patch.json \
-            | jq '{success, errors, result: (.result | {name, preview_deployment_setting, production_deployments_enabled, production_branch})}'
+            | jq '{success, errors, result: (.result | {name, production_branch, source_config: .source.config | {preview_deployment_setting, production_deployments_enabled, deployments_enabled}})}'
           jq -e '.success == true' /tmp/pages-patch.json >/dev/null
+          jq -e --arg preview "$PREVIEW" --argjson prod "$PROD_GIT" '
+            .result.source.config.preview_deployment_setting == $preview
+            and .result.source.config.production_deployments_enabled == $prod
+          ' /tmp/pages-patch.json >/dev/null
