@@ -31,7 +31,7 @@ func IsCatchAll(channel string) bool {
 }
 
 // FindPruneCandidates returns non-catch-all subscriptions that look like
-// leftovers from the old catch-all copy behaviour (#3463/#3465): same agent
+// leftovers from the old catch-all copy behavior (#3463/#3465): same agent
 // and mention_only as an existing "{platform}:general" row.
 //
 // Muted rows are skipped — they are intentional mute markers (#3466), not

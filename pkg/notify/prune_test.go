@@ -21,9 +21,9 @@ func TestFindPruneCandidates(t *testing.T) {
 
 	got := FindPruneCandidates(subs)
 	want := map[string]bool{
-		"gmail:alertsbank|fast-crane":             true,
+		"gmail:alertsbank|fast-crane":              true,
 		"gmail:newslettereconomictimes|fast-crane": true,
-		"telegram:dm-bob|broad":                   true,
+		"telegram:dm-bob|broad":                    true,
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d candidates, want %d: %+v", len(got), len(want), got)
