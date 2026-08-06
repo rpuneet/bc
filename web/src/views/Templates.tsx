@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { usePolling } from "../hooks/usePolling";
-import { ChipList, SectionRule, ConfirmButton } from "../components/shared";
+import { ChipList, SectionRule, ConfirmButton, PRIMARY_BTN } from "../components/shared";
 import { MONO } from "../utils/typography";
 
 import { useHeaderSlot } from "../context/HeaderSlotContext";
@@ -748,9 +748,7 @@ function TemplateTable({
           <thead>
             <tr className="text-left text-[11px] font-medium text-mycel-muted uppercase tracking-[0.08em]">
               <th className="py-2.5 pl-4 pr-6 font-medium">Name</th>
-              <th className="py-2.5 px-4 font-medium">
-                {rows.some((r) => (r.composes?.length ?? 0) > 0) ? "Composes / MCPs" : "MCPs"}
-              </th>
+              <th className="py-2.5 px-4 font-medium">MCPs</th>
               <th className="py-2.5 px-4 font-medium">Description</th>
             </tr>
           </thead>
@@ -820,7 +818,7 @@ export function Templates() {
           <button
             type="button"
             onClick={() => setCreateOpen((v) => !v)}
-            className="shrink-0 inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors"
+            className={`shrink-0 ${PRIMARY_BTN}`}
             aria-label="Create new template"
           >
             + New template

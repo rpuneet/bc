@@ -4,6 +4,7 @@ import { api, type AppInstance, type BudgetStatus } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
+import { PageHeader } from "../components/shared";
 import { useTheme } from "../context/ThemeContext";
 import { ThemePicker, RuntimePicker, AdvancedToggle, systemPrefersDark, type ThemeChoice, type RuntimeChoice } from "../settings/controls";
 import { ProvidersToolsSection } from "../settings/ProvidersToolsSection";
@@ -935,23 +936,23 @@ export function Settings() {
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-3xl mx-auto">
-      <header className="flex items-end justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="font-display text-[26px] leading-none text-mycel-text">Settings</h1>
-          <p className="mt-2 text-[13px] text-mycel-text-2">The config that has no other home — grouped for day-to-day use.</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => { void reveal.replay(); }}
-          title="Re-run setup — replays the guided reveal below without blanking anything you've already set"
-          aria-label="Re-run setup"
-          className="relative shrink-0 grid place-items-center w-9 h-9 rounded-full border border-mycel-border bg-mycel-surface text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors active:scale-95 outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent before:absolute before:-inset-1.5 before:content-['']"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-          </svg>
-        </button>
-      </header>
+      <PageHeader
+        title="Settings"
+        subtitle="The config that has no other home — grouped for day-to-day use."
+        actions={
+          <button
+            type="button"
+            onClick={() => { void reveal.replay(); }}
+            title="Re-run setup — replays the guided reveal below without blanking anything you've already set"
+            aria-label="Re-run setup"
+            className="relative shrink-0 grid place-items-center w-9 h-9 rounded-full border border-mycel-border bg-mycel-surface text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors active:scale-95 outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent before:absolute before:-inset-1.5 before:content-['']"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+            </svg>
+          </button>
+        }
+      />
 
       {saveStatus === "saved" && dirtySections.length === 0 && (
         <div aria-live="polite" className="fixed bottom-4 right-4 z-30 rounded-lg border border-mycel-success bg-mycel-success-subtle px-3 py-2 text-xs text-mycel-success shadow-mycel-lg">

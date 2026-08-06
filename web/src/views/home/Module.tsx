@@ -37,8 +37,9 @@ export function HomeModule({
     >
       <header className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-mycel-border bg-mycel-bg">
         <span
-          className="text-[10px] font-semibold text-mycel-muted uppercase tracking-widest truncate"
+          className="text-[10px] font-semibold text-mycel-muted uppercase tracking-widest min-w-0 truncate"
           style={{ fontFamily: MONO }}
+          title={label}
         >
           {label}
         </span>

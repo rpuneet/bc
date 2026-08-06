@@ -18,7 +18,7 @@
  * gracefully when the overview endpoint or its metadata are missing.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { api, instancesToStatuses } from "../../api/client";
 import type {
@@ -34,6 +34,12 @@ import type {
 import { usePolling } from "../../hooks/usePolling";
 import { useHeaderSlot } from "../../context/HeaderSlotContext";
 import { EmptyState } from "../EmptyState";
+import {
+  FiltersChip,
+  ListSearchInput,
+  FILTER_LABEL_CLS,
+  FILTER_CLEAR_CLS,
+} from "../shared";
 import { AppIcon } from "./PlatformIcons";
 import { ConnectWizard, AppChooser } from "./ConnectApp";
 import { CustomKeysSection } from "./CustomKeys";
@@ -383,7 +389,6 @@ export function AppsHome() {
   const [onlySubscribed, setOnlySubscribed] = useState(false);
   const [onlyActive24h, setOnlyActive24h] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const filtersRef = useRef<HTMLDivElement>(null);
   const [chooserOpen, setChooserOpen] = useState(false);
   const [connectAppId, setConnectAppId] = useState<string | null>(null);
 
@@ -425,22 +430,6 @@ export function AppsHome() {
       });
     }
   }, [location.hash, data]);
-
-  useEffect(() => {
-    if (!filtersOpen) return;
-    const onMouseDown = (e: MouseEvent) => {
-      if (filtersRef.current && !filtersRef.current.contains(e.target as Node)) setFiltersOpen(false);
-    };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setFiltersOpen(false);
-    };
-    document.addEventListener("mousedown", onMouseDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onMouseDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [filtersOpen]);
 
   const model = useMemo(() => (data ? buildHomeModel(data) : { apps: [], channels: [] }), [data]);
   const { apps, channels } = model;
@@ -493,94 +482,69 @@ export function AppsHome() {
     ) : undefined,
     actions: hasAnything ? (
       <>
-        <input
+        <ListSearchInput
           type="text"
           value={search}
           onChange={(e) => { setSearch(e.target.value); }}
           placeholder="Search channels"
-          className="flex-1 min-w-[96px] max-w-md h-9 px-3 text-sm rounded-md border border-mycel-border bg-mycel-surface text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
           aria-label="Search channels"
         />
-        <div className="relative shrink-0" ref={filtersRef}>
-          <button
-            type="button"
-            onClick={() => { setFiltersOpen((v) => !v); }}
-            aria-label="Filters"
-            aria-haspopup="true"
-            aria-expanded={filtersOpen}
-            className={`inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border text-xs font-medium transition-colors ${
-              filtersOpen || activeFilterCount > 0
-                ? "border-mycel-accent text-mycel-text bg-mycel-surface"
-                : "border-mycel-border bg-mycel-surface text-mycel-muted hover:text-mycel-text hover:border-mycel-accent"
-            }`}
-          >
-            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M1.5 2.5h11l-4.2 5v4l-2.6-1.5V7.5z" />
-            </svg>
-            Filters
-            {activeFilterCount > 0 && (
-              <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-mycel-accent text-mycel-accent-fg text-[10px] font-semibold tabular-nums">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
-          {filtersOpen && (
-            <div
-              data-testid="apps-filters-popover"
-              className="absolute right-0 top-full mt-1.5 z-50 w-60 rounded-lg border border-mycel-border bg-mycel-surface-2 shadow-mycel-lg p-3 space-y-2.5 text-sm"
-            >
-              {apps.length > 1 && (
-                <div>
-                  <span className="block mb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Apps</span>
-                  <div className="space-y-1 max-h-40 overflow-y-auto">
-                    {apps.map((app) => (
-                      <label key={app.key} className="flex items-center gap-2 text-xs text-mycel-text-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={appSel.has(app.key)}
-                          onChange={() => { toggleApp(app.key); }}
-                          className="accent-[var(--mycel-accent)]"
-                        />
-                        <AppIcon base={app.base} size={11} />
-                        <span className="truncate">{app.label}{app.botName ? ` · ${app.botName}` : ""}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <label className="flex items-center gap-2 text-xs text-mycel-text-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={onlySubscribed}
-                  onChange={() => { setOnlySubscribed((v) => !v); }}
-                  className="accent-[var(--mycel-accent)]"
-                />
-                Has subscribers
-              </label>
-              <label className="flex items-center gap-2 text-xs text-mycel-text-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={onlyActive24h}
-                  onChange={() => { setOnlyActive24h((v) => !v); }}
-                  className="accent-[var(--mycel-accent)]"
-                />
-                Active in last 24h
-              </label>
-              {hasFilters && (
-                <div className="pt-1.5 border-t border-mycel-border flex">
-                  <button
-                    type="button"
-                    onClick={clearFilters}
-                    className="ml-auto px-2 py-1.5 text-xs text-mycel-muted hover:text-mycel-text border border-mycel-border rounded-md focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
-                    aria-label="Clear filters"
-                  >
-                    Clear
-                  </button>
-                </div>
-              )}
+        <FiltersChip
+          open={filtersOpen}
+          onOpenChange={setFiltersOpen}
+          activeCount={activeFilterCount}
+          testId="apps-filters-popover"
+        >
+          {apps.length > 1 && (
+            <div>
+              <span className={FILTER_LABEL_CLS}>Apps</span>
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {apps.map((app) => (
+                  <label key={app.key} className="flex items-center gap-2 text-xs text-mycel-text-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={appSel.has(app.key)}
+                      onChange={() => { toggleApp(app.key); }}
+                      className="accent-[var(--mycel-accent)]"
+                    />
+                    <AppIcon base={app.base} size={11} />
+                    <span className="truncate">{app.label}{app.botName ? ` · ${app.botName}` : ""}</span>
+                  </label>
+                ))}
+              </div>
             </div>
           )}
-        </div>
+          <label className="flex items-center gap-2 text-xs text-mycel-text-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={onlySubscribed}
+              onChange={() => { setOnlySubscribed((v) => !v); }}
+              className="accent-[var(--mycel-accent)]"
+            />
+            Has subscribers
+          </label>
+          <label className="flex items-center gap-2 text-xs text-mycel-text-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={onlyActive24h}
+              onChange={() => { setOnlyActive24h((v) => !v); }}
+              className="accent-[var(--mycel-accent)]"
+            />
+            Active in last 24h
+          </label>
+          {hasFilters && (
+            <div className="pt-1.5 border-t border-mycel-border flex">
+              <button
+                type="button"
+                onClick={clearFilters}
+                className={FILTER_CLEAR_CLS}
+                aria-label="Clear filters"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+        </FiltersChip>
       </>
     ) : undefined,
   });
@@ -694,6 +658,13 @@ export function AppsHome() {
 
   return (
     <div className="p-6 pb-10 space-y-6">
+        {/* Hub = Apps; Notifications is the feed section below — naming hierarchy (#3666). */}
+        <div className="min-w-0">
+          <h1 className="font-display text-[22px] leading-none text-mycel-text">Apps</h1>
+          <p className="mt-1.5 text-[13px] text-mycel-text-2">
+            Connected messaging platforms. Notifications below are the live feed across channels.
+          </p>
+        </div>
         {/* ── Apps strip — compact pills ─────────────────────── */}
         <div className="flex flex-wrap gap-2">
           {apps.map((app) => {

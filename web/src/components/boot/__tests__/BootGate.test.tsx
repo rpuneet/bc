@@ -46,9 +46,23 @@ function GateProbe() {
 
 beforeEach(() => {
   fetchMock.mockReset();
+  sessionStorage.clear();
+  window.history.replaceState({}, "", "/");
 });
 
 describe("BootGate", () => {
+  it("skips the splash in the browser (web is not a desktop handoff)", () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <BootGate timings={FAST}>
+          <div data-testid="app">the app</div>
+        </BootGate>
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId("app")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Starting mycel")).not.toBeInTheDocument();
+  });
+
   it("shows the splash, then hands off to the app once the daemon is healthy", async () => {
     fetchMock.mockImplementation((url: RequestInfo | URL) => {
       const u = String(url);
@@ -60,7 +74,8 @@ describe("BootGate", () => {
 
     render(
       <MemoryRouter initialEntries={["/"]}>
-        <BootGate timings={FAST}>
+        {/* Force splash — production only shows it for desktop handoff (#3673). */}
+        <BootGate skip={false} timings={FAST}>
           <div data-testid="app">the app</div>
         </BootGate>
       </MemoryRouter>,
@@ -90,7 +105,7 @@ describe("BootGate", () => {
     render(
       <MemoryRouter initialEntries={["/"]}>
         {/* Slow rise so the console is still visible when we assert. */}
-        <BootGate timings={{ ...FAST, minStreamMs: 50, riseMs: 300 }}>
+        <BootGate skip={false} timings={{ ...FAST, minStreamMs: 50, riseMs: 300 }}>
           <div data-testid="app">the app</div>
         </BootGate>
       </MemoryRouter>,
@@ -123,7 +138,7 @@ describe("BootGate", () => {
 
     render(
       <MemoryRouter initialEntries={["/"]}>
-        <BootGate timings={FAST}>
+        <BootGate skip timings={FAST}>
           <Routes>
             <Route index element={<GateProbe />} />
             <Route path="settings" element={<div data-testid="settings">settings, revealing</div>} />

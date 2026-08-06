@@ -15,6 +15,13 @@ import { formatAbsolute, formatRelative } from "../utils/time";
 import { LiveAgentCharacter } from "../components/agent-ui";
 import { CreateAgentModal } from "../components/CreateAgentModal";
 import { useHeaderSlot } from "../context/HeaderSlotContext";
+import {
+  FiltersChip,
+  ListSearchInput,
+  FILTER_LABEL_CLS,
+  FILTER_SELECT_CLS,
+  FILTER_CLEAR_CLS,
+} from "../components/shared";
 import { MONO } from "../utils/typography";
 
 /** Per-provider hue as an accent dot on the provider pill. Kept subtle —
@@ -543,24 +550,8 @@ export function Agents() {
 
   // "Filters" chip popover in the header — holds the state/tool selects,
   // the group-by-repo toggle and the clear button, so the body is the
-  // table only. Closes on outside click / Escape like other popovers.
+  // table only. Closes on outside click / Escape via shared FiltersChip.
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const filtersRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!filtersOpen) return;
-    const onMouseDown = (e: MouseEvent) => {
-      if (filtersRef.current && !filtersRef.current.contains(e.target as Node)) setFiltersOpen(false);
-    };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setFiltersOpen(false);
-    };
-    document.addEventListener("mousedown", onMouseDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onMouseDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [filtersOpen]);
 
   const updateFilter = (key: "role" | "state" | "tool", value: string) => {
     const next = new URLSearchParams(searchParams);
@@ -933,114 +924,84 @@ export function Agents() {
     actions: (
       <>
         {allAgents.length > 0 && (
-          <input
+          <ListSearchInput
             ref={searchInputRef}
             type="text"
             value={search}
             onChange={(e) => { setSearch(e.target.value); }}
             placeholder="Search  /"
-            className="flex-1 min-w-[96px] max-w-md h-9 px-3 text-sm rounded-md border border-mycel-border bg-mycel-surface text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
             aria-label="Search agents"
           />
         )}
-        {/* Filters chip — the two selects, group-by-repo and clear live in
-            a popover so the single header row never crowds. Badge counts
-            the active select filters. */}
-        {allAgents.length > 0 && (() => {
-          const activeCount = (stateFilter ? 1 : 0) + (toolFilter ? 1 : 0);
-          return (
-            <div className="relative shrink-0" ref={filtersRef}>
+        {/* Filters chip — shared FiltersChip shell; body is agent-specific. */}
+        {allAgents.length > 0 && (
+          <FiltersChip
+            open={filtersOpen}
+            onOpenChange={setFiltersOpen}
+            activeCount={(stateFilter ? 1 : 0) + (toolFilter ? 1 : 0)}
+            testId="agents-filters-popover"
+          >
+            <label className="block">
+              <span className={FILTER_LABEL_CLS}>State</span>
+              <select
+                value={stateFilter}
+                onChange={(e) => { updateFilter("state", e.target.value); }}
+                className={FILTER_SELECT_CLS}
+                aria-label="Filter by state"
+              >
+                <option value="">All states</option>
+                {availableStates.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className={FILTER_LABEL_CLS}>Tool</span>
+              <select
+                value={toolFilter}
+                onChange={(e) => { updateFilter("tool", e.target.value); }}
+                className={FILTER_SELECT_CLS}
+                aria-label="Filter by tool"
+              >
+                <option value="">All tools</option>
+                {availableTools.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </label>
+            <div className="pt-0.5 border-t border-mycel-border flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setFiltersOpen((v) => !v)}
-                aria-label="Filters"
-                aria-haspopup="true"
-                aria-expanded={filtersOpen}
-                className={`inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border text-xs font-medium transition-colors ${
-                  filtersOpen || activeCount > 0
-                    ? "border-mycel-accent text-mycel-text bg-mycel-surface"
-                    : "border-mycel-border bg-mycel-surface text-mycel-muted hover:text-mycel-text hover:border-mycel-accent"
+                onClick={toggleGroupByRepo}
+                disabled={distinctRepoCount <= 1}
+                aria-pressed={groupByRepo}
+                className={`mt-2 px-2 py-1.5 text-xs rounded-md border transition-colors ${
+                  groupByRepo && distinctRepoCount > 1
+                    ? "border-mycel-accent text-mycel-accent"
+                    : "border-mycel-border text-mycel-muted hover:text-mycel-text disabled:opacity-50 disabled:cursor-not-allowed"
                 }`}
+                title={distinctRepoCount <= 1 ? "All agents share one repo — nothing to group" : `Group by repo (${String(distinctRepoCount)} repos in view)`}
               >
-                <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M1.5 2.5h11l-4.2 5v4l-2.6-1.5V7.5z" />
-                </svg>
-                Filters
-                {activeCount > 0 && (
-                  <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-mycel-accent text-mycel-accent-fg text-[10px] font-semibold tabular-nums">
-                    {activeCount}
-                  </span>
-                )}
+                Group by repo
               </button>
-              {filtersOpen && (
-                <div
-                  data-testid="agents-filters-popover"
-                  className="absolute right-0 top-full mt-1.5 z-50 w-60 rounded-lg border border-mycel-border bg-mycel-surface-2 shadow-mycel-lg p-3 space-y-2.5 text-sm"
+              {hasFilters && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className={`mt-2 ${FILTER_CLEAR_CLS}`}
+                  aria-label="Clear filters"
                 >
-                  <label className="block">
-                    <span className="block mb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">State</span>
-                    <select
-                      value={stateFilter}
-                      onChange={(e) => { updateFilter("state", e.target.value); }}
-                      className="w-full px-2 py-1.5 text-sm rounded-md border border-mycel-border bg-mycel-bg text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent"
-                      aria-label="Filter by state"
-                    >
-                      <option value="">All states</option>
-                      {availableStates.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block">
-                    <span className="block mb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Tool</span>
-                    <select
-                      value={toolFilter}
-                      onChange={(e) => { updateFilter("tool", e.target.value); }}
-                      className="w-full px-2 py-1.5 text-sm rounded-md border border-mycel-border bg-mycel-bg text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent"
-                      aria-label="Filter by tool"
-                    >
-                      <option value="">All tools</option>
-                      {availableTools.map((t) => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="pt-0.5 border-t border-mycel-border flex items-center gap-2">
-                    {/* Group-by-repo toggle. Default ON. Disabled when every
-                        visible agent shares one repo. */}
-                    <button
-                      type="button"
-                      onClick={toggleGroupByRepo}
-                      disabled={distinctRepoCount <= 1}
-                      aria-pressed={groupByRepo}
-                      className={`mt-2 px-2 py-1.5 text-xs rounded-md border transition-colors ${
-                        groupByRepo && distinctRepoCount > 1
-                          ? "border-mycel-accent text-mycel-accent"
-                          : "border-mycel-border text-mycel-muted hover:text-mycel-text disabled:opacity-50 disabled:cursor-not-allowed"
-                      }`}
-                      title={distinctRepoCount <= 1 ? "All agents share one repo — nothing to group" : `Group by repo (${String(distinctRepoCount)} repos in view)`}
-                    >
-                      Group by repo
-                    </button>
-                    {hasFilters && (
-                      <button
-                        onClick={clearFilters}
-                        className="mt-2 ml-auto px-2 py-1.5 text-xs text-mycel-muted hover:text-mycel-text border border-mycel-border rounded-md focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
-                        aria-label="Clear filters"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                </div>
+                  Clear
+                </button>
               )}
             </div>
-          );
-        })()}
+          </FiltersChip>
+        )}
         <button
           type="button"
           onClick={() => setCreateOpen(true)}
           className="shrink-0 inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors"
+          aria-label="Create new agent"
         >
           + New agent
         </button>
