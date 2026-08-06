@@ -11,6 +11,7 @@ import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { ExternalLink } from "../components/ExternalLink";
+import { FILTER_INLINE_BTN_CLS, LIST_SEARCH_CLS } from "../components/shared";
 import { useHeaderSlot } from "../context/HeaderSlotContext";
 
 // How many cards to mount at once. The full catalog is ~1.5k items; mounting
@@ -221,7 +222,7 @@ function FilterSelect({ value, options, onChange }: FilterSelectProps) {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-md border border-mycel-border bg-mycel-bg text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent hover:border-mycel-border-strong transition-colors whitespace-nowrap"
+        className={FILTER_INLINE_BTN_CLS}
       >
         <span>{current?.label}</span>
         <svg
@@ -581,21 +582,19 @@ export function Marketplace() {
       ) : undefined,
   });
 
-  const inputCls =
-    "px-2 py-1.5 text-sm rounded-md border border-mycel-border bg-mycel-bg text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent";
-
   const filtering = Boolean(typeFilter || sourceFilter || query);
 
   return (
     <div className="flex flex-col gap-4 p-4 max-w-4xl mx-auto w-full">
-      {/* Filter bar */}
-      <div className="flex flex-wrap gap-2 items-center">
+      {/* Filter bar — shared search/chip tokens with Agents + Apps (#3671) */}
+      <div className="flex flex-wrap gap-2 items-center" data-testid="marketplace-filter-bar">
         <input
           type="search"
           placeholder="Search catalog…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className={`${inputCls} flex-1 min-w-[180px]`}
+          className={`${LIST_SEARCH_CLS} min-w-[180px]`}
+          aria-label="Search catalog"
         />
         <FilterSelect
           value={typeFilter}
