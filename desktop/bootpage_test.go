@@ -84,6 +84,13 @@ func TestBootMiddlewareServesTheHandoffTarget(t *testing.T) {
 		if !strings.Contains(body, "http://127.0.0.1:9374") {
 			t.Errorf("GET %s: boot page omits the server URL", path)
 		}
+		// Silent bridge only — branded mushroom lives in the SPA BootSplash (#3673).
+		if strings.Contains(body, "starting the server") {
+			t.Errorf("GET %s: boot page still shows the old static splash copy", path)
+		}
+		if strings.Contains(body, "breathe") || strings.Contains(body, "<h1>") {
+			t.Errorf("GET %s: boot page must not render a second branded start screen", path)
+		}
 	}
 
 	// Non-document requests still fall through to the assets.
