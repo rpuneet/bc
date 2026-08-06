@@ -157,7 +157,9 @@ export function OverviewStrip({
       data-testid="home-overview-strip"
       className="shrink-0 rounded-lg border border-mycel-border shadow-mycel-sm overflow-hidden"
     >
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-px bg-mycel-border">
+      {/* 5 cells: on 2-col mobile the last cell spans full width so we never
+          leave an empty sixth slot; 3-col tablet is 2+2+1; desktop is one row. */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-px bg-mycel-border [&>*:last-child]:col-span-2 sm:[&>*:last-child]:col-span-1 lg:[&>*:last-child]:col-span-1">
         <Cell
           label="Agents"
           value={

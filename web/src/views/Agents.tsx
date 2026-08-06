@@ -1041,6 +1041,7 @@ export function Agents() {
           type="button"
           onClick={() => setCreateOpen(true)}
           className="shrink-0 inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors"
+          aria-label="Create new agent"
         >
           + New agent
         </button>

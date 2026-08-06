@@ -1,4 +1,5 @@
 import { CopyButton } from "../components/CopyButton";
+import { PageHeader, SECONDARY_BTN } from "../components/shared";
 import { useReadiness } from "../hooks/useReadiness";
 import type {
   OverallStatus,
@@ -150,22 +151,20 @@ export function Readiness() {
 
   return (
     <div className="p-6 flex flex-col gap-5 max-w-2xl mx-auto w-full">
-      <header className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold text-mycel-text">System readiness</h1>
-          <p className="mt-0.5 text-[12px] text-mycel-muted">
-            What your machine needs to run agents — and how to get it.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void refresh()}
-          disabled={loading}
-          className="relative shrink-0 text-[11px] px-2.5 py-1 rounded border border-mycel-border hover:border-mycel-accent bg-mycel-surface text-mycel-muted hover:text-mycel-text transition-colors disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent before:absolute before:-inset-2 before:content-['']"
-        >
-          {loading ? "Checking…" : "Re-check"}
-        </button>
-      </header>
+      <PageHeader
+        title="System readiness"
+        subtitle="What your machine needs to run agents — and how to get it."
+        actions={
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            disabled={loading || (!loaded && !data && !error)}
+            className={SECONDARY_BTN}
+          >
+            Re-check
+          </button>
+        }
+      />
 
       {error && !data && (
         <div
@@ -177,7 +176,19 @@ export function Readiness() {
       )}
 
       {!loaded && !data && !error && (
-        <div className="text-sm text-mycel-muted py-8 text-center">Checking your machine…</div>
+        <div
+          className="rounded-lg border border-mycel-border bg-mycel-surface px-4 py-6 space-y-3"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <p className="text-sm text-mycel-text-2">Checking your machine…</p>
+          <div className="space-y-2" aria-hidden>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-12 rounded-md bg-mycel-surface-hover animate-pulse" />
+            ))}
+          </div>
+        </div>
       )}
 
       {data && (

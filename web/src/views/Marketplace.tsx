@@ -482,7 +482,7 @@ function ItemCard({ item }: { item: MarketplaceItem }) {
           ) : (
             <button
               onClick={() => setShowPicker((v) => !v)}
-              className="px-2.5 py-1 text-xs rounded-md border border-mycel-border text-mycel-muted hover:bg-mycel-accent hover:text-mycel-accent-fg hover:border-mycel-accent transition-colors"
+              className="inline-flex items-center h-7 px-2.5 rounded-md text-xs font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors"
               title="Send install instruction to an agent"
             >
               Add

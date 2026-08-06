@@ -306,9 +306,17 @@ export function About() {
         </button>
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-px rounded-md border border-mycel-border bg-mycel-border overflow-hidden shadow-mycel [&>*:last-child:nth-child(odd)]:sm:col-span-2">
-        {channels.map((c) => (
-          <ChannelTile key={c.label} channel={c} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-px rounded-md border border-mycel-border bg-mycel-border overflow-hidden shadow-mycel">
+        {channels.map((c, i) => (
+          <ChannelTile
+            key={c.label}
+            channel={c}
+            className={
+              channels.length % 2 === 1 && i === channels.length - 1
+                ? "sm:col-span-2"
+                : undefined
+            }
+          />
         ))}
       </div>
 
@@ -339,7 +347,7 @@ const STATE_DOT: Record<ChannelStatus["state"], string> = {
   error: "bg-mycel-error",
 };
 
-function ChannelTile({ channel }: { channel: ChannelStatus }) {
+function ChannelTile({ channel, className }: { channel: ChannelStatus; className?: string }) {
   const body = (
     <div className="bg-mycel-surface px-4 py-3 flex items-start gap-3 h-full hover:bg-mycel-surface-hover transition-colors">
       <span className={`mt-1.5 shrink-0 inline-flex w-2 h-2 rounded-full ${STATE_DOT[channel.state]}`} />
@@ -361,12 +369,13 @@ function ChannelTile({ channel }: { channel: ChannelStatus }) {
       )}
     </div>
   );
+  const wrap = className ? `min-w-0 ${className}` : "min-w-0";
   if (channel.href) {
     return (
-      <ExternalLink href={channel.href} className="block focus:outline-none focus:ring-1 focus:ring-mycel-accent">
+      <ExternalLink href={channel.href} className={`block focus:outline-none focus:ring-1 focus:ring-mycel-accent ${wrap}`}>
         {body}
       </ExternalLink>
     );
   }
-  return body;
+  return <div className={wrap}>{body}</div>;
 }

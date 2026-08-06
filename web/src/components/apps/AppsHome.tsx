@@ -694,6 +694,13 @@ export function AppsHome() {
 
   return (
     <div className="p-6 pb-10 space-y-6">
+        {/* Hub = Apps; Notifications is the feed section below — naming hierarchy (#3666). */}
+        <div className="min-w-0">
+          <h1 className="font-display text-[22px] leading-none text-mycel-text">Apps</h1>
+          <p className="mt-1.5 text-[13px] text-mycel-text-2">
+            Connected messaging platforms. Notifications below are the live feed across channels.
+          </p>
+        </div>
         {/* ── Apps strip — compact pills ─────────────────────── */}
         <div className="flex flex-wrap gap-2">
           {apps.map((app) => {
