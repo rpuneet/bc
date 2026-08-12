@@ -538,6 +538,172 @@ func TestStopAdapterAllowsRestart(t *testing.T) {
 	}
 }
 
+// cancelOnlyBlockingAdapter models Socket Mode / long-poll adapters (e.g. Slack):
+// Start blocks until ctx is canceled; Stop is a no-op and must not unblock Start.
+// The existing blockingAdapter also exits via Stop(), so it cannot catch cancel bugs (#3707).
+type cancelOnlyBlockingAdapter struct {
+	started chan struct{}
+	exited  chan struct{}
+	stops   int
+	mu      sync.Mutex
+	mockNotifAdapter
+}
+
+func (a *cancelOnlyBlockingAdapter) Start(ctx context.Context, _ func(Notification)) error {
+	close(a.started)
+	defer close(a.exited)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(30 * time.Second):
+		// Safety net so a broken cancel cannot hang the suite forever.
+		return fmt.Errorf("cancel-only adapter: Start timed out without context cancel")
+	}
+}
+
+func (a *cancelOnlyBlockingAdapter) Stop() error {
+	a.mu.Lock()
+	a.stops++
+	a.mu.Unlock()
+	return nil
+}
+
+func (a *cancelOnlyBlockingAdapter) stopCount() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.stops
+}
+
+// TestStopAdapterCancelsBlockingStart asserts StopAdapter cancels a Start that
+// only exits on ctx.Done() (Stop is a no-op) and returns within a short deadline.
+func TestStopAdapterCancelsBlockingStart(t *testing.T) {
+	m := NewManager()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m.SetStartContext(ctx)
+
+	go func() { _ = m.Start(ctx) }()
+	time.Sleep(20 * time.Millisecond)
+
+	started := make(chan struct{})
+	exited := make(chan struct{})
+	a := &cancelOnlyBlockingAdapter{
+		mockNotifAdapter: mockNotifAdapter{name: "slack"},
+		started:          started,
+		exited:           exited,
+	}
+	if err := m.StartAdapter(a); err != nil {
+		t.Fatalf("StartAdapter: %v", err)
+	}
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("adapter Start was not invoked")
+	}
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- m.StopAdapter("slack") }()
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("StopAdapter: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("StopAdapter did not return within deadline (cancel likely not reaching Start)")
+	}
+
+	if a.stopCount() < 1 {
+		t.Fatal("expected Stop to be called even when it is a no-op")
+	}
+	select {
+	case <-exited:
+	case <-time.After(2 * time.Second):
+		t.Fatal("blocking Start did not observe context cancel")
+	}
+	if m.GetAdapter("slack") != nil {
+		t.Fatal("expected adapter removed after StopAdapter")
+	}
+	m.mu.RLock()
+	stillRunning := m.running["slack"]
+	m.mu.RUnlock()
+	if stillRunning {
+		t.Fatal("adapter still marked running after StopAdapter (zombie)")
+	}
+}
+
+// TestStopAdapterRestartNoZombieRunning stops a cancel-only blocker then
+// hot-starts a replacement; StartAdapter must not no-op on a zombie running flag.
+func TestStopAdapterRestartNoZombieRunning(t *testing.T) {
+	m := NewManager()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m.SetStartContext(ctx)
+
+	go func() { _ = m.Start(ctx) }()
+	time.Sleep(20 * time.Millisecond)
+
+	started1 := make(chan struct{})
+	exited1 := make(chan struct{})
+	a1 := &cancelOnlyBlockingAdapter{
+		mockNotifAdapter: mockNotifAdapter{name: "slack"},
+		started:          started1,
+		exited:           exited1,
+	}
+	if err := m.StartAdapter(a1); err != nil {
+		t.Fatalf("StartAdapter: %v", err)
+	}
+	select {
+	case <-started1:
+	case <-time.After(2 * time.Second):
+		t.Fatal("first adapter did not start")
+	}
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- m.StopAdapter("slack") }()
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("StopAdapter: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("StopAdapter did not return within deadline")
+	}
+	select {
+	case <-exited1:
+	case <-time.After(2 * time.Second):
+		t.Fatal("first Start loop still alive after StopAdapter")
+	}
+
+	started2 := make(chan struct{})
+	exited2 := make(chan struct{})
+	a2 := &cancelOnlyBlockingAdapter{
+		mockNotifAdapter: mockNotifAdapter{name: "slack"},
+		started:          started2,
+		exited:           exited2,
+	}
+	if err := m.StartAdapter(a2); err != nil {
+		t.Fatalf("restart StartAdapter: %v", err)
+	}
+	select {
+	case <-started2:
+	case <-time.After(2 * time.Second):
+		t.Fatal("replacement Start not invoked — likely zombie running flag")
+	}
+	if got := m.GetAdapter("slack"); got != a2 {
+		t.Fatalf("GetAdapter = %v, want replacement adapter", got)
+	}
+
+	// Clean up the replacement so Manager.Start can exit on cancel.
+	if err := m.StopAdapter("slack"); err != nil {
+		t.Fatalf("final StopAdapter: %v", err)
+	}
+	select {
+	case <-exited2:
+	case <-time.After(2 * time.Second):
+		t.Fatal("replacement Start did not exit after final StopAdapter")
+	}
+}
+
 // mockSendingAdapter is a mockNotifAdapter that also implements messageSender,
 // recording what it was asked to send and optionally failing.
 type mockSendingAdapter struct {
