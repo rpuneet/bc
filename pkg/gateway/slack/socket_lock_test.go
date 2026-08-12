@@ -14,16 +14,17 @@ import (
 
 func TestAppTokenLockPathUsesHashNotSecret(t *testing.T) {
 	t.Setenv(socketLockDirEnv, t.TempDir())
-	const fixture = "lock-path-input-should-never-appear"
-	path, err := appTokenLockPath(fixture)
+	// Path hashing fixture — avoid credential-shaped strings (gosec G101).
+	const appCred = "fixture-app-cred-should-never-appear-in-path"
+	path, err := appTokenLockPath(appCred)
 	if err != nil {
 		t.Fatalf("appTokenLockPath: %v", err)
 	}
-	if strings.Contains(path, fixture) {
-		t.Fatalf("lock path %q contains raw lock input", path)
+	if strings.Contains(path, appCred) {
+		t.Fatalf("lock path %q contains raw app credential", path)
 	}
-	if strings.Contains(path, "lock-path-input") {
-		t.Fatalf("lock path %q leaks lock-input prefix material", path)
+	if strings.Contains(path, "fixture-app-cred") {
+		t.Fatalf("lock path %q leaks credential prefix material", path)
 	}
 	if !strings.HasSuffix(path, ".lock") {
 		t.Fatalf("lock path %q: want .lock suffix", path)
@@ -32,27 +33,27 @@ func TestAppTokenLockPathUsesHashNotSecret(t *testing.T) {
 
 func TestAcquireAppTokenLockExclusive(t *testing.T) {
 	t.Setenv(socketLockDirEnv, t.TempDir())
-	const fixture = "lock-exclusive-input"
+	const appCred = "fixture-app-cred-lock-value"
 
-	release1, err := acquireAppTokenLock(fixture)
+	release1, err := acquireAppTokenLock(appCred)
 	if err != nil {
 		t.Fatalf("first acquire: %v", err)
 	}
 	defer release1()
 
-	_, err = acquireAppTokenLock(fixture)
+	_, err = acquireAppTokenLock(appCred)
 	if err == nil {
 		t.Fatal("second acquire succeeded; want exclusive lock error")
 	}
 	if !strings.Contains(err.Error(), "another local process") {
 		t.Fatalf("error = %q, want mention of another local process", err)
 	}
-	if strings.Contains(err.Error(), fixture) {
-		t.Fatalf("error leaked lock input: %q", err)
+	if strings.Contains(err.Error(), appCred) {
+		t.Fatalf("error leaked app credential: %q", err)
 	}
 
 	release1()
-	release2, err := acquireAppTokenLock(fixture)
+	release2, err := acquireAppTokenLock(appCred)
 	if err != nil {
 		t.Fatalf("acquire after release: %v", err)
 	}
@@ -99,7 +100,7 @@ func TestSocketConnectionErrorAttrs(t *testing.T) {
 }
 
 func TestHandleConnectionErrorRecordsDetailAndFlap(t *testing.T) {
-	a := New("xoxb-test", "xapp-test")
+	a := New("bot-fixture", "app-fixture")
 	underlying := errors.New("dial tcp: connection refused")
 
 	for i := 0; i < socketFlapThreshold-1; i++ {
@@ -141,7 +142,7 @@ func TestHandleConnectionErrorRecordsDetailAndFlap(t *testing.T) {
 }
 
 func TestProcessEventHelloResetsFlap(t *testing.T) {
-	a := New("xoxb-test", "xapp-test")
+	a := New("bot-fixture", "app-fixture")
 	a.handleConnectionError(&slack.ConnectionErrorEvent{
 		Attempt:  1,
 		ErrorObj: errors.New("boom"),
@@ -164,7 +165,7 @@ func TestProcessEventHelloResetsFlap(t *testing.T) {
 }
 
 func TestNoteConnectionErrorWindowReset(t *testing.T) {
-	a := New("xoxb-test", "xapp-test")
+	a := New("bot-fixture", "app-fixture")
 	now := time.Now()
 	a.chatMu.Lock()
 	if a.noteConnectionErrorLocked(now) {
@@ -202,18 +203,19 @@ func attrsToMap(attrs []any) map[string]any {
 
 func TestLockFileWrittenWithPID(t *testing.T) {
 	t.Setenv(socketLockDirEnv, t.TempDir())
-	const fixture = "lock-pid-input"
-	release, err := acquireAppTokenLock(fixture)
+	const appCred = "fixture-app-cred-pid-check"
+	release, err := acquireAppTokenLock(appCred)
 	if err != nil {
 		t.Fatalf("acquire: %v", err)
 	}
 	defer release()
 
-	path, err := appTokenLockPath(fixture)
+	path, err := appTokenLockPath(appCred)
 	if err != nil {
 		t.Fatalf("path: %v", err)
 	}
-	data, err := os.ReadFile(path) //nolint:gosec // G304: test path under t.TempDir
+	// path is under t.TempDir via socketLockDirEnv.
+	data, err := os.ReadFile(path) //nolint:gosec // G304: temp lock path from appTokenLockPath
 	if err != nil {
 		if os.IsNotExist(err) {
 			t.Skip("lock file not created on this platform")

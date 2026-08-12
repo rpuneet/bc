@@ -26,7 +26,7 @@ func (l *socketFileLock) Release() error {
 }
 
 func tryLockSocketFile(path string) (*socketFileLock, error) {
-	// path is a sha256-derived name under the mycel cache/lock dir (see appTokenLockPath).
+	// path is derived from a sha256 hash under the mycel cache/lock dir.
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600) //nolint:gosec // G304: trusted lock path from appTokenLockPath
 	if err != nil {
 		return nil, err

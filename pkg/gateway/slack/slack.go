@@ -32,13 +32,18 @@ const (
 // Adapter implements gateway.NotificationAdapter for Slack using Socket Mode.
 // It also supports outbound messaging via Send and SendFile methods.
 type Adapter struct {
-	lastMessageAt   time.Time
-	flapWindowStart time.Time
+	chatMu          sync.RWMutex
+	scopeWarnOnce   sync.Once
+	messageCount    atomic.Int64
+	customizeScope  atomic.Bool
+	scopesSeen      atomic.Bool
 	api             *slack.Client
 	sm              *socketmode.Client
 	handler         func(gateway.Notification)
 	channelMap      map[string]string
 	userCache       map[string]slackUser
+	lastMessageAt   time.Time
+	flapWindowStart time.Time
 	botToken        string
 	appToken        string
 	botUserID       string
@@ -46,11 +51,6 @@ type Adapter struct {
 	lastError       string
 	botID           string
 	flapErrors      int
-	messageCount    atomic.Int64
-	chatMu          sync.RWMutex
-	scopeWarnOnce   sync.Once
-	customizeScope  atomic.Bool
-	scopesSeen      atomic.Bool
 	connected       bool
 	flapWarned      bool
 }
