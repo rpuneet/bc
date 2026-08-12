@@ -1548,8 +1548,8 @@ func TestChannelDetailIncludesLastDelivery(t *testing.T) {
 	assertStatus(t, resp, http.StatusOK)
 
 	var body struct {
-		ChannelKey   string                `json:"channel_key"`
 		LastDelivery *notify.DeliveryEntry `json:"last_delivery"`
+		ChannelKey   string                `json:"channel_key"`
 	}
 	decodeJSON(t, resp, &body)
 	if body.ChannelKey != "slack:eng" {
