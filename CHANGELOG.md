@@ -12,6 +12,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.7] - 2026-08-13
+
+Home becomes a command center: chronological agent stream, denser Notifications,
+and honest Create Agent. Gateways stop dual-client death; catch-all mute/prune
+makes Slack `#general` a real channel again. macOS/Windows desktop builds remain
+**UNSIGNED** (#3561, #3577).
+
+### Added
+
+- **Home chronological stream** with As it comes / By agent toggle, OverviewStrip,
+  and Notifications + spend rail (#3642, #3643, #3650, #3651).
+- **Agent Notifications** section with searchable subscribe/mute picker; catch-all
+  uses `{platform}:*` so `#general` is not swallowed (#3466, #3467, #3647, #3649).
+- **Create Agent** MycelHome Browse/scan, GitHub repo discover + clone, and gateway
+  channel compose with file upload (#3612, #3659, #3703, #3702).
+- **CLI** thin API wrappers for status / templates / tools / config set (#3646, #3653).
+
+### Changed
+
+- **Avatar-only attribution** on the Home stream (hover card like the agents
+  dropdown); Host MEM chip shows `%` with absolute usage on hover (#3709).
+- **Desktop boot splash** is desktop-only with silent handoff — no double start
+  screens (#3673, #3672).
+- **UI consistency pack** — shared PageHeader, CTA tokens, FilterBar; Apps naming;
+  OverviewStrip mobile; About grid (#3662–#3672, #3704).
+
+### Fixed
+
+- **Slack Socket Mode dual-client death** when two daemons share tokens; dogfood
+  must not inherit prod Slack tokens (#3677, #3679, #3696).
+- **Sticky `working` → idle** when the session has been idle too long (#3625, #3627).
+- **Vault secret scoping** + FailureDetectors for claude/cursor/codex (#3701).
+- **GUI PATH enrichment** so desktop no longer false-fails on missing `tmux`; Docker
+  probes are bounded (#3706).
+- **Adapter health** mirrors AdapterStatus; skipped deliveries persist (#3705).
+- **Pi spawn** no longer inherits `~/AGENTS.md` / beads instructions (#3678, #3680).
+- **Cursor Stop tokens** backfilled into `usage.jsonl`; Pi/Bedrock CostReader;
+  agy activity via transcript parsing (#3597, #3629, #3630, #3531).
+
 ## [0.4.6] - 2026-08-05
 
 Blueprints that create agents, not prompts that describe them. Templates compose,
