@@ -32,6 +32,12 @@ linters:
     misspell:
       locale: US
 
+    # Drop SA5011 from the default staticcheck set only (do not enable "all",
+    # which turns on style checks ST* that this repo does not gate on).
+    staticcheck:
+      checks:
+        - "-SA5011"
+
     gosec:
       excludes:
         - G104 # Audit errors not checked (we check where needed)
@@ -47,6 +53,7 @@ linters:
       - path: _test\.go
         linters:
           - mnd
+
 
       # Ignore certain checks in main.go
       - path: cmd/mycel/main\.go

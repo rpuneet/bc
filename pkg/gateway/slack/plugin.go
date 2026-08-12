@@ -29,6 +29,9 @@ func (plugin) Describe() app.Descriptor {
 			"Add scopes: channels:read, chat:write, connections:write.",
 			"Copy Bot Token from OAuth & Permissions, App Token from Basic Information.",
 			"Install the app and invite the bot to your channels.",
+			"Only one mycel process may use a given SLACK_APP_TOKEN for Socket Mode. " +
+				"Secondary/test daemons must unset SLACK_APP_TOKEN and SLACK_BOT_TOKEN " +
+				"(or use separate Slack apps) — otherwise inbound delivery silently dies.",
 		},
 	}
 }
