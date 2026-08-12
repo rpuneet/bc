@@ -24,6 +24,7 @@ import {
 } from "./messageUtils";
 import { AgentCharacter, LiveAgentCharacter } from "../agent-ui";
 import { IdentityAvatar } from "./IdentityAvatar";
+import { ChannelCompose } from "./ChannelCompose";
 import type { GitHubCard, RSSCard, WebhookCard } from "./messageUtils";
 
 /* ── Helpers ──────────────────────────────────────────────────── */
@@ -1490,6 +1491,23 @@ export function GatewayFeed({
           </div>
         </div>
       </div>
+
+      <ChannelCompose
+        channelName={channelName}
+        onSent={() => {
+          void api
+            .getChannelHistory(channelName, PAGE_SIZE)
+            .then((latest) => {
+              if (!latest?.length) return;
+              setMessages((prev) => {
+                const ids = new Set(prev.map((m) => m.id));
+                const incoming = latest.filter((m) => m.id && !ids.has(m.id));
+                return incoming.length === 0 ? prev : [...prev, ...incoming];
+              });
+            })
+            .catch(() => {});
+        }}
+      />
 
       <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }`}</style>
     </div>

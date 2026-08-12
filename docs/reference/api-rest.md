@@ -415,7 +415,7 @@ Attachment upload/download (channel attachments and shared screenshots).
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/files/upload` | Multipart upload. Fields: `file` (required), `channel` (required), `sender` (optional, default `web`). Returns `201` with file metadata. Used by gateways/agents; the web UI currently downloads only. |
+| POST | `/api/files/upload` | Multipart upload. Fields: `file` (required), `channel` (required), `sender` (optional, default `web`). Returns `201` with file metadata. The web UI compose box inserts `[file:ID]` into the message. |
 | GET | `/api/files/{id}` | Download/serve a stored file (inline, cached for a day). |
 
 ---
