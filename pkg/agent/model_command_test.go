@@ -10,6 +10,30 @@ import (
 	"github.com/rpuneet/mycel/pkg/provider"
 )
 
+// TestGetAgentCommand_PiIsolatesHomeAgentsMD is the #3678 regression:
+// mycel pi spawns must disable context-file discovery (so ~/AGENTS.md
+// beads instructions cannot leak) and still append the mycel-managed
+// Pi.md prompt written on spawn/restart (#3648/#3652).
+func TestGetAgentCommand_PiIsolatesHomeAgentsMD(t *testing.T) {
+	m := &Manager{providerRegistry: provider.DefaultRegistry}
+	cmd, ok := m.getAgentCommand("pi", "beads-agents-leak", false, "", "")
+	if !ok {
+		t.Fatal("getAgentCommand(pi) not ok")
+	}
+	if !strings.Contains(cmd, "--no-context-files") {
+		t.Errorf("pi spawn missing --no-context-files: %q", cmd)
+	}
+	if !strings.Contains(cmd, "--append-system-prompt Pi.md") {
+		t.Errorf("pi spawn missing mycel-managed append: %q", cmd)
+	}
+	// Must not shell-out to delete or rewrite the user's ~/AGENTS.md.
+	for _, bad := range []string{"rm ", "unlink ", "AGENTS.md"} {
+		if strings.Contains(cmd, bad) {
+			t.Errorf("pi spawn must not touch user AGENTS.md (%q in %q)", bad, cmd)
+		}
+	}
+}
+
 // TestGetAgentCommandModel verifies the model reaches the provider's
 // BuildCommand and that unsafe values are dropped before the command
 // line is assembled.
@@ -67,11 +91,21 @@ func TestGetAgentCommandModelWithOverride(t *testing.T) {
 	if !strings.Contains(cmd, " --model anthropic/claude-sonnet-4-6") {
 		t.Errorf("command %q missing generic --model flag", cmd)
 	}
+	// Override path skips BuildCommand — isolation must still apply (#3678).
+	if !strings.Contains(cmd, "--no-context-files") {
+		t.Errorf("override command missing --no-context-files: %q", cmd)
+	}
+	if !strings.Contains(cmd, "--append-system-prompt Pi.md") {
+		t.Errorf("override command missing managed prompt append: %q", cmd)
+	}
 
 	// Unsafe model must be dropped on the override path too.
 	cmd, _ = m.getAgentCommand("pi", "test-agent", false, "", "a b; rm")
-	if strings.Contains(cmd, "rm") || strings.Contains(cmd, "--model") {
+	if strings.Contains(cmd, "rm") {
 		t.Errorf("unsafe model leaked into override command: %q", cmd)
+	}
+	if strings.Contains(cmd, "--model a b") || strings.Contains(cmd, "--model a") {
+		t.Errorf("unsafe model flag leaked into override command: %q", cmd)
 	}
 }
 

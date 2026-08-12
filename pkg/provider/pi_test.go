@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -61,6 +62,10 @@ func TestSafePiModelName(t *testing.T) {
 	}
 }
 
+// piSpawnBase is the isolation prefix every mycel pi spawn must carry so
+// ancestor ~/AGENTS.md cannot leak into context (#3678).
+const piSpawnBase = "pi --no-context-files --append-system-prompt Pi.md"
+
 func TestPiBuildCommand(t *testing.T) {
 	p := NewPiProvider()
 	tests := []struct { //nolint:govet // test struct, field order matches literal values
@@ -69,44 +74,44 @@ func TestPiBuildCommand(t *testing.T) {
 		opts CommandOpts
 	}{
 		{
-			name: "no opts — base command",
+			name: "no opts — isolation flags only",
 			opts: CommandOpts{},
-			want: "pi",
+			want: piSpawnBase,
 		},
 		{
 			name: "bedrock provider/model splits into --provider and --model",
 			opts: CommandOpts{Model: "amazon-bedrock/moonshotai.kimi-k2.5"},
-			want: "pi --provider amazon-bedrock --model moonshotai.kimi-k2.5",
+			want: piSpawnBase + " --provider amazon-bedrock --model moonshotai.kimi-k2.5",
 		},
 		{
 			name: "groq provider/model splits correctly",
 			opts: CommandOpts{Model: "groq/llama-3.3-70b-versatile"},
-			want: "pi --provider groq --model llama-3.3-70b-versatile",
+			want: piSpawnBase + " --provider groq --model llama-3.3-70b-versatile",
 		},
 		{
 			name: "bare model without slash — single --model flag",
 			opts: CommandOpts{Model: "llama-3.3-70b-versatile"},
-			want: "pi --model llama-3.3-70b-versatile",
+			want: piSpawnBase + " --model llama-3.3-70b-versatile",
 		},
 		{
 			name: "unsafe model is dropped",
 			opts: CommandOpts{Model: "$(rm -rf /)"},
-			want: "pi",
+			want: piSpawnBase,
 		},
 		{
 			name: "leading-dash model is dropped (arg injection prevention)",
 			opts: CommandOpts{Model: "-continue"},
-			want: "pi",
+			want: piSpawnBase,
 		},
 		{
 			name: "session ID appended",
 			opts: CommandOpts{SessionID: "abc123"},
-			want: "pi --session abc123",
+			want: piSpawnBase + " --session abc123",
 		},
 		{
 			name: "resume flag",
 			opts: CommandOpts{Resume: true},
-			want: "pi --continue",
+			want: piSpawnBase + " --continue",
 		},
 		{
 			name: "model + session + resume — all three flags",
@@ -115,12 +120,12 @@ func TestPiBuildCommand(t *testing.T) {
 				SessionID: "abc123",
 				Resume:    true,
 			},
-			want: "pi --provider groq --model llama-3.3-70b-versatile --session abc123 --continue",
+			want: piSpawnBase + " --provider groq --model llama-3.3-70b-versatile --session abc123 --continue",
 		},
 		{
 			name: "model with dots in model id",
 			opts: CommandOpts{Model: "anthropic/claude-sonnet-4-6"},
-			want: "pi --provider anthropic --model claude-sonnet-4-6",
+			want: piSpawnBase + " --provider anthropic --model claude-sonnet-4-6",
 		},
 	}
 	for _, tt := range tests {
@@ -130,6 +135,66 @@ func TestPiBuildCommand(t *testing.T) {
 				t.Errorf("BuildCommand() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// TestPiIsolateSpawnCommand_Idempotent covers prefs overrides that already
+// include -nc / --no-context-files so we do not double-append (#3678).
+func TestPiIsolateSpawnCommand_Idempotent(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "bare pi gets both flags",
+			in:   "pi",
+			want: piSpawnBase,
+		},
+		{
+			name: "existing long flag keeps append only",
+			in:   "pi --no-context-files --provider amazon-bedrock",
+			want: "pi --no-context-files --provider amazon-bedrock --append-system-prompt Pi.md",
+		},
+		{
+			name: "existing short -nc is respected",
+			in:   "pi -nc --model foo",
+			want: "pi -nc --model foo --append-system-prompt Pi.md",
+		},
+		{
+			name: "both flags already present — unchanged",
+			in:   piSpawnBase + " --continue",
+			want: piSpawnBase + " --continue",
+		},
+		{
+			name: "empty command untouched",
+			in:   "",
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := PiIsolateSpawnCommand(tt.in)
+			if got != tt.want {
+				t.Errorf("PiIsolateSpawnCommand(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestPiPromptFileIsManagedAppendTarget pins the file name that
+// --append-system-prompt must reference (GenericAdapter → Pi.md).
+func TestPiPromptFileIsManagedAppendTarget(t *testing.T) {
+	p := NewPiProvider()
+	if got := p.PromptFile(); got != piManagedPromptFile {
+		t.Fatalf("PromptFile() = %q, want %q (append-system-prompt target)", got, piManagedPromptFile)
+	}
+	cmd := p.BuildCommand(CommandOpts{})
+	if !strings.Contains(cmd, "--append-system-prompt "+piManagedPromptFile) {
+		t.Fatalf("BuildCommand missing managed append: %q", cmd)
+	}
+	if !strings.Contains(cmd, "--no-context-files") {
+		t.Fatalf("BuildCommand missing --no-context-files: %q", cmd)
 	}
 }
 

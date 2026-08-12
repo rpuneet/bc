@@ -865,7 +865,13 @@ func (m *Manager) getAgentCommand(toolName, agentName string, resume bool, sessi
 	// or --session "<id>" handling.
 	if m.providersConfig != nil {
 		if cfg, ok := m.providersConfig.Providers[toolName]; ok && cfg.Command != "" {
-			return appendSessionFlags(cfg.Command, opts), true
+			cmd := appendSessionFlags(cfg.Command, opts)
+			// Prefs overrides skip BuildCommand — still apply pi's
+			// ~/AGENTS.md isolation + mycel-managed prompt append (#3678).
+			if toolName == "pi" {
+				cmd = provider.PiIsolateSpawnCommand(cmd)
+			}
+			return cmd, true
 		}
 	}
 	return p.BuildCommand(opts), true
