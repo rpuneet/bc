@@ -209,3 +209,28 @@ and the `env.json` template.
 
 - Read the [Notifications architecture](../explanation/notifications.md) for the full system design + outbound cookbook.
 - See the [REST API reference](../reference/api-rest.md) for app and subscription endpoints.
+
+
+## Multiple local daemons / dogfood homes
+
+Slack Socket Mode delivers each Events API payload to **only one** connection
+for a given app token. If a second local mycel (test home, dogfood workspace,
+or another checkout) inherits the same `SLACK_APP_TOKEN`, inbound Slack
+messages flap or go silent (#3677). Mycel takes an exclusive flock on the app
+token so the second process fails loudly instead of silently racing (#3679).
+
+**Do this instead:**
+
+- Use a separate Slack app (and tokens) for dogfood/test daemons, **or**
+- Unset `SLACK_APP_TOKEN` / connected-app secrets in the test home's environment
+  before `mycel up`.
+
+The same exclusivity applies to other Socket Mode / long-poll credentials
+shared across homes.
+
+### macOS note: `mycel-desktop --help`
+
+On macOS, launching `mycel-desktop` (including with `--help`) opens the GUI
+app. Prefer `mycel --help` for CLI help, and avoid `--help` on the desktop
+binary when you only want usage text.
+
