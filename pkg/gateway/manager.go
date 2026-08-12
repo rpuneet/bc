@@ -88,38 +88,16 @@ type reactionSender interface {
 
 // Manager orchestrates all gateway adapters and routes messages.
 type Manager struct {
-	// adapters holds all registered NotificationAdapter instances.
-	adapters map[string]NotificationAdapter
-	// running tracks adapters whose Start loop is already live so hot-start
-	// does not spawn a second poll/socket for the same name.
-	running map[string]bool
-	// startCtx is the context passed to Start; used by StartAdapter to bind
-	// late-registered adapters to the same lifetime.
-	startCtx context.Context
-	// channelMap maps "telegram:<group_name>" → channelRoute
-	channelMap map[string]channelRoute
-	// onInbound is called when a message arrives from an external platform.
-	// Typically wired to ChannelService.Send + SSE hub.
-	// senderID carries the platform-native sender identifier (e.g. WhatsApp JID)
-	// so callers can use it for follow-up operations such as reactions.
-	// senderAvatar is the raw platform avatar URL for the sender when the
-	// adapter cheaply resolved one (empty otherwise → initials fallback).
-	// automated marks machine-generated events that should reach the channel
-	// feed without waking subscribed agents.
-	onInbound func(params InboundParams)
-	// onOutbound is called after a message has been successfully handed to a
-	// platform, so the channel's stored history holds both sides of the
-	// conversation. Inbound messages are recorded from onInbound; without this
-	// hook a transcript shows only what arrived, never what an agent replied.
-	onOutbound   func(channel, sender, content string)
-	channelStore ChannelStore
-	mu           sync.RWMutex
-	// adapterWG tracks boot-time and hot-started adapter goroutines so Stop/
-	// Start can wait for clean shutdown of both.
-	adapterWG sync.WaitGroup
-	// adapterCancel holds per-adapter Start cancels so StopAdapter can end
-	// blocking socket/poll loops that ignore Stop alone (#3681).
+	startCtx      context.Context
+	channelStore  ChannelStore
+	adapters      map[string]NotificationAdapter
+	running       map[string]bool
+	channelMap    map[string]channelRoute
+	onInbound     func(params InboundParams)
+	onOutbound    func(channel, sender, content string)
 	adapterCancel map[string]context.CancelFunc
+	adapterWG     sync.WaitGroup
+	mu            sync.RWMutex
 }
 
 type channelRoute struct {
@@ -131,10 +109,10 @@ type channelRoute struct {
 // NewManager creates a new gateway manager.
 func NewManager() *Manager {
 	return &Manager{
-		adapters:       make(map[string]NotificationAdapter),
-		running:        make(map[string]bool),
-		channelMap:     make(map[string]channelRoute),
-		adapterCancel:  make(map[string]context.CancelFunc),
+		adapters:      make(map[string]NotificationAdapter),
+		running:       make(map[string]bool),
+		channelMap:    make(map[string]channelRoute),
+		adapterCancel: make(map[string]context.CancelFunc),
 	}
 }
 
