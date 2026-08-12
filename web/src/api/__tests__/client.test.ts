@@ -225,3 +225,35 @@ describe("api.createAgent", () => {
     });
   });
 });
+
+describe("api.sendChannel / api.uploadFile", () => {
+  it("POSTs channel + message + sender to /api/apps/channels/send", async () => {
+    fetchMock.mockReturnValue(jsonResponse({ sent: true }));
+    const res = await api.sendChannel("slack:general", "hello", "web");
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/apps/channels/send");
+    expect(init.method).toBe("POST");
+    expect((init.headers as Record<string, string>)["Content-Type"]).toBe("application/json");
+    expect(JSON.parse(init.body as string)).toEqual({
+      channel: "slack:general",
+      message: "hello",
+      sender: "web",
+    });
+    expect(res.sent).toBe(true);
+  });
+
+  it("POSTs multipart FormData to /api/files/upload without a JSON Content-Type", async () => {
+    fetchMock.mockReturnValue(jsonResponse({ id: "abc123", filename: "note.txt" }, 201));
+    const file = new File(["hi"], "note.txt", { type: "text/plain" });
+    const meta = await api.uploadFile(file, "slack:general");
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/files/upload");
+    expect(init.method).toBe("POST");
+    expect(init.body).toBeInstanceOf(FormData);
+    expect((init.headers as Record<string, string>)["Content-Type"]).toBeUndefined();
+    const body = init.body as FormData;
+    expect(body.get("channel")).toBe("slack:general");
+    expect(body.get("sender")).toBe("web");
+    expect(meta.id).toBe("abc123");
+  });
+});

@@ -67,4 +67,25 @@ describe("GatewayFeed", () => {
     await screen.findByTestId("header-host");
     expect(screen.queryByRole("button", { name: "Go back" })).not.toBeInTheDocument();
   });
+
+  it("renders a compose box so the channel view is not read-only", async () => {
+    render(
+      <MemoryRouter initialEntries={["/apps/slack:general"]}>
+        <HeaderSlotProvider>
+          <HeaderHost />
+          <Routes>
+            <Route
+              path="/apps/:sourceName"
+              element={<GatewayFeed channelName="slack:general" onPeekAgent={() => {}} />}
+            />
+          </Routes>
+        </HeaderSlotProvider>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByTestId("channel-compose")).toBeInTheDocument();
+    expect(screen.getByLabelText("Message")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Attach file" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument();
+  });
 });

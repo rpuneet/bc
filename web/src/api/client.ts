@@ -29,9 +29,12 @@ function tap<T>(p: Promise<T>, keys: string[]): Promise<T> {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
+  // FormData must go out without a Content-Type so the browser (or undici)
+  // can set multipart/form-data with the boundary. JSON is the default.
+  const isForm = typeof FormData !== "undefined" && init?.body instanceof FormData;
+  const headers: Record<string, string> = isForm
+    ? {}
+    : { "Content-Type": "application/json" };
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers: { ...headers, ...(init?.headers as Record<string, string> ?? {}) },
@@ -159,6 +162,18 @@ export interface ChannelMessage {
    *  platform resolved one (e.g. Slack users.info). Absent → initials. */
   avatar_url?: string;
   content: string;
+  created_at: string;
+}
+
+/** Metadata returned by POST /api/files/upload. MessageContent renders
+ *  the matching `[file:ID]` token as an inline image or download link. */
+export interface FileAttachment {
+  id: string;
+  filename: string;
+  mime_type: string;
+  size: number;
+  channel: string;
+  sender: string;
   created_at: string;
 }
 
@@ -1111,6 +1126,14 @@ export const api = {
       `/apps/channels/${encodeURIComponent(name)}/history?${params}`,
     );
   },
+  /** POST /api/apps/channels/send — deliver text (and `[file:ID]` refs)
+   *  through the gateway. `{sent:false}` means no outbound route, not an
+   *  HTTP error. Sender defaults to "web" to match file uploads. */
+  sendChannel: (channel: string, message: string, sender = "web") =>
+    request<{ sent: boolean }>("/apps/channels/send", {
+      method: "POST",
+      body: JSON.stringify({ channel, message, sender }),
+    }),
   // App-scoped subscription API — channels live under their app instance.
   listSubscriptions: () =>
     request<NotifySubscription[]>("/notify/subscriptions"),
@@ -1476,8 +1499,17 @@ export const api = {
   getAgentComputedStats: (name: string) =>
     request<ComputedStats>(`/agents/${encodeURIComponent(name)}/stats-computed`),
 
-  /** Get file download URL. Uploads go through POST /api/files/upload
-   *  directly (gateway/agents); the web UI has no upload affordance yet. */
+  /** Multipart upload. Returns metadata whose `id` is inserted into a
+   *  channel message as `[file:ID]` (see MessageContent). */
+  uploadFile: (file: File, channel: string, sender = "web") => {
+    const body = new FormData();
+    body.append("file", file);
+    body.append("channel", channel);
+    body.append("sender", sender);
+    return request<FileAttachment>("/files/upload", { method: "POST", body });
+  },
+
+  /** Get file download URL for a stored attachment id. */
   getFileUrl: (id: string) => `${BASE}/files/${encodeURIComponent(id)}`,
 
   /** Full machine-readiness report — tmux, git, provider CLIs, docker images. */
