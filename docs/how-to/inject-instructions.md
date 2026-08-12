@@ -94,4 +94,18 @@ Use role prompts for what a *kind* of agent should do, and injected instructions
 | Mycel-managed block (markers) | mycel | every spawn + restart |
 | Repo / user `AGENTS.md` conventions | tool / user | outside mycel (Claude/Cursor may also load `~/AGENTS.md`) |
 
+### Pi spawn isolation
+
+Pi walks ancestor directories for `AGENTS.md` / `CLAUDE.md`, so a worktree under
+`$HOME/.mycel/...` would otherwise inherit `~/AGENTS.md` (often unrelated
+beads/`bd` instructions). Mycel does **not** delete or edit that home file.
+Instead, every pi spawn command includes:
+
+- `--no-context-files` — disables pi's AGENTS.md/CLAUDE.md discovery
+- `--append-system-prompt Pi.md` — injects the worktree prompt file that holds
+  the role text + mycel-managed section (#3648/#3652)
+
+Prefs `providers.pi.command` overrides get the same flags appended idempotently.
+See `provider.PiIsolateSpawnCommand` / `PiProvider.BuildCommand` (#3678).
+
 Do not hand-edit inside the managed markers — the next restart will overwrite that region.

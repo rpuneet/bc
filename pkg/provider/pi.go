@@ -81,6 +81,40 @@ func SafePiModelName(model string) bool {
 	return safePiModelPattern.MatchString(model)
 }
 
+// piManagedPromptFile is the worktree prompt file GenericAdapter writes for
+// pi (PromptFile → "Pi.md"). Spawn injects it explicitly via
+// --append-system-prompt after disabling pi's AGENTS.md/CLAUDE.md walk
+// (#3678) so ~/AGENTS.md beads instructions cannot leak in.
+const piManagedPromptFile = "Pi.md"
+
+// PiIsolateSpawnCommand idempotently adds spawn isolation flags so pi does
+// not discover ancestor/home AGENTS.md (or CLAUDE.md) while still loading
+// the mycel-managed prompt file from the agent worktree.
+// Safe to call on prefs command overrides as well as BuildCommand output.
+func PiIsolateSpawnCommand(cmd string) string {
+	if cmd == "" {
+		return cmd
+	}
+	if !strings.Contains(cmd, "--no-context-files") && !hasPiShortFlag(cmd, "-nc") {
+		cmd += " --no-context-files"
+	}
+	if !strings.Contains(cmd, "--append-system-prompt") {
+		cmd += " --append-system-prompt " + piManagedPromptFile
+	}
+	return cmd
+}
+
+// hasPiShortFlag reports whether cmd already includes the standalone short
+// flag (e.g. -nc). Avoids matching substrings inside longer tokens.
+func hasPiShortFlag(cmd, flag string) bool {
+	for _, tok := range strings.Fields(cmd) {
+		if tok == flag {
+			return true
+		}
+	}
+	return false
+}
+
 // BuildCommand returns the full command for a given runtime context.
 // When opts.Model is set and passes SafePiModelName, it is appended as flags.
 // pi accepts "provider/model" as a single --model value, but also supports
@@ -89,8 +123,13 @@ func SafePiModelName(model string) bool {
 // into a shell command line — unsafe values are dropped, never escaped.
 // When no model is given, pi uses its own configured default — mycel does
 // not override that default.
+//
+// Isolation: always passes --no-context-files so pi's ancestor walk cannot
+// load ~/AGENTS.md (common when worktrees live under $HOME/.mycel/...). The
+// mycel-managed section is still injected with --append-system-prompt Pi.md
+// (#3648/#3652, #3678).
 func (p *PiProvider) BuildCommand(opts CommandOpts) string {
-	cmd := p.Command()
+	cmd := PiIsolateSpawnCommand(p.Command())
 	if SafePiModelName(opts.Model) {
 		if idx := strings.Index(opts.Model, "/"); idx > 0 {
 			providerPart := opts.Model[:idx]
