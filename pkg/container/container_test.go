@@ -8,10 +8,43 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/provider"
 )
+
+// TestNewBackendProbeTimeout ensures a wedged Docker CLI cannot block mycel
+// boot: NewBackend must fail within dockerProbeTimeout (+ small slack).
+func TestNewBackendProbeTimeout(t *testing.T) {
+	dir := t.TempDir()
+	stub := filepath.Join(dir, "docker")
+	// Shell wrapper + long sleep: mirrors Docker CLI hanging on a wedged
+	// daemon. Process-group SIGKILL must reap both the shell and sleep.
+	script := "#!/bin/sh\ntrap '' TERM INT\nsleep 120\n"
+	// 0755: stub must be executable on PATH; test-only file in TempDir.
+	if err := os.WriteFile(stub, []byte(script), 0o755); err != nil { //nolint:gosec // G306: executable stub requires +x
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+"/usr/bin:/bin")
+
+	start := time.Now()
+	_, err := NewBackend(Config{}, "mycel-", t.TempDir(), provider.DefaultRegistry)
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatal("NewBackend succeeded against hanging docker stub; want timeout error")
+	}
+	if !strings.Contains(err.Error(), "timed out") {
+		t.Fatalf("error = %v, want timed out", err)
+	}
+	// Bound: probe timeout + WaitDelay kill slack. Far below the stub's 120s sleep.
+	if elapsed > dockerProbeTimeout+2*time.Second {
+		t.Fatalf("NewBackend took %v, want <= %v", elapsed, dockerProbeTimeout+2*time.Second)
+	}
+	if elapsed < dockerProbeTimeout/2 {
+		t.Fatalf("NewBackend returned too fast (%v); stub may not have been used", elapsed)
+	}
+}
 
 func TestConfigFromHome_Defaults(t *testing.T) {
 	cfg := ConfigFromHome(home.DockerRuntimeConfig{})
