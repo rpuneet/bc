@@ -67,6 +67,30 @@ export interface ReposResponse {
   default: string;
 }
 
+/** GET/POST /api/auth/github — token presence, plus login after a successful POST. */
+export interface GithubAuthStatus {
+  connected: boolean;
+  login?: string;
+}
+
+/** One repository from POST /api/repos/discover/github. */
+export interface GithubRepo {
+  full_name: string;
+  name: string;
+  clone_url: string;
+  ssh_url: string;
+  html_url: string;
+  default_branch: string;
+  description?: string;
+  private: boolean;
+}
+
+/** POST /api/repos/clone — checkout path the new agent should bind to. */
+export interface CloneRepoResult {
+  path: string;
+  name: string;
+}
+
 export interface BulkResult {
   agent: string;
   status: "ok" | "error";
@@ -1474,6 +1498,41 @@ export const api = {
   /** List repos known to the daemon (every repo referenced by an agent
    *  plus the boot repo) and the default repo for new agents. */
   getRepos: () => request<ReposResponse>("/repos"),
+
+  /** GitHub PAT status for repo discover/clone. GET does not echo the token. */
+  getGithubAuth: () => request<GithubAuthStatus>("/auth/github"),
+  /** Validate and store a GitHub PAT in ~/.mycel/github-token. */
+  setGithubToken: (token: string) =>
+    request<GithubAuthStatus>("/auth/github", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    }),
+  /** Remove the stored GitHub PAT. 204 has no body. */
+  deleteGithubToken: async (): Promise<void> => {
+    const res = await fetch(`${BASE}/auth/github`, { method: "DELETE" });
+    if (res.status === 204 || res.ok) return;
+    let message = `API error: ${res.status} ${res.statusText}`;
+    try {
+      const body = (await res.json()) as { error?: string };
+      if (body && typeof body.error === "string") message = body.error;
+    } catch {
+      /* empty */
+    }
+    throw new Error(message);
+  },
+  /** List GitHub repos visible to the stored PAT. 401 when not authenticated. */
+  discoverGithubRepos: (query?: string) =>
+    request<{ repos: GithubRepo[] }>("/repos/discover/github", {
+      method: "POST",
+      body: JSON.stringify(query ? { query } : {}),
+    }),
+  /** Clone a URL into target (optional checkout name). Not registered until
+   *  an agent is created with the returned path. */
+  cloneRepo: (opts: { url: string; target: string; name?: string }) =>
+    request<CloneRepoResult>("/repos/clone", {
+      method: "POST",
+      body: JSON.stringify(opts),
+    }),
 
   getStatsSystem: () => request<SystemStats>("/stats/system"),
   getStatsSummary: () => request<StatsSummary>("/stats/summary"),

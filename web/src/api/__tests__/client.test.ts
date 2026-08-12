@@ -257,3 +257,70 @@ describe("api.sendChannel / api.uploadFile", () => {
     expect(meta.id).toBe("abc123");
   });
 });
+
+describe("api GitHub discover + clone", () => {
+  it("getGithubAuth hits GET /api/auth/github", async () => {
+    fetchMock.mockReturnValue(jsonResponse({ connected: true, login: "puneet" }));
+    const status = await api.getGithubAuth();
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/auth/github");
+    expect(init?.method ?? "GET").not.toBe("POST");
+    expect(status.connected).toBe(true);
+    expect(status.login).toBe("puneet");
+  });
+
+  it("setGithubToken POSTs the token", async () => {
+    fetchMock.mockReturnValue(jsonResponse({ connected: true, login: "puneet" }));
+    await api.setGithubToken("ghp_test");
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/auth/github");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ token: "ghp_test" });
+  });
+
+  it("deleteGithubToken accepts 204 with no body", async () => {
+    fetchMock.mockReturnValue(
+      Promise.resolve({
+        ok: true,
+        status: 204,
+        statusText: "No Content",
+        json: () => Promise.reject(new Error("no body")),
+      } as unknown as Response),
+    );
+    await expect(api.deleteGithubToken()).resolves.toBeUndefined();
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/auth/github");
+    expect(init.method).toBe("DELETE");
+  });
+
+  it("discoverGithubRepos POSTs an optional query", async () => {
+    fetchMock.mockReturnValue(jsonResponse({ repos: [{ full_name: "acme/mycel", name: "mycel" }] }));
+    const empty = await api.discoverGithubRepos();
+    expect(empty.repos[0]?.name).toBe("mycel");
+    expect(JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string)).toEqual({});
+
+    await api.discoverGithubRepos("mycel");
+    const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(url).toBe("/api/repos/discover/github");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ query: "mycel" });
+  });
+
+  it("cloneRepo POSTs url, target, and optional name", async () => {
+    fetchMock.mockReturnValue(jsonResponse({ path: "/tmp/src/mycel", name: "mycel" }, 201));
+    const result = await api.cloneRepo({
+      url: "https://github.com/acme/mycel.git",
+      target: "/tmp/src",
+      name: "mycel",
+    });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/repos/clone");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({
+      url: "https://github.com/acme/mycel.git",
+      target: "/tmp/src",
+      name: "mycel",
+    });
+    expect(result.path).toBe("/tmp/src/mycel");
+  });
+});
