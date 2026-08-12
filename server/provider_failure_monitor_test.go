@@ -200,11 +200,13 @@ func TestSweepIgnoresAgentsWhoseTerminalCannotBeRead(t *testing.T) {
 
 func TestSweepIgnoresProvidersWithoutADetector(t *testing.T) {
 	now := time.Now()
-	a := quietPiAgent("claude-agent", agentpkg.StateIdle, time.Hour, now)
-	a.Tool = "claude"
+	// Unregistered tool: DefaultRegistry has no FailureDetector for it.
+	// (claude/cursor/codex now implement DetectFailure — #3687.)
+	a := quietPiAgent("other-agent", agentpkg.StateIdle, time.Hour, now)
+	a.Tool = "unknown-tool"
 	deps := &fakeFailureDeps{
 		agents: []*agentpkg.Agent{a},
-		panes:  map[string]string{"claude-agent": brokenPiPane},
+		panes:  map[string]string{"other-agent": brokenPiPane},
 	}
 
 	sweepForFailedProviders(context.Background(), deps, map[string]string{}, now)

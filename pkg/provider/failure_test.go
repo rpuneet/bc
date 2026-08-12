@@ -53,6 +53,7 @@ const cursorBadKeyPane = `Authentication failed: your Cursor credentials or API 
 If you set CURSOR_API_KEY, check that it is correct, or run ` + "`agent login`" + ` to re-authenticate.
 `
 
+//nolint:gosec // G101: quoted CLI error text, not a credential
 const codexNoCredsPane = `no Codex credentials were found
 Run codex login or provide an API key through a supported auth env var.
 `

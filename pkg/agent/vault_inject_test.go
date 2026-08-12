@@ -87,7 +87,7 @@ func TestInjectVaultSecrets(t *testing.T) {
 			wantValue:   "h-wins",
 		},
 		{
-			name: "well-known gateway token auto-injected for slack subscriber",
+			name:   "well-known gateway token auto-injected for slack subscriber",
 			preEnv: map[string]string{},
 			// SLACK_BOT_TOKEN not in roleSecrets — inject via wellKnownVaultTokens
 			// only when subscribed to a slack channel (#3686).
