@@ -12,7 +12,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
@@ -109,15 +109,16 @@ type Backend struct {
 	mu               sync.RWMutex
 }
 
+// dockerProbeTimeout bounds CLI probes used to decide whether Docker is
+// available. A wedged Docker Desktop must not block mycel boot or health
+// checks forever — unavailable after the deadline means "use tmux".
+const dockerProbeTimeout = 3 * time.Second
+
 // NewBackend creates a Docker runtime backend.
-// Returns an error if the Docker daemon is not reachable.
+// Returns an error if the Docker daemon is not reachable within dockerProbeTimeout.
 func NewBackend(cfg Config, prefix, repoPath string, registry *provider.Registry) (*Backend, error) {
-	ctx := context.Background()
-	cmd := exec.CommandContext(ctx, "docker", "info") //nolint:gosec // trusted binary
-	cmd.Stdout = io.Discard
-	cmd.Stderr = io.Discard
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("docker daemon not available: %w", err)
+	if err := probeDocker(context.Background(), "info"); err != nil {
+		return nil, err
 	}
 
 	// Use host repo path for volume mounts in Docker-in-Docker setups.
@@ -270,13 +271,13 @@ func (b *Backend) tmuxTarget(ctx context.Context, name string) string {
 // HasSession checks if a container exists, is running, AND has a live tmux
 // session inside. A container with only zombie processes is treated as dead
 // so the caller will respawn it rather than reusing a broken session.
+//
+// Probes are bounded by dockerProbeTimeout so a wedged Docker daemon cannot
+// stall agent health / reconcile loops that call HasSession on every tick.
 func (b *Backend) HasSession(ctx context.Context, name string) bool {
 	cn := b.containerName(name)
 
-	// Check container is running
-	//nolint:gosec // trusted
-	inspect := exec.CommandContext(ctx, "docker", "inspect", "--format", "{{.State.Running}}", cn)
-	out, err := inspect.Output()
+	out, err := probeDockerOutput(ctx, "inspect", "--format", "{{.State.Running}}", cn)
 	if err != nil || strings.TrimSpace(string(out)) != "true" {
 		return false
 	}
@@ -284,9 +285,7 @@ func (b *Backend) HasSession(ctx context.Context, name string) bool {
 	// Also verify at least one tmux session is alive inside the container.
 	// Claude --tmux creates sessions with varying names (workspace0, workspace_worktree-*).
 	// If all tmux sessions are dead (zombie), treat the container as gone.
-	//nolint:gosec // trusted
-	tmuxCheck := exec.CommandContext(ctx, "docker", "exec", cn, "tmux", "list-sessions")
-	return tmuxCheck.Run() == nil
+	return probeDocker(ctx, "exec", cn, "tmux", "list-sessions") == nil
 }
 
 // CreateSession creates a new container session.
@@ -675,10 +674,7 @@ func (b *Backend) AttachCmd(ctx context.Context, name string) *exec.Cmd {
 
 // IsRunning checks if the Docker daemon is running.
 func (b *Backend) IsRunning(ctx context.Context) bool {
-	cmd := exec.CommandContext(ctx, "docker", "info") //nolint:gosec // trusted binary
-	cmd.Stdout = io.Discard
-	cmd.Stderr = io.Discard
-	return cmd.Run() == nil
+	return probeDocker(ctx, "info") == nil
 }
 
 // KillServer stops and removes all mycel containers for this daemon.

@@ -15,6 +15,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 
 	"github.com/rpuneet/mycel/internal/cmd"
+	"github.com/rpuneet/mycel/pkg/envpath"
 	"github.com/rpuneet/mycel/pkg/log"
 )
 
@@ -29,6 +30,9 @@ var (
 )
 
 func main() {
+	// .app bundles inherit a minimal PATH (no Homebrew). Enrich before
+	// the embedded daemon LookPaths tmux/docker/agent CLIs.
+	envpath.Enrich()
 	cmd.SetVersionInfo(version, commit, date)
 
 	srv := NewServer()
