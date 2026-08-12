@@ -74,17 +74,22 @@ export function compareBuilds(app: string, daemon: string): BuildRelation {
   const a = core(app);
   const d = core(daemon);
   // Prefer git-describe commit counts: 0.4.7-dev.31.gabc > 0.4.7-dev.12.gdef
-  const parseDev = (v: string) => {
+  const parseDev = (v: string): [number, number, number, number] | null => {
     const m = /^(\d+)\.(\d+)\.(\d+)(?:-dev\.(\d+)\.)?/.exec(v);
     if (!m) return null;
-    return [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4] ?? -1)];
+    return [
+      Number(m[1] ?? 0),
+      Number(m[2] ?? 0),
+      Number(m[3] ?? 0),
+      Number(m[4] ?? -1),
+    ];
   };
   const pa = parseDev(a);
   const pd = parseDev(d);
   if (pa && pd) {
     for (let i = 0; i < 4; i++) {
-      if (pa[i] > pd[i]) return "app-newer";
-      if (pa[i] < pd[i]) return "daemon-newer";
+      if (pa[i]! > pd[i]!) return "app-newer";
+      if (pa[i]! < pd[i]!) return "daemon-newer";
     }
   }
   // Lexicographic fallback when shapes differ
