@@ -360,13 +360,11 @@ func (s *Service) deliverToSubscribers(ctx context.Context, d deliverable) {
 		case sendErr == nil:
 			log.Info("notify: delivered", "agent", sub.Agent, "channel", channel)
 		case agentOfflineRe.MatchString(sendErr.Error()):
-			// Subscribed agent was offline when the message arrived
-			// — the routing decision was correct, delivery just
-			// wasn't attempted. Skip the delivery-log write entirely
-			// so the failed-delivery count only reflects genuine
-			// send errors, not routine offline-agent skips.
+			// Persist as skipped so the activity UI counts the miss
+			// without inflating failed-delivery totals (#3694).
+			status = StatusSkipped
+			errStr = sendErr.Error()
 			log.Debug("notify: delivery skipped (agent offline)", "agent", sub.Agent, "channel", channel)
-			continue
 		default:
 			status = StatusFailed
 			errStr = sendErr.Error()
@@ -602,9 +600,9 @@ func (s *Service) deliverOutboundToSubscribers(ctx context.Context, channel, sen
 		case sendErr == nil:
 			log.Info("notify: outbound delivered", "agent", sub.Agent, "channel", channel)
 		case agentOfflineRe.MatchString(sendErr.Error()):
-			// Subscribed agent was offline when the message arrived
+			status = StatusSkipped
+			errStr = sendErr.Error()
 			log.Debug("notify: outbound delivery skipped (agent offline)", "agent", sub.Agent, "channel", channel)
-			continue
 		default:
 			status = StatusFailed
 			errStr = sendErr.Error()

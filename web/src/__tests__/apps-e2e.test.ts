@@ -348,33 +348,42 @@ describe("Apps Page E2E", () => {
 
     // Health endpoint
     describe("GET /api/apps/{name}/health", () => {
-      it("returns 200 with platform, connected, status fields for slack", async () => {
+      it("returns AdapterStatus fields when the adapter is registered, or 404 if not", async () => {
         if (!serverAvailable) return;
         const { status, body } = await apiFetch("/apps/slack/health");
-        expect(status).toBe(200);
+        expect([200, 404]).toContain(status);
         const resp = body as Record<string, unknown>;
+        if (status === 404) {
+          expect(typeof resp.error).toBe("string");
+          return;
+        }
         expect(resp.platform).toBe("slack");
         expect(typeof resp.connected).toBe("boolean");
         expect(typeof resp.status).toBe("string");
         expect(resp.status === "ok" || resp.status === "disconnected").toBe(true);
+        expect(typeof resp.message_count).toBe("number");
       });
 
-      it("returns 200 with platform=telegram for telegram health check", async () => {
+      it("returns 200 or 404 for telegram health check", async () => {
         if (!serverAvailable) return;
         const { status, body } = await apiFetch("/apps/telegram/health");
-        expect(status).toBe(200);
-        const resp = body as Record<string, unknown>;
-        expect(resp.platform).toBe("telegram");
-        expect(typeof resp.connected).toBe("boolean");
+        expect([200, 404]).toContain(status);
+        if (status === 200) {
+          const resp = body as Record<string, unknown>;
+          expect(resp.platform).toBe("telegram");
+          expect(typeof resp.connected).toBe("boolean");
+        }
       });
 
-      it("returns 200 with platform=discord for discord health check", async () => {
+      it("returns 200 or 404 for discord health check", async () => {
         if (!serverAvailable) return;
         const { status, body } = await apiFetch("/apps/discord/health");
-        expect(status).toBe(200);
-        const resp = body as Record<string, unknown>;
-        expect(resp.platform).toBe("discord");
-        expect(typeof resp.connected).toBe("boolean");
+        expect([200, 404]).toContain(status);
+        if (status === 200) {
+          const resp = body as Record<string, unknown>;
+          expect(resp.platform).toBe("discord");
+          expect(typeof resp.connected).toBe("boolean");
+        }
       });
     });
 

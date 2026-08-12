@@ -81,7 +81,63 @@ func (s *Store) initSchema() error {
 	if err := s.migrateLegacyCatchAll(context.TODO()); err != nil {
 		return fmt.Errorf("migrate legacy catch-all: %w", err)
 	}
+	if err := s.migrateDeliveryStatusSkipped(context.TODO()); err != nil {
+		return fmt.Errorf("migrate delivery status skipped: %w", err)
+	}
 	return nil
+}
+
+// migrateDeliveryStatusSkipped widens notify_delivery_log's status CHECK so
+// offline-agent rows can persist as 'skipped' (#3694). SQLite cannot ALTER a
+// CHECK, so existing DBs rebuild the table; Postgres drops/re-adds the
+// named constraint. Idempotent when 'skipped' is already allowed.
+func (s *Store) migrateDeliveryStatusSkipped(ctx context.Context) error {
+	if s.driver == "timescale" {
+		_, err := s.db.ExecContext(ctx, `
+ALTER TABLE notify_delivery_log DROP CONSTRAINT IF EXISTS notify_delivery_log_status_check;
+ALTER TABLE notify_delivery_log ADD CONSTRAINT notify_delivery_log_status_check
+  CHECK (status IN ('delivered', 'failed', 'pending', 'skipped'))`)
+		return err
+	}
+
+	var ddl string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT sql FROM sqlite_master WHERE type='table' AND name='notify_delivery_log'`).Scan(&ddl)
+	if err != nil {
+		return err
+	}
+	if strings.Contains(ddl, "'skipped'") {
+		return nil
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	stmts := []string{
+		`CREATE TABLE notify_delivery_log_new (
+			id        INTEGER PRIMARY KEY AUTOINCREMENT,
+			logged_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+			channel   TEXT NOT NULL,
+			agent     TEXT NOT NULL,
+			status    TEXT NOT NULL CHECK(status IN ('delivered', 'failed', 'pending', 'skipped')),
+			error     TEXT,
+			preview   TEXT
+		)`,
+		`INSERT INTO notify_delivery_log_new (id, logged_at, channel, agent, status, error, preview)
+		 SELECT id, logged_at, channel, agent, status, error, preview FROM notify_delivery_log`,
+		`DROP TABLE notify_delivery_log`,
+		`ALTER TABLE notify_delivery_log_new RENAME TO notify_delivery_log`,
+		`CREATE INDEX IF NOT EXISTS idx_notify_delivery_channel ON notify_delivery_log(channel, id DESC)`,
+	}
+	for _, stmt := range stmts {
+		if _, execErr := tx.ExecContext(ctx, stmt); execErr != nil {
+			return execErr
+		}
+	}
+	return tx.Commit()
 }
 
 // migrateLegacyCatchAll rewrites "{platform}:general" subscription rows to
@@ -156,7 +212,7 @@ CREATE TABLE IF NOT EXISTS notify_delivery_log (
     logged_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     channel   TEXT NOT NULL,
     agent     TEXT NOT NULL,
-    status    TEXT NOT NULL CHECK(status IN ('delivered', 'failed', 'pending')),
+    status    TEXT NOT NULL CHECK(status IN ('delivered', 'failed', 'pending', 'skipped')),
     error     TEXT,
     preview   TEXT
 );
@@ -214,7 +270,7 @@ CREATE TABLE IF NOT EXISTS notify_delivery_log (
     logged_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     channel   TEXT NOT NULL,
     agent     TEXT NOT NULL,
-    status    TEXT NOT NULL CHECK(status IN ('delivered', 'failed', 'pending')),
+    status    TEXT NOT NULL CHECK(status IN ('delivered', 'failed', 'pending', 'skipped')),
     error     TEXT,
     preview   TEXT
 );

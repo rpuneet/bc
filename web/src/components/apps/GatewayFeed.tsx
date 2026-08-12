@@ -754,6 +754,7 @@ export function GatewayFeed({
   const liveCount = subscribedAgents.filter(
     (a) => a.state === "running" || a.state === "working",
   ).length;
+  const lastDelivery = deliveries[0];
 
   // Back/forward now lives once, in the header (HistoryNavButtons) —
   // this view no longer grows its own back button.
@@ -795,9 +796,29 @@ export function GatewayFeed({
         >
           {messages.length} msgs
         </span>
+        {lastDelivery && (
+          <span
+            className="hidden md:inline shrink-0 truncate max-w-[14rem]"
+            data-testid="channel-last-delivery"
+            title={`${lastDelivery.status} → ${lastDelivery.agent}${lastDelivery.error ? `: ${lastDelivery.error}` : ""}`}
+            style={{
+              color:
+                lastDelivery.status === "failed"
+                  ? "var(--mycel-error)"
+                  : lastDelivery.status === "skipped"
+                    ? "var(--mycel-warning)"
+                    : "var(--mycel-muted)",
+              fontSize: 11,
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            last {lastDelivery.status}
+            {lastDelivery.agent ? ` · ${lastDelivery.agent}` : ""}
+          </span>
+        )}
       </div>
     ),
-    [channelLabel, platform, PlatformGlyph, messages.length],
+    [channelLabel, platform, PlatformGlyph, messages.length, lastDelivery],
   );
 
   const headerActions = useMemo(
@@ -1415,7 +1436,8 @@ export function GatewayFeed({
                           const msgDeliveries = deliveryByPreview.get(preview) ?? [];
                           const delivered = msgDeliveries.filter((d) => d.status === "delivered");
                           const failed = msgDeliveries.filter((d) => d.status === "failed");
-                          const hasDelivery = delivered.length > 0 || failed.length > 0;
+                          const skipped = msgDeliveries.filter((d) => d.status === "skipped");
+                          const hasDelivery = delivered.length > 0 || failed.length > 0 || skipped.length > 0;
                           // Detect webhook JSON payloads on any platform
                           const looksLikeWebhook = msg.content.trimStart().startsWith("{") &&
                             /pull_request|"issue"|"ref".*"commits"|"action"/i.test(msg.content);
@@ -1470,6 +1492,11 @@ export function GatewayFeed({
                                     {failed.length > 0 && (
                                       <span style={{ color: "color-mix(in oklab, var(--mycel-error) 50%, transparent)" }} title={failed.map((d) => `${d.agent}: ${d.error ?? "failed"}`).join(", ")}>
                                         ✗ {failed.map((d) => d.agent).join(", ")}
+                                      </span>
+                                    )}
+                                    {skipped.length > 0 && (
+                                      <span style={{ color: "color-mix(in oklab, var(--mycel-warning) 50%, transparent)" }} title={skipped.map((d) => `${d.agent}: ${d.error ?? "offline"}`).join(", ")}>
+                                        skipped {skipped.map((d) => d.agent).join(", ")}
                                       </span>
                                     )}
                                   </div>

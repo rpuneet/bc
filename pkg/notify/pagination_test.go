@@ -3,6 +3,8 @@ package notify
 import (
 	"context"
 	"testing"
+
+	"github.com/rpuneet/mycel/pkg/db"
 )
 
 // TestStore_IndexesPresent asserts the schema self-creates the indexes the
@@ -25,6 +27,42 @@ func TestStore_IndexesPresent(t *testing.T) {
 		if err != nil {
 			t.Errorf("expected index %q to exist: %v", name, err)
 		}
+	}
+}
+
+func TestStore_MigratesSkippedDeliveryStatus(t *testing.T) {
+	d, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+
+	_, err = d.ExecContext(context.Background(), `
+CREATE TABLE notify_delivery_log (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    logged_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    channel   TEXT NOT NULL,
+    agent     TEXT NOT NULL,
+    status    TEXT NOT NULL CHECK(status IN ('delivered', 'failed', 'pending')),
+    error     TEXT,
+    preview   TEXT
+)`)
+	if err != nil {
+		t.Fatalf("seed old table: %v", err)
+	}
+
+	store, err := OpenStore(d, "sqlite")
+	if err != nil {
+		t.Fatalf("OpenStore: %v", err)
+	}
+	if err := store.LogDelivery(context.Background(), DeliveryEntry{
+		Channel: "slack:eng",
+		Agent:   "bot",
+		Status:  StatusSkipped,
+		Error:   "agent bot is stopped",
+		Preview: "hi",
+	}); err != nil {
+		t.Fatalf("LogDelivery skipped: %v", err)
 	}
 }
 
