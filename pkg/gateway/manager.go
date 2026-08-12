@@ -117,6 +117,9 @@ type Manager struct {
 	// adapterWG tracks boot-time and hot-started adapter goroutines so Stop/
 	// Start can wait for clean shutdown of both.
 	adapterWG sync.WaitGroup
+	// adapterCancel holds per-adapter Start cancels so StopAdapter can end
+	// blocking socket/poll loops that ignore Stop alone (#3681).
+	adapterCancel map[string]context.CancelFunc
 }
 
 type channelRoute struct {
@@ -128,9 +131,10 @@ type channelRoute struct {
 // NewManager creates a new gateway manager.
 func NewManager() *Manager {
 	return &Manager{
-		adapters:   make(map[string]NotificationAdapter),
-		running:    make(map[string]bool),
-		channelMap: make(map[string]channelRoute),
+		adapters:       make(map[string]NotificationAdapter),
+		running:        make(map[string]bool),
+		channelMap:     make(map[string]channelRoute),
+		adapterCancel:  make(map[string]context.CancelFunc),
 	}
 }
 
@@ -218,18 +222,21 @@ func (m *Manager) Start(ctx context.Context) error {
 		if !m.markRunning(a.Name()) {
 			continue // already started (e.g. via StartAdapter race)
 		}
+		actx, cancel := context.WithCancel(ctx)
+		m.setAdapterCancel(a.Name(), cancel)
 		m.adapterWG.Add(1)
-		go func(adapter NotificationAdapter) {
+		go func(adapter NotificationAdapter, actx context.Context) {
 			defer m.adapterWG.Done()
 			defer m.clearRunning(adapter.Name())
+			defer m.clearAdapterCancel(adapter.Name())
 			platformName := adapter.Name()
 			handler := func(n Notification) {
 				m.handleNotification(platformName, n)
 			}
-			if err := adapter.Start(ctx, handler); err != nil && ctx.Err() == nil {
+			if err := adapter.Start(actx, handler); err != nil && actx.Err() == nil {
 				log.Error("gateway: adapter stopped with error", "adapter", adapter.Name(), "error", err)
 			}
-		}(a)
+		}(a, actx)
 	}
 
 	// Re-discover channels after adapters have connected (5s delay)
@@ -285,14 +292,17 @@ func (m *Manager) StartAdapter(adapter NotificationAdapter) error {
 		m.clearRunning(name)
 		return fmt.Errorf("gateway: manager shutting down")
 	}
+	actx, cancel := context.WithCancel(ctx)
+	m.setAdapterCancel(name, cancel)
 	m.adapterWG.Add(1)
 	go func() {
 		defer m.adapterWG.Done()
 		defer m.clearRunning(name)
+		defer m.clearAdapterCancel(name)
 		handler := func(n Notification) {
 			m.handleNotification(name, n)
 		}
-		if err := adapter.Start(ctx, handler); err != nil && ctx.Err() == nil {
+		if err := adapter.Start(actx, handler); err != nil && actx.Err() == nil {
 			log.Error("gateway: adapter stopped with error", "adapter", name, "error", err)
 		}
 	}()
@@ -310,23 +320,31 @@ func (m *Manager) StopAdapter(name string) error {
 	if ok {
 		delete(m.adapters, name)
 	}
+	cancel := m.adapterCancel[name]
+	delete(m.adapterCancel, name)
 	m.mu.Unlock()
 	if !ok {
 		return nil
 	}
+	if cancel != nil {
+		cancel()
+	}
 	err := a.Stop()
-	// Wait for the Start/StartAdapter goroutine to observe Stop and clearRunning.
-	deadline := time.Now().Add(2 * time.Second)
+	// Wait for the Start/StartAdapter goroutine to observe cancel/Stop and clearRunning.
+	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		m.mu.RLock()
 		running := m.running[name]
 		m.mu.RUnlock()
 		if !running {
-			break
+			return err
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("gateway: adapter %s still running after stop: %w", name, err)
+	}
+	return fmt.Errorf("gateway: adapter %s still running after stop", name)
 }
 
 // markRunning records that name is starting. Returns false if already running.
@@ -347,6 +365,47 @@ func (m *Manager) clearRunning(name string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.running, name)
+}
+
+func (m *Manager) setAdapterCancel(name string, cancel context.CancelFunc) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.adapterCancel == nil {
+		m.adapterCancel = make(map[string]context.CancelFunc)
+	}
+	if prev := m.adapterCancel[name]; prev != nil {
+		prev()
+	}
+	m.adapterCancel[name] = cancel
+}
+
+func (m *Manager) clearAdapterCancel(name string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.adapterCancel, name)
+}
+
+// longestAdapterPrefix finds the registered adapter name that is the longest
+// prefix of channel (as "name" or "name:…"). Labeled instances like
+// "telegram:alerts:123" must resolve to "telegram:alerts", not "telegram" (#3685).
+func (m *Manager) longestAdapterPrefix(channel string) (name, id string, ok bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	best := ""
+	for n := range m.adapters {
+		if channel == n || strings.HasPrefix(channel, n+":") {
+			if len(n) > len(best) {
+				best = n
+			}
+		}
+	}
+	if best == "" {
+		return "", "", false
+	}
+	if channel == best {
+		return best, "", true
+	}
+	return best, channel[len(best)+1:], true
 }
 
 // restorePersistedChannels loads saved channel mappings from the store.
@@ -533,12 +592,10 @@ func (m *Manager) Send(ctx context.Context, channel, sender, content string) (bo
 	route, ok := m.channelMap[channel]
 	m.mu.RUnlock()
 	if !ok {
-		// No pre-registered channel. Fall back to routing "<platform>:<id>"
-		// straight to that platform's adapter, so a caller can reach a native
-		// destination that hasn't produced an inbound message yet — e.g. a
-		// WhatsApp 1:1 contact addressed by phone number. The adapter decides
-		// whether the raw id is routable.
-		if platform, id, found := strings.Cut(channel, ":"); found && id != "" {
+		// No pre-registered channel. Fall back to longest-prefix adapter match
+		// so labeled instances ("telegram:alerts:123") route correctly (#3685).
+		platform, id, found := m.longestAdapterPrefix(channel)
+		if found && id != "" {
 			m.mu.RLock()
 			adapter := m.adapters[platform]
 			m.mu.RUnlock()

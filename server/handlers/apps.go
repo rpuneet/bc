@@ -420,6 +420,11 @@ func (h *AppsHandler) restartAdapter(name string, ic app.InstanceConfig, enabled
 	}
 	if err := h.gw.StopAdapter(name); err != nil {
 		log.Warn("apps: stop adapter", "name", name, "error", err)
+		// Config already saved; still report so the UI does not look healthy (#3681).
+		if enabled {
+			return "adapter stop failed: " + err.Error()
+		}
+		return "adapter stop failed: " + err.Error()
 	}
 	if !enabled {
 		return ""

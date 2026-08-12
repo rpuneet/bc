@@ -107,3 +107,18 @@ func TestIsCatchAll(t *testing.T) {
 		t.Fatal("IsAnyCatchAll mismatch")
 	}
 }
+
+func TestPlatformOfLabeledInstance(t *testing.T) {
+	if got := PlatformOf("github:mycel:issue-1"); got != "github:mycel" {
+		t.Fatalf("PlatformOf labeled = %q, want github:mycel", got)
+	}
+	if got := PlatformOf("slack:eng"); got != "slack" {
+		t.Fatalf("PlatformOf slack = %q, want slack", got)
+	}
+	if !IsCatchAll("github:mycel:*") {
+		t.Fatal("want IsCatchAll(github:mycel:*)")
+	}
+	if CatchAllChannel("github:mycel") != "github:mycel:*" {
+		t.Fatal("CatchAllChannel labeled mismatch")
+	}
+}
