@@ -11,7 +11,7 @@ import (
 func TestMergePrependsMissingDirs(t *testing.T) {
 	dir := t.TempDir()
 	extra := filepath.Join(dir, "bin")
-	if err := os.Mkdir(extra, 0o755); err != nil {
+	if err := os.Mkdir(extra, 0o750); err != nil {
 		t.Fatal(err)
 	}
 

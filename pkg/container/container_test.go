@@ -22,7 +22,8 @@ func TestNewBackendProbeTimeout(t *testing.T) {
 	// Shell wrapper + long sleep: mirrors Docker CLI hanging on a wedged
 	// daemon. Process-group SIGKILL must reap both the shell and sleep.
 	script := "#!/bin/sh\ntrap '' TERM INT\nsleep 120\n"
-	if err := os.WriteFile(stub, []byte(script), 0o755); err != nil {
+	// 0755: stub must be executable on PATH; test-only file in TempDir.
+	if err := os.WriteFile(stub, []byte(script), 0o755); err != nil { //nolint:gosec // G306: executable stub requires +x
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+"/usr/bin:/bin")
