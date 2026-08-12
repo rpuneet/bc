@@ -367,6 +367,47 @@ describe("CodeBrowser", () => {
     expect(screen.getByText("Select a file from the tree")).toBeInTheDocument();
   });
 
+  it("searches the worktree via /api/code/search and lists matches", async () => {
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.includes("/api/code/search")) {
+        return jsonResponse({
+          matches: [{ path: "main.go", line: 12, col: 1, text: "func main()" }],
+          truncated: false,
+        });
+      }
+      if (u.includes("/api/code/tree")) {
+        return jsonResponse([
+          { name: "src", path: "src", is_dir: true },
+          { name: "main.go", path: "main.go", is_dir: false, size: 42 },
+        ]);
+      }
+      return jsonResponse([]);
+    });
+
+    render(
+      <MemoryRouter>
+        <CodeBrowser
+          worktree="bot-1"
+          embedded
+          fullViewHref="/code?worktree=bot-1"
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Search code"), { target: { value: "func main" } });
+    await waitFor(() => {
+      expect(screen.getByTestId("code-search-results")).toHaveTextContent("func main()");
+    });
+    expect(
+      fetchMock.mock.calls.some((c) => String(c[0]).includes("/api/code/search?")),
+    ).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: /main\.go:12/ }));
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/api/code/file?"))).toBe(true);
+    });
+  });
+
   it("renders the provided emptyState when the worktree has no files", async () => {
     fetchMock.mockReturnValue(jsonResponse([]));
 

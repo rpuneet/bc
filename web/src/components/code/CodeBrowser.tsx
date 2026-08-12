@@ -16,6 +16,7 @@
  *   GET /api/code/tree?path=&worktree=&show_hidden=
  *   GET /api/code/file?path=&worktree=
  *   GET /api/code/diff?worktree=&path=
+ *   GET /api/code/search?q=&worktree=&case=&regex=&path=
  */
 
 import Editor, { DiffEditor } from "@monaco-editor/react";
@@ -25,6 +26,7 @@ import { Link } from "react-router-dom";
 import { useTheme } from "../../context/ThemeContext";
 import { languageFromPath } from "../../utils/lang";
 import { MONO } from "../../utils/typography";
+import { CodeSearchPanel } from "./CodeSearchPanel";
 
 export interface FileNode {
   name: string;
@@ -293,6 +295,12 @@ interface CodeBrowserProps {
   emptyState?: ReactNode;
 }
 
+interface EditorLike {
+  dispose?: () => void;
+  revealLineInCenter?: (line: number) => void;
+  setPosition?: (pos: { lineNumber: number; column: number }) => void;
+}
+
 export function CodeBrowser({
   worktree,
   state: controlledState,
@@ -301,7 +309,8 @@ export function CodeBrowser({
   fullViewHref,
   emptyState,
 }: CodeBrowserProps) {
-  const editorRef = useRef<{ dispose?: () => void } | null>(null);
+  const editorRef = useRef<EditorLike | null>(null);
+  const revealLineRef = useRef<number | null>(null);
   useEffect(() => () => { editorRef.current?.dispose?.(); }, []);
 
   const { mode: themeMode } = useTheme();
@@ -428,11 +437,32 @@ export function CodeBrowser({
       if (node.is_dir) {
         toggleExpand(node.path);
       } else {
+        revealLineRef.current = null;
         update({ path: node.path });
       }
     },
     [toggleExpand, update],
   );
+
+  const openSearchHit = useCallback(
+    (hitPath: string, line: number) => {
+      revealLineRef.current = line;
+      update({ path: hitPath, viewMode: "plain" });
+      editorRef.current?.revealLineInCenter?.(line);
+      editorRef.current?.setPosition?.({ lineNumber: line, column: 1 });
+    },
+    [update],
+  );
+
+  const bindEditor = useCallback((editor: EditorLike) => {
+    editorRef.current = editor;
+    const line = revealLineRef.current;
+    if (line != null) {
+      editor.revealLineInCenter?.(line);
+      editor.setPosition?.({ lineNumber: line, column: 1 });
+      revealLineRef.current = null;
+    }
+  }, []);
 
   const rootKey = `${worktree}||${showHidden ? "1" : "0"}`;
   const rootEntries = treeCache[rootKey] ?? [];
@@ -483,6 +513,7 @@ export function CodeBrowser({
         <div className="flex-1 min-h-0 flex">
           {/* Tree pane */}
           <aside className="w-64 shrink-0 border-r border-mycel-border overflow-y-auto">
+            <CodeSearchPanel worktree={worktree} onOpen={openSearchHit} />
             {rootLoading && <TreeSkeleton />}
             {!rootLoading && rootError && (
               <div className="px-3 py-2 text-[11px] text-mycel-error">{rootError}</div>
@@ -541,7 +572,7 @@ export function CodeBrowser({
               worktree !== "main" &&
               viewMode === "diff" && (
                 <DiffEditor
-                  onMount={(editor) => { editorRef.current = editor as unknown as { dispose?: () => void }; }}
+                  onMount={(editor) => { bindEditor(editor as unknown as EditorLike); }}
                   theme={monacoTheme}
                   language={language}
                   original={baseContent.content}
@@ -563,7 +594,7 @@ export function CodeBrowser({
               !fileContent.binary &&
               (worktree === "main" || viewMode === "plain") && (
                 <Editor
-                  onMount={(editor) => { editorRef.current = editor as unknown as { dispose?: () => void }; }}
+                  onMount={(editor) => { bindEditor(editor as unknown as EditorLike); }}
                   theme={monacoTheme}
                   language={language}
                   value={fileContent.content}

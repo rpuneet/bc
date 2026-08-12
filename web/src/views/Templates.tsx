@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { usePolling } from "../hooks/usePolling";
-import { ChipList, SectionRule, ConfirmButton, PRIMARY_BTN } from "../components/shared";
+import { ChipList, SectionRule, ConfirmButton, PRIMARY_BTN, ListSearchInput } from "../components/shared";
 import { MONO } from "../utils/typography";
 
 import { useHeaderSlot } from "../context/HeaderSlotContext";
@@ -807,12 +807,11 @@ export function Templates() {
     actions:
       selectedTemplate === null ? (
         <>
-          <input
+          <ListSearchInput
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search templates..."
-            className="flex-1 min-w-[96px] max-w-md h-9 px-3 text-sm rounded-md border border-mycel-border bg-mycel-surface text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
             aria-label="Search templates"
           />
           <button
