@@ -46,11 +46,25 @@ const claudeCreditPane = ` Credit balance is too low
 const claudeNotLoggedInPane = ` Not logged in · Please run /login
  > `
 
+const claudeUsageLimitPane = `────────────────────────────────────────────────────────────────────────
+ API Error: 429 usage limit reached · resets at 3pm
+────────────────────────────────────────────────────────────────────────
+ > `
+
+const claudeModelUnavailablePane = ` Claude Opus is not available with the Claude Pro plan. Please use Sonnet or upgrade.
+ > `
+
 const cursorAuthPane = `Error: Authentication required. Please run 'agent login' first, or set CURSOR_API_KEY environment variable.
 `
 
 const cursorBadKeyPane = `Authentication failed: your Cursor credentials or API key are invalid or expired.
 If you set CURSOR_API_KEY, check that it is correct, or run ` + "`agent login`" + ` to re-authenticate.
+`
+
+const cursorNotLoggedInPane = `Not logged in. Run ` + "`agent login`" + ` first.
+`
+
+const cursorModelLoadPane = `Failed to load models: authentication required or model access denied for this account.
 `
 
 //nolint:gosec // G101: quoted CLI error text, not a credential
@@ -64,6 +78,14 @@ const codexOutOfCreditsPane = `You're out of credits. Your workspace is out of c
 const codexNoAccessPane = `You do not have access to Codex
 This account is not currently authorized to use Codex in this workspace.
 `
+
+const codexNotSignedInPane = `Not signed in. Please run 'codex login' to sign in with ChatGPT, or provide an API key.
+`
+
+const codexUsageLimitPane = `Usage limit reached. You've reached your usage limit. Try again later or raise the limit.
+`
+
+const codexUnknownModelPane = "Unknown model `gpt-imaginary` for spawn_agent. Available models: gpt-5, o3.\n"
 
 // A healthy pane, including one that talks about the very things the patterns
 // look for. An agent editing provider code must never be reported as broken.
@@ -132,6 +154,8 @@ func TestClaudeDetectFailure(t *testing.T) {
 		{"invalid api key", claudeNoKeyPane, "API key", true},
 		{"credit balance", claudeCreditPane, "credit", true},
 		{"not logged in", claudeNotLoggedInPane, "not logged in", true},
+		{"usage limit", claudeUsageLimitPane, "usage limit", true},
+		{"model unavailable", claudeModelUnavailablePane, "model is unavailable", true},
 		{"working agent", workingPane, "", false},
 		{"empty pane", "", "", false},
 	}
@@ -161,6 +185,8 @@ func TestCursorDetectFailure(t *testing.T) {
 	}{
 		{"auth required", cursorAuthPane, "not authenticated", true},
 		{"bad api key", cursorBadKeyPane, "API key", true},
+		{"not logged in", cursorNotLoggedInPane, "not logged in", true},
+		{"failed to load models", cursorModelLoadPane, "could not load models", true},
 		{"working agent", workingPane, "", false},
 	}
 	for _, tt := range tests {
@@ -187,6 +213,9 @@ func TestCodexDetectFailure(t *testing.T) {
 		{"no credentials", codexNoCredsPane, "credentials", true},
 		{"out of credits", codexOutOfCreditsPane, "credits", true},
 		{"no access", codexNoAccessPane, "cannot use Codex", true},
+		{"not signed in", codexNotSignedInPane, "not signed in", true},
+		{"usage limit", codexUsageLimitPane, "usage limit", true},
+		{"unknown model", codexUnknownModelPane, "model is unavailable", true},
 		{"working agent", workingPane, "", false},
 	}
 	for _, tt := range tests {

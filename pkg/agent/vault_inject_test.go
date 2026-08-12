@@ -141,6 +141,21 @@ func TestInjectVaultSecrets(t *testing.T) {
 			wantKey:     "GITHUB_TOKEN",
 			wantValue:   "existing-gh-token",
 		},
+		{
+			name:        "GITHUB_PAT alias skipped without role or github subscription",
+			preEnv:      map[string]string{},
+			roleSecrets: nil,
+			channels:    []string{"slack:general"},
+			wantAbsent:  []string{"GITHUB_TOKEN", "GH_TOKEN", "GITHUB_PERSONAL_ACCESS_TOKEN"},
+		},
+		{
+			name:        "GITHUB_PAT aliased for github subscriber without role allowlist",
+			preEnv:      map[string]string{},
+			roleSecrets: nil,
+			channels:    []string{"github:*"},
+			wantKey:     "GITHUB_TOKEN",
+			wantValue:   "ghp-token-123",
+		},
 	}
 
 	for _, tc := range tests {
@@ -331,6 +346,42 @@ func TestInjectVaultSecrets_GitHubAppToken(t *testing.T) {
 		}
 		if _, ok := env["GITHUB_TOKEN"]; ok {
 			t.Error("GITHUB_TOKEN should be absent with no apps configured")
+		}
+	})
+
+	t.Run("ambiguous multi-instance role allowlist skips GH_TOKEN", func(t *testing.T) {
+		seedRepoVault(t, repoPath, "app:github:work:api_token", "gho_work")
+		seedRepoVault(t, repoPath, "app:github:personal:api_token", "gho_personal")
+		apps := map[string]app.InstanceConfig{
+			"github:work":     {App: "github", Enabled: true},
+			"github:personal": {App: "github", Enabled: true},
+		}
+		env := map[string]string{}
+		injectVaultSecrets(env, repoPath, []string{"GH_TOKEN"}, apps, nil)
+
+		if _, ok := env["GH_TOKEN"]; ok {
+			t.Error("GH_TOKEN must not inject when multiple github instances are ambiguous")
+		}
+		if _, ok := env["GITHUB_TOKEN"]; ok {
+			t.Error("GITHUB_TOKEN must not inject when multiple github instances are ambiguous")
+		}
+	})
+
+	t.Run("instance-specific role secret picks that github instance", func(t *testing.T) {
+		seedRepoVault(t, repoPath, "app:github:work:api_token", "gho_work_only")
+		seedRepoVault(t, repoPath, "app:github:personal:api_token", "gho_personal_skip")
+		apps := map[string]app.InstanceConfig{
+			"github:work":     {App: "github", Enabled: true},
+			"github:personal": {App: "github", Enabled: true},
+		}
+		env := map[string]string{}
+		injectVaultSecrets(env, repoPath, []string{"app:github:work:api_token"}, apps, nil)
+
+		if env["GH_TOKEN"] != "gho_work_only" {
+			t.Errorf("GH_TOKEN = %q, want gho_work_only from named instance", env["GH_TOKEN"])
+		}
+		if env["GITHUB_TOKEN"] != "gho_work_only" {
+			t.Errorf("GITHUB_TOKEN = %q, want gho_work_only from named instance", env["GITHUB_TOKEN"])
 		}
 	})
 }
