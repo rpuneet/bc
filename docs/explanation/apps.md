@@ -191,6 +191,25 @@ The old `gateways` config section is replaced by `apps` in `prefs.json`:
   instances (`app.EnvKey`: `github` + `token` → `GITHUB_TOKEN`;
   `telegram:alerts` + `bot_token` → `TELEGRAM_BOT_TOKEN_ALERTS`).
 
+### Per-agent vault scoping
+
+Connected-app Secret fields and well-known integration tokens
+(`SLACK_BOT_TOKEN`, `TELEGRAM_BOT_TOKEN`, …) are **not** injected into every
+agent session. On spawn/restart, mycel looks up the agent's unmuted
+notification subscriptions (`slack:general`, `telegram:alerts:ops`, catch-all
+`slack:*`, …) and only exports credentials for matching app instances /
+platforms (#3686):
+
+| Source | Injected when |
+|---|---|
+| Role / template `secrets` allowlist | Always (unchanged) |
+| Connected-app Secret fields (`app:<instance>:<key>`) | Agent has a subscription whose instance prefix matches the app instance name (`telegram:alerts:ops` → instance `telegram:alerts`; `slack:*` → `slack`) |
+| Well-known tokens (`SLACK_BOT_TOKEN`, …) | Agent is subscribed to that platform (`slack:…` / `telegram:…`, including labeled instances) |
+| Connected GitHub `api_token` → `GH_TOKEN` / `GITHUB_TOKEN` | Agent subscribed to that github instance, **or** the role allowlist already requested `GITHUB_TOKEN` / `GH_TOKEN` |
+
+Non-secret required fields (feed URLs, homeservers, …) still inject for every
+enabled instance via `injectAppEnv` — they are not credentials.
+
 ## Server wiring
 
 `buildGatewayManager` collapses to:

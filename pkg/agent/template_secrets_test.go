@@ -100,7 +100,7 @@ func TestTemplateSecretsInjectIntoAgentEnv(t *testing.T) {
 
 	names := resolveAgentSecrets(t.TempDir(), "", "trader")
 	env := map[string]string{}
-	injected := injectVaultSecrets(env, t.TempDir(), names, nil)
+	injected := injectVaultSecrets(env, t.TempDir(), names, nil, nil)
 	if env["ALPACA_KEY"] != "sk-live-test" {
 		t.Fatalf("env ALPACA_KEY = %q, injected=%v", env["ALPACA_KEY"], injected)
 	}
