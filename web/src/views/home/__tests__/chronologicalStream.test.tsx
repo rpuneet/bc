@@ -37,7 +37,7 @@ function agent(name: string, nodes: ToolNode[], state = "working"): AgentActivit
 }
 
 describe("ChronologicalStream", () => {
-  it("merges agents newest-first with agent chips", () => {
+  it("merges agents newest-first with avatar-only chips (no name text)", () => {
     const onOpen = vi.fn();
     render(
       <ChronologicalStream
@@ -58,8 +58,35 @@ describe("ChronologicalStream", () => {
     expect(rows[0]!.getAttribute("data-agent")).toBe("bob");
     expect(rows[1]!.getAttribute("data-agent")).toBe("alice");
 
-    fireEvent.click(screen.getByTitle("Open bob detail view"));
+    // Avatar-only: name is not rendered as text; identity is title/aria + hover.
+    expect(screen.queryByText("bob")).toBeNull();
+    expect(screen.queryByText("alice")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /bob/ }));
     expect(onOpen).toHaveBeenCalledWith("bob");
+  });
+
+  it("collapses consecutive same-agent avatars into a quiet rail", () => {
+    render(
+      <ChronologicalStream
+        agents={[
+          agent("alice", [
+            node({ id: "a2", startTime: 200, args: "second" }),
+            node({ id: "a1", startTime: 100, args: "first" }),
+          ]),
+        ]}
+        searchTerm=""
+        typeFilter="all"
+        onOpenAgent={() => {}}
+        emptyTitle="empty"
+        emptyDescription="none"
+      />,
+    );
+
+    const rows = screen.getAllByTestId("home-stream-row");
+    expect(rows).toHaveLength(2);
+    // First row (newest) shows the avatar chip; the next same-agent row does not.
+    expect(rows[0]!.querySelector('[aria-label*="alice"]')).toBeTruthy();
+    expect(rows[1]!.querySelector('[aria-label*="alice"]')).toBeNull();
   });
 
   it("pins running rows above completed ones", () => {
