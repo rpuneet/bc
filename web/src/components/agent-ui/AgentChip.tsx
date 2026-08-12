@@ -28,6 +28,10 @@ export interface AgentChipProps {
   size?: number;
   /** Hide the status dot (e.g. sender chips in message feeds). */
   showDot?: boolean;
+  /** Show the mono agent name next to the character (default true). Set
+   *  false for dense streams where the name is redundant — hover/title
+   *  and aria-label still expose identity. */
+  showName?: boolean;
   className?: string;
   onClick?: () => void;
   /** Show a hover popover (state, task, provider, spend) on mouse-over. */
@@ -46,6 +50,7 @@ export const AgentChip = memo(function AgentChip({
   state,
   size = 18,
   showDot = true,
+  showName = true,
   className = "",
   onClick,
   preview = false,
@@ -93,15 +98,18 @@ export const AgentChip = memo(function AgentChip({
         onBlur: closePreview,
       }
     : {};
+  const label = state ? `${name} (${state})` : name;
   const body = (
     <>
       <LiveAgentCharacter name={name} state={state ?? "idle"} size={size} />
-      <span
-        className="truncate font-mono"
-        style={{ fontSize: Math.max(11, Math.min(13, size * 0.68)) }}
-      >
-        {name}
-      </span>
+      {showName && (
+        <span
+          className="truncate font-mono"
+          style={{ fontSize: Math.max(11, Math.min(13, size * 0.68)) }}
+        >
+          {name}
+        </span>
+      )}
       {showDot && state !== undefined && (
         <span
           data-testid="agent-chip-dot"
@@ -113,7 +121,7 @@ export const AgentChip = memo(function AgentChip({
       )}
     </>
   );
-  const cls = `inline-flex items-center gap-1.5 min-w-0 ${className}`.trim();
+  const cls = `inline-flex items-center ${showName ? "gap-1.5" : "gap-0"} min-w-0 ${className}`.trim();
   const card = preview && hoverRect && (
     <AgentHoverCard name={name} rect={hoverRect} seed={previewSeed} />
   );
@@ -126,6 +134,7 @@ export const AgentChip = memo(function AgentChip({
           onClick={onClick}
           className={cls}
           title={name}
+          aria-label={label}
           {...previewHandlers}
         >
           {body}
@@ -136,7 +145,13 @@ export const AgentChip = memo(function AgentChip({
   }
   return (
     <>
-      <span ref={anchorRef as React.RefObject<HTMLSpanElement>} className={cls} title={name} {...previewHandlers}>
+      <span
+        ref={anchorRef as React.RefObject<HTMLSpanElement>}
+        className={cls}
+        title={name}
+        aria-label={label}
+        {...previewHandlers}
+      >
         {body}
       </span>
       {card}

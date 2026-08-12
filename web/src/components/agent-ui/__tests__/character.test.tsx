@@ -135,6 +135,12 @@ describe("AgentChip", () => {
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
+  it("hides the mono name when showName is false but keeps accessible label", () => {
+    render(<AgentChip name="lucid-meerkat" state="working" showName={false} />);
+    expect(screen.queryByText("lucid-meerkat")).toBeNull();
+    expect(screen.getByLabelText("lucid-meerkat (working)")).toBeInTheDocument();
+  });
+
   it("does not render a hover card without the preview prop", () => {
     render(<AgentChip name="lucid-meerkat" state="idle" />);
     expect(screen.queryByTestId("agent-hover-card")).toBeNull();

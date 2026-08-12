@@ -520,11 +520,20 @@ export function Home() {
           Single column on mobile; the rail drops below the stream. */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-3">
         {/* Agents live stream — the centerpiece, unchanged behavior. */}
-        <div className="min-h-0 flex flex-col rounded-lg border border-mycel-border bg-mycel-surface overflow-hidden relative">
+        <div className="min-h-0 flex flex-col rounded-lg border border-mycel-border bg-mycel-surface shadow-mycel-sm overflow-hidden relative">
           <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-mycel-border bg-mycel-bg">
-            <span className="text-[10px] font-semibold text-mycel-muted uppercase tracking-widest">
+            <span className="text-[10px] font-semibold text-mycel-muted uppercase tracking-widest shrink-0">
               Agents live
             </span>
+            {sorted.length > 0 && (
+              <span
+                className="text-[10px] font-mono tabular-nums text-mycel-muted"
+                data-testid="home-stream-agent-count"
+                title={`${sorted.length} agent${sorted.length === 1 ? "" : "s"} in this view`}
+              >
+                {sorted.length}
+              </span>
+            )}
             <div
               className="inline-flex items-center rounded-md border border-mycel-border bg-mycel-surface p-0.5"
               role="group"
@@ -558,7 +567,7 @@ export function Home() {
                 By agent
               </button>
             </div>
-            <span className="ml-auto">
+            <span className="ml-auto min-w-0">
               <SystemPulse />
             </span>
           </div>

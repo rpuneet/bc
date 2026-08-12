@@ -87,7 +87,7 @@ function Cell({
       </span>
     </>
   );
-  const cls = "block bg-mycel-surface px-3 py-2 min-w-0 transition-colors";
+  const cls = "block bg-mycel-surface px-3 py-1.5 min-w-0 transition-colors";
   return to ? (
     <Link to={to} data-testid={testId} className={`${cls} hover:bg-mycel-surface-hover`}>
       {body}

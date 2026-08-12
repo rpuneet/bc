@@ -13,11 +13,22 @@ import { usePolling } from "../../hooks/usePolling";
 
 const gb = (b: number) => `${(b / 1024 ** 3).toFixed(1)}G`;
 
-function Chip({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
+function Chip({
+  label,
+  value,
+  warn,
+  title,
+}: {
+  label: string;
+  value: string;
+  warn?: boolean;
+  /** Override hover detail (e.g. absolute MEM when chip shows %). */
+  title?: string;
+}) {
   return (
     <span
       className="inline-flex items-baseline gap-1 rounded-md border border-mycel-border bg-mycel-surface px-1.5 py-0.5"
-      title={`${label}: ${value}`}
+      title={title ?? `${label}: ${value}`}
     >
       <span className="text-[9px] uppercase tracking-wide text-mycel-muted">{label}</span>
       <span className={`text-[11px] font-mono tabular-nums ${warn ? "text-mycel-warning" : "text-mycel-text"}`}>
@@ -47,8 +58,9 @@ export function SystemPulse() {
           <Chip label="CPU" value={`${data.cpu_usage_percent.toFixed(0)}%`} warn={data.cpu_usage_percent >= 85} />
           <Chip
             label="MEM"
-            value={`${gb(data.memory_used_bytes)}/${gb(data.memory_total_bytes)}`}
+            value={`${data.memory_usage_percent.toFixed(0)}%`}
             warn={data.memory_usage_percent >= 90}
+            title={`MEM: ${gb(data.memory_used_bytes)} / ${gb(data.memory_total_bytes)} (${data.memory_usage_percent.toFixed(0)}%)`}
           />
           <Chip label="DISK" value={`${data.disk_usage_percent.toFixed(0)}%`} warn={data.disk_usage_percent >= 90} />
         </>
