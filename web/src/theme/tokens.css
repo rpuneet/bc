@@ -53,9 +53,10 @@
   --mycel-live: #e5684f;           /* brick                          */
   --mycel-info: #7ba3c9;           /* dusty spore blue               */
 
-  /* Semantic tints — badge/pill backgrounds. Tailwind 3 cannot
-     alpha-modify var() colors, so the tint is a first-class token,
-     mirroring --mycel-accent-subtle. */
+  /* Semantic tints — badge/pill backgrounds. Prefer these first-class
+     tokens for solid washes. Opacity modifiers on mycel colors (e.g.
+     `border-mycel-border/70`) are supported via color-mix in
+     tailwind.config.ts — never rely on Tailwind's default gray border. */
   --mycel-success-subtle: #212a17;
   --mycel-warning-subtle: #322909;
   --mycel-error-subtle: #3a1b12;
