@@ -32,11 +32,10 @@ linters:
     misspell:
       locale: US
 
-    # SA5011 flags nil deref after t.Fatal in tests; staticcheck does not
-    # treat testing.TB fatals as terminating under this toolchain/CI pair.
+    # Drop SA5011 from the default staticcheck set only (do not enable "all",
+    # which turns on style checks ST* that this repo does not gate on).
     staticcheck:
       checks:
-        - all
         - "-SA5011"
 
     gosec:
