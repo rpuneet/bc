@@ -6,6 +6,7 @@ import { flattenNodes, nodeMatchesSearch } from "../components/live/liveHelpers"
 import { AgentCard, AgentDrillDown } from "../components/live/LiveRenderers";
 
 import { useHeaderSlot } from "../context/HeaderSlotContext";
+import { ListSearchInput } from "../components/shared";
 import { OverviewStrip } from "./home/OverviewStrip";
 import { ActivityFeed } from "./home/ActivityFeed";
 import { CostCharts } from "./home/CostCharts";
@@ -421,22 +422,15 @@ export function Home() {
     ),
     actions: drillDownAgent ? undefined : (
       <>
-        {/* Search — grows into the free header space, capped at max-w-lg */}
-        <div className="relative flex-1 min-w-0 max-w-lg">
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-mycel-muted pointer-events-none">
-            <circle cx="6" cy="6" r="4.5" />
-            <path d="M9.5 9.5L13 13" />
-          </svg>
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={searchFilter}
-            onChange={(e) => setSearchFilter(e.target.value)}
-            placeholder="Search  /"
-            aria-label="Search events"
-            className="w-full h-9 text-sm rounded-md border border-mycel-border bg-mycel-surface pl-8 pr-2.5 text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
-          />
-        </div>
+        {/* Search — shared ListSearchInput, same tokens as Agents / Apps */}
+        <ListSearchInput
+          ref={searchInputRef}
+          type="text"
+          value={searchFilter}
+          onChange={(e) => setSearchFilter(e.target.value)}
+          placeholder="Search  /"
+          aria-label="Search events"
+        />
 
         {/* ⋯ menu: pause, type filter, export, shortcuts */}
         <div className="relative shrink-0" ref={menuRef}>

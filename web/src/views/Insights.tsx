@@ -33,6 +33,7 @@ import type {
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
+import { PageHeader } from "../components/shared";
 import { SectionRule } from "../components/shared/SectionRule";
 import { fmtTokens } from "../components/shared/stats-primitives";
 import { AgentChip } from "../components/agent-ui";
@@ -623,6 +624,10 @@ export function Insights() {
     // still renders here.
     return (
       <div className="p-6 max-w-6xl mx-auto space-y-8">
+        <PageHeader
+          title="Insights"
+          subtitle="Spend, attribution, and activity for the whole fleet."
+        />
         <EmptyState
           icon="$"
           title={isAll ? "No cost data yet" : `No spend in the ${periodLabel}`}
@@ -637,6 +642,10 @@ export function Insights() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-8">
+      <PageHeader
+        title="Insights"
+        subtitle="Spend, attribution, and activity for the whole fleet."
+      />
       {/* ── Stat band — four numbers, hairline-divided, period-scoped ── */}
       <div className="rounded-lg border border-mycel-border shadow-mycel-sm overflow-hidden">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-mycel-border">

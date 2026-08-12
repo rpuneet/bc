@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ExternalLink } from "../components/ExternalLink";
+import { PageHeader, SECONDARY_BTN } from "../components/shared";
 import { desktopAppVersion } from "../utils/desktopApp";
 
 /* ── Types ──────────────────────────────────────────────────────────── */
@@ -297,64 +298,55 @@ export function About() {
 
   return (
     <div className="p-6 flex flex-col gap-6 max-w-3xl mx-auto">
-      <header className="flex items-baseline justify-between gap-3">
-        <div className="flex items-baseline gap-3">
-          {/* Named for what it actually is. This number always comes from the
-              daemon's /api/health; calling it "Installed" inside the desktop app
-              invited reading it as the app's own version, which is a different
-              number whenever the app attached to a daemon it did not start. */}
-          <span className="text-[11px] uppercase tracking-wider text-mycel-muted">
-            {appVersion ? "Daemon" : "Installed"}
-          </span>
-          {/* A source build's version is long and full of hyphens, and wrapping
-              on one split it into "0.4.5-" / "dev.35.gfbc9a1c.dirty" — two
-              lines that read like two different numbers. It is one identifier,
-              so it is kept on one line and shrunk to fit. */}
-          <span className="text-xl sm:text-2xl font-semibold text-mycel-text font-mono tabular-nums whitespace-nowrap">
+      <PageHeader
+        eyebrow={appVersion ? "Daemon" : "Installed"}
+        title={
+          <span className="font-mono tabular-nums whitespace-nowrap">
             {health?.version ?? "—"}
           </span>
-          {appDiffersFromDaemon && (
-            <span
-              className="text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 bg-mycel-warning-subtle text-mycel-warning ring-1 ring-inset ring-mycel-border"
-              title={
-                appRelation === "app-newer"
-                  ? `This desktop app is ${appVersion}, but it is using a separately running daemon on ${health?.version}. Restart the daemon from the newer build to match.`
-                  : appRelation === "daemon-newer"
-                    ? `This desktop app is ${appVersion}, older than the daemon on ${health?.version}. Relaunch the desktop app from the newer build to match.`
-                    : `This desktop app is ${appVersion}; the daemon is ${health?.version}.`
-              }
-            >
-              app is {appVersion}
-            </span>
-          )}
-          {/* Compare like-with-like. `latestTag` is a released version
-              ("0.3.1"), so only a build that claims to *be* a release can
-              meaningfully be behind one. Fixes #3212. */}
-          {(() => {
-            if (!latestTag || !health?.version) return null;
-            if (!isReleaseVersion(health.version)) {
-              return (
-                <span className="text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 bg-mycel-info-subtle text-mycel-info ring-1 ring-inset ring-mycel-border">
-                  dev build
-                </span>
-              );
-            }
-            return health.version !== latestTag ? (
-              <span className="text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 bg-mycel-warning-subtle text-mycel-warning ring-1 ring-inset ring-mycel-border">
-                update available
+        }
+        actions={
+          <>
+            {appDiffersFromDaemon && (
+              <span
+                className="text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 bg-mycel-warning-subtle text-mycel-warning ring-1 ring-inset ring-mycel-border"
+                title={
+                  appRelation === "app-newer"
+                    ? `This desktop app is ${appVersion}, but it is using a separately running daemon on ${health?.version}. Restart the daemon from the newer build to match.`
+                    : appRelation === "daemon-newer"
+                      ? `This desktop app is ${appVersion}, older than the daemon on ${health?.version}. Relaunch the desktop app from the newer build to match.`
+                      : `This desktop app is ${appVersion}; the daemon is ${health?.version}.`
+                }
+              >
+                app is {appVersion}
               </span>
-            ) : null;
-          })()}
-        </div>
-        <button
-          type="button"
-          onClick={() => void refresh()}
-          disabled={loading}
-          className="text-[11px] px-2.5 py-1 rounded border border-mycel-border hover:border-mycel-accent bg-mycel-surface text-mycel-muted hover:text-mycel-text transition-colors disabled:opacity-50"
-        >
-          {loading ? "Refreshing…" : "Refresh"}
-        </button>
-      </header>
+            )}
+            {(() => {
+              if (!latestTag || !health?.version) return null;
+              if (!isReleaseVersion(health.version)) {
+                return (
+                  <span className="text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 bg-mycel-info-subtle text-mycel-info ring-1 ring-inset ring-mycel-border">
+                    dev build
+                  </span>
+                );
+              }
+              return health.version !== latestTag ? (
+                <span className="text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 bg-mycel-warning-subtle text-mycel-warning ring-1 ring-inset ring-mycel-border">
+                  update available
+                </span>
+              ) : null;
+            })()}
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              disabled={loading}
+              className={SECONDARY_BTN}
+            >
+              {loading ? "Refreshing…" : "Refresh"}
+            </button>
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-px rounded-md border border-mycel-border bg-mycel-border overflow-hidden shadow-mycel">
         {channels.map((c, i) => (

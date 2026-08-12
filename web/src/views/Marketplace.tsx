@@ -11,7 +11,7 @@ import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { ExternalLink } from "../components/ExternalLink";
-import { FILTER_INLINE_BTN_CLS, LIST_SEARCH_CLS } from "../components/shared";
+import { FILTER_INLINE_BTN_CLS, ListSearchInput } from "../components/shared";
 import { useHeaderSlot } from "../context/HeaderSlotContext";
 
 // How many cards to mount at once. The full catalog is ~1.5k items; mounting
@@ -588,12 +588,11 @@ export function Marketplace() {
     <div className="flex flex-col gap-4 p-4 max-w-4xl mx-auto w-full">
       {/* Filter bar — shared search/chip tokens with Agents + Apps (#3671) */}
       <div className="flex flex-wrap gap-2 items-center" data-testid="marketplace-filter-bar">
-        <input
-          type="search"
+        <ListSearchInput
           placeholder="Search catalog…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className={`${LIST_SEARCH_CLS} min-w-[180px]`}
+          className="min-w-[180px]"
           aria-label="Search catalog"
         />
         <FilterSelect

@@ -195,6 +195,12 @@ describe("Insights", () => {
       expect(screen.queryByText(gone)).not.toBeInTheDocument();
     }
   });
+
+  it("uses the shared PageHeader", async () => {
+    renderInsights();
+    await waitFor(() => expect(screen.getByTestId("page-header")).toBeInTheDocument());
+    expect(screen.getByRole("heading", { name: "Insights" })).toBeInTheDocument();
+  });
 });
 
 describe("summarizeActivity", () => {

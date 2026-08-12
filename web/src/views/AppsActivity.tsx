@@ -32,6 +32,7 @@ import { sourcePlatform } from "../components/apps/messageUtils";
 import { IdentityAvatar } from "../components/apps/IdentityAvatar";
 import { parseActivityTs } from "../components/apps/appStatus";
 import { formatRelative } from "../utils/time";
+import { ListSearchInput } from "../components/shared";
 
 /* ── Config ──────────────────────────────────────────────────── */
 
@@ -137,12 +138,11 @@ export function AppsActivity() {
     ),
     actions: (
       <>
-        <input
+        <ListSearchInput
           type="text"
           value={search}
           onChange={(e) => { setSearch(e.target.value); }}
           placeholder="Search messages"
-          className="flex-1 min-w-[96px] max-w-md h-9 px-3 text-sm rounded-md border border-mycel-border bg-mycel-surface text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
           aria-label="Search messages"
         />
         <select
