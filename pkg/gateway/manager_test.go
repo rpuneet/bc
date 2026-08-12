@@ -542,11 +542,11 @@ func TestStopAdapterAllowsRestart(t *testing.T) {
 // Start blocks until ctx is canceled; Stop is a no-op and must not unblock Start.
 // The existing blockingAdapter also exits via Stop(), so it cannot catch cancel bugs (#3707).
 type cancelOnlyBlockingAdapter struct {
-	mockNotifAdapter
-	mu      sync.Mutex
 	started chan struct{}
 	exited  chan struct{}
-	stops   int
+	mockNotifAdapter
+	stops int
+	mu    sync.Mutex
 }
 
 func (a *cancelOnlyBlockingAdapter) Start(ctx context.Context, _ func(Notification)) error {
