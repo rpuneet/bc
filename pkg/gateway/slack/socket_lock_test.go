@@ -15,16 +15,16 @@ import (
 func TestAppTokenLockPathUsesHashNotSecret(t *testing.T) {
 	t.Setenv(socketLockDirEnv, t.TempDir())
 	// Path hashing fixture — avoid credential-shaped strings (gosec G101).
-	const appCred = "fixture-app-cred-should-never-appear-in-path"
-	path, err := appTokenLockPath(appCred)
+	const appKey = "fixture-app-key-should-never-appear-in-path"
+	path, err := appTokenLockPath(appKey)
 	if err != nil {
 		t.Fatalf("appTokenLockPath: %v", err)
 	}
-	if strings.Contains(path, appCred) {
-		t.Fatalf("lock path %q contains raw app credential", path)
+	if strings.Contains(path, appKey) {
+		t.Fatalf("lock path %q contains raw app key", path)
 	}
-	if strings.Contains(path, "fixture-app-cred") {
-		t.Fatalf("lock path %q leaks credential prefix material", path)
+	if strings.Contains(path, "fixture-app-key") {
+		t.Fatalf("lock path %q leaks app-key prefix material", path)
 	}
 	if !strings.HasSuffix(path, ".lock") {
 		t.Fatalf("lock path %q: want .lock suffix", path)
@@ -33,27 +33,27 @@ func TestAppTokenLockPathUsesHashNotSecret(t *testing.T) {
 
 func TestAcquireAppTokenLockExclusive(t *testing.T) {
 	t.Setenv(socketLockDirEnv, t.TempDir())
-	const appCred = "fixture-app-cred-lock-value"
+	const appKey = "fixture-app-key-lock-value"
 
-	release1, err := acquireAppTokenLock(appCred)
+	release1, err := acquireAppTokenLock(appKey)
 	if err != nil {
 		t.Fatalf("first acquire: %v", err)
 	}
 	defer release1()
 
-	_, err = acquireAppTokenLock(appCred)
+	_, err = acquireAppTokenLock(appKey)
 	if err == nil {
 		t.Fatal("second acquire succeeded; want exclusive lock error")
 	}
 	if !strings.Contains(err.Error(), "another local process") {
 		t.Fatalf("error = %q, want mention of another local process", err)
 	}
-	if strings.Contains(err.Error(), appCred) {
+	if strings.Contains(err.Error(), appKey) {
 		t.Fatalf("error leaked app credential: %q", err)
 	}
 
 	release1()
-	release2, err := acquireAppTokenLock(appCred)
+	release2, err := acquireAppTokenLock(appKey)
 	if err != nil {
 		t.Fatalf("acquire after release: %v", err)
 	}
@@ -203,14 +203,14 @@ func attrsToMap(attrs []any) map[string]any {
 
 func TestLockFileWrittenWithPID(t *testing.T) {
 	t.Setenv(socketLockDirEnv, t.TempDir())
-	const appCred = "fixture-app-cred-pid-check"
-	release, err := acquireAppTokenLock(appCred)
+	const appKey = "fixture-app-key-pid-check"
+	release, err := acquireAppTokenLock(appKey)
 	if err != nil {
 		t.Fatalf("acquire: %v", err)
 	}
 	defer release()
 
-	path, err := appTokenLockPath(appCred)
+	path, err := appTokenLockPath(appKey)
 	if err != nil {
 		t.Fatalf("path: %v", err)
 	}
