@@ -39,18 +39,18 @@ type Adapter struct {
 	handler         func(gateway.Notification)
 	channelMap      map[string]string
 	userCache       map[string]slackUser
-	botUserID       string
-	botID           string
-	appToken        string
 	botToken        string
+	appToken        string
+	botUserID       string
 	botName         string
 	lastError       string
+	botID           string
+	flapErrors      int
 	messageCount    atomic.Int64
 	chatMu          sync.RWMutex
 	scopeWarnOnce   sync.Once
 	customizeScope  atomic.Bool
 	scopesSeen      atomic.Bool
-	flapErrors      int
 	connected       bool
 	flapWarned      bool
 }

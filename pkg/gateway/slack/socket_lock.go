@@ -53,8 +53,8 @@ func acquireAppTokenLock(appToken string) (release func(), err error) {
 	if err != nil {
 		return noop, fmt.Errorf("slack: socket lock path: %w", err)
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		return noop, fmt.Errorf("slack: create socket lock dir: %w", err)
+	if mkErr := os.MkdirAll(filepath.Dir(path), 0o750); mkErr != nil {
+		return noop, fmt.Errorf("slack: create socket lock dir: %w", mkErr)
 	}
 	lock, err := tryLockSocketFile(path)
 	if err != nil {

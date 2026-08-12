@@ -14,16 +14,16 @@ import (
 
 func TestAppTokenLockPathUsesHashNotSecret(t *testing.T) {
 	t.Setenv(socketLockDirEnv, t.TempDir())
-	const token = "xapp-secret-should-never-appear-in-path"
-	path, err := appTokenLockPath(token)
+	const fixture = "lock-path-input-should-never-appear"
+	path, err := appTokenLockPath(fixture)
 	if err != nil {
 		t.Fatalf("appTokenLockPath: %v", err)
 	}
-	if strings.Contains(path, token) {
-		t.Fatalf("lock path %q contains raw app token", path)
+	if strings.Contains(path, fixture) {
+		t.Fatalf("lock path %q contains raw lock input", path)
 	}
-	if strings.Contains(path, "xapp-secret") {
-		t.Fatalf("lock path %q leaks token prefix material", path)
+	if strings.Contains(path, "lock-path-input") {
+		t.Fatalf("lock path %q leaks lock-input prefix material", path)
 	}
 	if !strings.HasSuffix(path, ".lock") {
 		t.Fatalf("lock path %q: want .lock suffix", path)
@@ -32,27 +32,27 @@ func TestAppTokenLockPathUsesHashNotSecret(t *testing.T) {
 
 func TestAcquireAppTokenLockExclusive(t *testing.T) {
 	t.Setenv(socketLockDirEnv, t.TempDir())
-	const token = "xapp-test-lock-token"
+	const fixture = "lock-exclusive-input"
 
-	release1, err := acquireAppTokenLock(token)
+	release1, err := acquireAppTokenLock(fixture)
 	if err != nil {
 		t.Fatalf("first acquire: %v", err)
 	}
 	defer release1()
 
-	_, err = acquireAppTokenLock(token)
+	_, err = acquireAppTokenLock(fixture)
 	if err == nil {
 		t.Fatal("second acquire succeeded; want exclusive lock error")
 	}
 	if !strings.Contains(err.Error(), "another local process") {
 		t.Fatalf("error = %q, want mention of another local process", err)
 	}
-	if strings.Contains(err.Error(), token) {
-		t.Fatalf("error leaked app token: %q", err)
+	if strings.Contains(err.Error(), fixture) {
+		t.Fatalf("error leaked lock input: %q", err)
 	}
 
 	release1()
-	release2, err := acquireAppTokenLock(token)
+	release2, err := acquireAppTokenLock(fixture)
 	if err != nil {
 		t.Fatalf("acquire after release: %v", err)
 	}
@@ -202,18 +202,18 @@ func attrsToMap(attrs []any) map[string]any {
 
 func TestLockFileWrittenWithPID(t *testing.T) {
 	t.Setenv(socketLockDirEnv, t.TempDir())
-	const token = "xapp-pid-check"
-	release, err := acquireAppTokenLock(token)
+	const fixture = "lock-pid-input"
+	release, err := acquireAppTokenLock(fixture)
 	if err != nil {
 		t.Fatalf("acquire: %v", err)
 	}
 	defer release()
 
-	path, err := appTokenLockPath(token)
+	path, err := appTokenLockPath(fixture)
 	if err != nil {
 		t.Fatalf("path: %v", err)
 	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // G304: test path under t.TempDir
 	if err != nil {
 		if os.IsNotExist(err) {
 			t.Skip("lock file not created on this platform")
