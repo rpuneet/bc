@@ -292,10 +292,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 			// Dispatch to notify subscribers (new subscription system).
 			// Handles @mention filtering and delivery logging.
 			if svc.Notify != nil {
-				platform := ""
-				if idx := strings.Index(p.Channel, ":"); idx > 0 {
-					platform = p.Channel[:idx]
-				}
+				platform := notify.PlatformOf(p.Channel)
 				var opts []notify.DispatchOption
 				if p.Automated {
 					opts = append(opts, notify.Automated())

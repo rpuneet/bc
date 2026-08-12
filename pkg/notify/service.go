@@ -295,14 +295,33 @@ func (s *Service) deliverToSubscribers(ctx context.Context, d deliverable) {
 	//
 	// Muted rows on the real channel suppress catch-all for that agent only
 	// (#3466) and do not count as active subscribers.
-	if len(active) == 0 && platform != "" {
+	//
+	// Explicit subscribers on the channel keep their own settings, but they
+	// must not suppress catch-all delivery for *other* agents that only have
+	// "{platform}:*" (#3688). Merge catch-all agents that are not already
+	// covered and not muted.
+	if platform != "" {
 		fallback, fErr := s.catchAllSubscribers(ctx, platform, channel)
 		if fErr != nil {
 			log.Warn("notify: catch-all lookup failed", "platform", platform, "channel", channel, "error", fErr)
 		} else if len(fallback) > 0 {
-			active = filterCatchAll(fallback, mutedAgents)
-			log.Info("notify: delivering via catch-all subscription",
-				"channel", channel, "catch_all", CatchAllChannel(platform), "agents", len(active))
+			covered := make(map[string]bool, len(active))
+			for _, sub := range active {
+				covered[sub.Agent] = true
+			}
+			merged := 0
+			for _, sub := range filterCatchAll(fallback, mutedAgents) {
+				if covered[sub.Agent] {
+					continue
+				}
+				active = append(active, sub)
+				covered[sub.Agent] = true
+				merged++
+			}
+			if merged > 0 {
+				log.Info("notify: delivering via catch-all subscription",
+					"channel", channel, "catch_all", CatchAllChannel(platform), "added", merged, "agents", len(active))
+			}
 		}
 	}
 	subs = active
@@ -510,20 +529,25 @@ func (s *Service) deliverOutboundToSubscribers(ctx context.Context, channel, sen
 	active, mutedAgents := partitionSubs(subs)
 
 	// Extract platform from channel name (e.g., "slack:general" -> "slack")
-	platform := ""
-	if idx := strings.Index(channel, ":"); idx > 0 {
-		platform = channel[:idx]
-	}
+	platform := PlatformOf(channel)
 
-	// Fallback to catch-all subscription if no active direct subscribers
-	if len(active) == 0 && platform != "" {
+	// Merge catch-all agents not already covered (#3688).
+	if platform != "" {
 		fallback, fErr := s.catchAllSubscribers(ctx, platform, channel)
 		if fErr != nil {
 			log.Warn("notify: catch-all lookup failed for outbound", "platform", platform, "channel", channel, "error", fErr)
 		} else if len(fallback) > 0 {
-			active = filterCatchAll(fallback, mutedAgents)
-			log.Info("notify: delivering outbound via catch-all subscription",
-				"channel", channel, "catch_all", CatchAllChannel(platform), "agents", len(active))
+			covered := make(map[string]bool, len(active))
+			for _, sub := range active {
+				covered[sub.Agent] = true
+			}
+			for _, sub := range filterCatchAll(fallback, mutedAgents) {
+				if covered[sub.Agent] {
+					continue
+				}
+				active = append(active, sub)
+				covered[sub.Agent] = true
+			}
 		}
 	}
 	subs = active

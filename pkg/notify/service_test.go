@@ -527,20 +527,17 @@ func TestCatchAllDoesNotFanOutAcrossChannels(t *testing.T) {
 	}
 }
 
-// TestExplicitChannelSubscriptionWinsOverCatchAll proves the fallback is only
-// a fallback: a per-channel subscription with its own settings still governs
-// that channel, so mention-only on one noisy chat keeps working.
-func TestExplicitChannelSubscriptionWinsOverCatchAll(t *testing.T) {
+// TestExplicitSettingsWinButCatchAllPeersStillDeliver (#3688): an explicit
+// mention-only sub keeps its own filter, but must not suppress catch-all peers.
+func TestExplicitSettingsWinButCatchAllPeersStillDeliver(t *testing.T) {
 	store := setupTestStore(t)
 	sender := &mockSender{}
 	svc := NewService(store, sender, &mockHub{})
 	ctx := context.Background()
 
-	// Catch-all would deliver everything to broad-agent...
 	if err := store.Subscribe(ctx, "gmail:*", "broad-agent", false); err != nil {
 		t.Fatal(err)
 	}
-	// ...but this channel has its own explicit, mention-only subscription.
 	if err := store.Subscribe(ctx, "gmail:noisysendercom", "focused-agent", true); err != nil {
 		t.Fatal(err)
 	}
@@ -550,20 +547,26 @@ func TestExplicitChannelSubscriptionWinsOverCatchAll(t *testing.T) {
 		t.Fatal("dispatch did not finish")
 	}
 
-	// focused-agent is mention-only and wasn't mentioned; broad-agent must not
-	// be pulled in by the catch-all, because the channel has a subscriber.
-	if calls := sender.getCalls(); len(calls) != 0 {
-		t.Fatalf("expected no deliveries, got %+v", calls)
+	// focused-agent is mention-only and wasn't mentioned; broad-agent still
+	// receives via catch-all merge.
+	calls := sender.getCalls()
+	if len(calls) != 1 || calls[0].Name != "broad-agent" {
+		t.Fatalf("expected broad-agent only, got %+v", calls)
 	}
 
-	svc.Dispatch("gmail:noisysendercom", "gmail", "someone", "", "", "hey @focused-agent look", "m2", nil, nil, nil)
+	svc.Dispatch("gmail:noisysendercom", "gmail", "someone", "", "", "hey @focused-agent look", "m2", []string{"focused-agent"}, nil, nil)
 	if !svc.DrainDispatches(2 * time.Second) {
 		t.Fatal("dispatch did not finish")
 	}
 
-	calls := sender.getCalls()
-	if len(calls) != 1 || calls[0].Name != "focused-agent" {
-		t.Fatalf("expected one delivery to focused-agent, got %+v", calls)
+	calls = sender.getCalls()
+	got := map[string]int{}
+	for _, c := range calls {
+		got[c.Name]++
+	}
+	// m1→broad, m2→focused + broad
+	if got["broad-agent"] != 2 || got["focused-agent"] != 1 {
+		t.Fatalf("want broad=2 focused=1, got %+v (calls=%+v)", got, calls)
 	}
 }
 
@@ -731,9 +734,14 @@ func TestMigratePlaceholderSubsNoOpWhenRealHasSubs(t *testing.T) {
 	if len(subs) != 1 || subs[0].Agent != "real-agent" {
 		t.Fatalf("expected only real-agent, got %+v", subs)
 	}
+	// Subscriptions stay uncopied; delivery merges catch-all peers (#3688).
 	calls := sender.getCalls()
-	if len(calls) != 1 || calls[0].Name != "real-agent" {
-		t.Fatalf("expected delivery only to real-agent, got %+v", calls)
+	got := map[string]bool{}
+	for _, c := range calls {
+		got[c.Name] = true
+	}
+	if !got["real-agent"] || !got["legacy-agent"] || len(got) != 2 {
+		t.Fatalf("expected real-agent + legacy-agent via catch-all merge, got %+v", calls)
 	}
 }
 
@@ -877,8 +885,13 @@ func TestSlackGeneralIsNotCatchAll(t *testing.T) {
 		t.Fatal("dispatch timeout")
 	}
 	calls = sender.getCalls()
-	if len(calls) != 1 || calls[0].Name != "general-only" {
-		t.Fatalf("#general should only hit general-only (explicit wins), got %+v", calls)
+	got := map[string]bool{}
+	for _, c := range calls {
+		got[c.Name] = true
+	}
+	// Explicit #general sub keeps general-only; catch-all peer still receives (#3688).
+	if !got["general-only"] || !got["catch-agent"] || len(got) != 2 {
+		t.Fatalf("#general should hit general-only + catch-agent, got %+v", calls)
 	}
 }
 

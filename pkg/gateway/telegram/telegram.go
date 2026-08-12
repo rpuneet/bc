@@ -85,7 +85,12 @@ func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification))
 		case <-ctx.Done():
 			a.stopBot()
 			return nil
-		case update := <-updates:
+		case update, ok := <-updates:
+			if !ok {
+				// StopReceivingUpdates closed the channel — exit so clearRunning can run.
+				a.stopBot()
+				return nil
+			}
 			if update.Message == nil {
 				continue
 			}

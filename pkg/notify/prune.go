@@ -31,10 +31,12 @@ func LegacyCatchAllChannel(platform string) string {
 	return platform + legacyCatchAllSuffix
 }
 
-// PlatformOf returns the platform prefix of a channel key ("slack:eng" → "slack").
+// PlatformOf returns the adapter/instance prefix of a channel key.
+// Channel keys are "{adapter.Name()}:{leaf}", and adapter names may themselves
+// contain ":" (labeled multi-instance, e.g. "github:mycel:issue-42" → "github:mycel").
 // Empty when the key has no ":" separator.
 func PlatformOf(channel string) string {
-	i := strings.IndexByte(channel, ':')
+	i := strings.LastIndexByte(channel, ':')
 	if i <= 0 {
 		return ""
 	}
