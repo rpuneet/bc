@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isReleaseVersion, sameBuild } from "../About";
+import { compareBuilds, isReleaseVersion, sameBuild } from "../About";
 
 /**
  * The About page shows "update available" only when the running build is a
@@ -69,5 +69,17 @@ describe("sameBuild", () => {
   it("holds for identical versions, dirty or not", () => {
     expect(sameBuild("0.4.4", "0.4.4")).toBe(true);
     expect(sameBuild("0.4.5-dev.35.gfbc9a1c.dirty", "0.4.5-dev.35.gfbc9a1c.dirty")).toBe(true);
+  });
+});
+
+describe("compareBuilds", () => {
+  it("detects app newer by dev commit count", () => {
+    expect(compareBuilds("0.4.7-dev.31.gabc", "0.4.7-dev.12.gdef")).toBe("app-newer");
+  });
+  it("detects daemon newer", () => {
+    expect(compareBuilds("0.4.7-dev.12.gdef", "0.4.7-dev.31.gabc")).toBe("daemon-newer");
+  });
+  it("same ignores dirty", () => {
+    expect(compareBuilds("0.4.7-dev.31.gabc.dirty", "0.4.7-dev.31.gabc")).toBe("same");
   });
 });

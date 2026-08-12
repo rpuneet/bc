@@ -65,6 +65,39 @@ export function sameBuild(a: string, b: string): boolean {
   return core(a) === core(b);
 }
 
+/** Which side is ahead when two version strings differ (best-effort). */
+export type BuildRelation = "same" | "app-newer" | "daemon-newer" | "differ";
+
+export function compareBuilds(app: string, daemon: string): BuildRelation {
+  if (sameBuild(app, daemon)) return "same";
+  const core = (v: string) => v.replace(/\.dirty$/, "");
+  const a = core(app);
+  const d = core(daemon);
+  // Prefer git-describe commit counts: 0.4.7-dev.31.gabc > 0.4.7-dev.12.gdef
+  const parseDev = (v: string): [number, number, number, number] | null => {
+    const m = /^(\d+)\.(\d+)\.(\d+)(?:-dev\.(\d+)\.)?/.exec(v);
+    if (!m) return null;
+    return [
+      Number(m[1] ?? 0),
+      Number(m[2] ?? 0),
+      Number(m[3] ?? 0),
+      Number(m[4] ?? -1),
+    ];
+  };
+  const pa = parseDev(a);
+  const pd = parseDev(d);
+  if (pa && pd) {
+    for (let i = 0; i < 4; i++) {
+      if (pa[i]! > pd[i]!) return "app-newer";
+      if (pa[i]! < pd[i]!) return "daemon-newer";
+    }
+  }
+  // Lexicographic fallback when shapes differ
+  if (a > d) return "app-newer";
+  if (a < d) return "daemon-newer";
+  return "differ";
+}
+
 /** withTimeout — caps any one channel-check fetch at `ms` so a hung
  *  request (DNS timeout, GitHub API rate-limit holding the socket open,
  *  slow mirror) can't pin the page in the loading state. Resolves the
@@ -180,9 +213,20 @@ export function About() {
   // do, every version on this page comes from the daemon while the user is
   // looking at a newer app. Surfacing it is the difference between "my update
   // didn't work" and "my daemon is stale".
-  const appDiffersFromDaemon = Boolean(
-    appVersion && health?.version && !sameBuild(appVersion, health.version),
-  );
+  const appRelation: BuildRelation =
+    appVersion && health?.version
+      ? compareBuilds(appVersion, health.version)
+      : "same";
+  const appDiffersFromDaemon = appRelation !== "same";
+
+  const appDetail =
+    appRelation === "same"
+      ? "matches the daemon"
+      : appRelation === "app-newer"
+        ? "newer than the daemon below"
+        : appRelation === "daemon-newer"
+          ? "older than the daemon below"
+          : "differs from the daemon below";
 
   const channels: ChannelStatus[] = [
     ...(appVersion
@@ -190,7 +234,7 @@ export function About() {
           {
             label: "Desktop app",
             version: appVersion,
-            detail: appDiffersFromDaemon ? "newer than the daemon below" : "matches the daemon",
+            detail: appDetail,
             state: (appDiffersFromDaemon ? "stale" : "ok") as ChannelStatus["state"],
           },
         ]
@@ -272,7 +316,13 @@ export function About() {
           {appDiffersFromDaemon && (
             <span
               className="text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 bg-mycel-warning-subtle text-mycel-warning ring-1 ring-inset ring-mycel-border"
-              title={`This desktop app is ${appVersion}, but it is using a separately running daemon on ${health?.version}. Restart the daemon from the newer build to match.`}
+              title={
+                appRelation === "app-newer"
+                  ? `This desktop app is ${appVersion}, but it is using a separately running daemon on ${health?.version}. Restart the daemon from the newer build to match.`
+                  : appRelation === "daemon-newer"
+                    ? `This desktop app is ${appVersion}, older than the daemon on ${health?.version}. Relaunch the desktop app from the newer build to match.`
+                    : `This desktop app is ${appVersion}; the daemon is ${health?.version}.`
+              }
             >
               app is {appVersion}
             </span>
