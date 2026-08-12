@@ -6,6 +6,7 @@ import { EnvVarsEditor, isValidEnvKey } from "./EnvVarsEditor";
 import type { EnvRow } from "./EnvVarsEditor";
 import { AgentAppsPicker } from "./apps/AgentAppsPicker";
 import { api } from "../api/client";
+import type { GithubRepo } from "../api/client";
 import { MONO } from "../utils/typography";
 import { pickDirectory } from "../utils/pickDirectory";
 import { useReadiness } from "../hooks/useReadiness";
@@ -78,6 +79,13 @@ interface RepoCandidate {
   name: string;
 }
 
+function parentDir(path: string): string {
+  const trimmed = path.replace(/\/+$/, "");
+  const i = trimmed.lastIndexOf("/");
+  if (i <= 0) return "/";
+  return trimmed.slice(0, i);
+}
+
 type Provider = "claude" | "agy" | "cursor" | "codex" | "pi";
 type Runtime = "docker" | "tmux";
 
@@ -131,6 +139,21 @@ export function CreateAgentModal({
   const [candidates, setCandidates] = useState<RepoCandidate[] | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // GitHub: connect a PAT (or reuse ~/.mycel/github-token), list/filter
+  // repos, clone into a target path, then bind the agent to that path —
+  // same end state as picking a local candidate.
+  const [githubOpen, setGithubOpen] = useState(false);
+  const [githubConnected, setGithubConnected] = useState(false);
+  const [githubLogin, setGithubLogin] = useState("");
+  const [githubToken, setGithubToken] = useState("");
+  const [githubConnecting, setGithubConnecting] = useState(false);
+  const [githubListing, setGithubListing] = useState(false);
+  const [githubRepos, setGithubRepos] = useState<GithubRepo[] | null>(null);
+  const [githubQuery, setGithubQuery] = useState("");
+  const [githubSelected, setGithubSelected] = useState<GithubRepo | null>(null);
+  const [githubError, setGithubError] = useState<string | null>(null);
+  const [cloneTarget, setCloneTarget] = useState("");
+  const [cloning, setCloning] = useState(false);
 
   // Machine readiness for the selected provider/runtime — probed only
   // while the modal is open. Powers a non-blocking pre-flight warning so
@@ -246,6 +269,18 @@ export function CreateAgentModal({
       setBrowseOpen(false);
       setCandidates(null);
       setScanError(null);
+      setGithubOpen(false);
+      setGithubConnected(false);
+      setGithubLogin("");
+      setGithubToken("");
+      setGithubConnecting(false);
+      setGithubListing(false);
+      setGithubRepos(null);
+      setGithubQuery("");
+      setGithubSelected(null);
+      setGithubError(null);
+      setCloneTarget("");
+      setCloning(false);
       requestAnimationFrame(() => firstInputRef.current?.focus());
     }
     prevOpenRef.current = open;
@@ -315,6 +350,7 @@ export function CreateAgentModal({
   // typed-path panel when the dialog is unavailable (plain browser, cancel).
   const handleChooseFolder = useCallback(async () => {
     setBrowseOpen(true);
+    setGithubOpen(false);
     const picked = await pickDirectory();
     if (!picked) {
       if (!browseRoot && repo) {
@@ -330,6 +366,132 @@ export function CreateAgentModal({
     }
     await handleScan(picked);
   }, [browseRoot, repo, handleScan]);
+
+  const loadGithubRepos = useCallback(async (query = "") => {
+    setGithubListing(true);
+    setGithubError(null);
+    try {
+      const data = await api.discoverGithubRepos(query);
+      setGithubRepos(Array.isArray(data.repos) ? data.repos : []);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to list GitHub repos";
+      setGithubError(msg);
+      if (/not authenticated/i.test(msg)) {
+        setGithubConnected(false);
+        setGithubLogin("");
+        setGithubRepos(null);
+      }
+    } finally {
+      setGithubListing(false);
+    }
+  }, []);
+
+  // When the GitHub panel opens, reuse a stored PAT if present and list
+  // repos. Clone target defaults to the projects scan root (or the parent
+  // of the current/default repo) so the user isn't starting from blank.
+  useEffect(() => {
+    if (!open || !githubOpen) return;
+    let cancelled = false;
+    setCloneTarget((prev) => {
+      if (prev) return prev;
+      if (browseRoot.trim()) return browseRoot.trim();
+      if (repo.trim()) return parentDir(repo.trim());
+      if (defaultRepo.trim()) return parentDir(defaultRepo.trim());
+      return prev;
+    });
+    (async () => {
+      setGithubError(null);
+      try {
+        const status = await api.getGithubAuth();
+        if (cancelled) return;
+        setGithubConnected(!!status.connected);
+        setGithubLogin(typeof status.login === "string" ? status.login : "");
+        if (status.connected) await loadGithubRepos();
+      } catch (e) {
+        if (!cancelled) {
+          setGithubError(e instanceof Error ? e.message : "Failed to check GitHub auth");
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+    // browseRoot/repo/defaultRepo snapshot the clone-target default when the
+    // panel opens; listing them would re-fetch GitHub on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, githubOpen, loadGithubRepos]);
+
+  const handleConnectGithub = useCallback(async () => {
+    const token = githubToken.trim();
+    if (!token) {
+      setGithubError("Paste a GitHub personal access token.");
+      return;
+    }
+    setGithubConnecting(true);
+    setGithubError(null);
+    try {
+      const status = await api.setGithubToken(token);
+      setGithubConnected(true);
+      setGithubLogin(typeof status.login === "string" ? status.login : "");
+      setGithubToken("");
+      await loadGithubRepos();
+    } catch (e) {
+      setGithubError(e instanceof Error ? e.message : "Failed to connect GitHub");
+    } finally {
+      setGithubConnecting(false);
+    }
+  }, [githubToken, loadGithubRepos]);
+
+  const handleDisconnectGithub = useCallback(async () => {
+    setGithubError(null);
+    try {
+      await api.deleteGithubToken();
+      setGithubConnected(false);
+      setGithubLogin("");
+      setGithubRepos(null);
+      setGithubSelected(null);
+      setGithubQuery("");
+    } catch (e) {
+      setGithubError(e instanceof Error ? e.message : "Failed to disconnect GitHub");
+    }
+  }, []);
+
+  const handleChooseCloneTarget = useCallback(async () => {
+    const picked = await pickDirectory();
+    if (!picked) return;
+    setCloneTarget(picked);
+    try {
+      localStorage.setItem("mycel.projects_scan_root", picked);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const handleCloneGithub = useCallback(async () => {
+    if (!githubSelected) {
+      setGithubError("Select a repository to clone.");
+      return;
+    }
+    const target = cloneTarget.trim();
+    if (!target) {
+      setGithubError("Enter a directory to clone into, or use Choose…");
+      return;
+    }
+    setCloning(true);
+    setGithubError(null);
+    try {
+      const result = await api.cloneRepo({
+        url: githubSelected.clone_url,
+        target,
+        name: githubSelected.name,
+      });
+      setRepo(result.path);
+      setGithubOpen(false);
+      setGithubSelected(null);
+    } catch (e) {
+      setGithubError(e instanceof Error ? e.message : "Clone failed");
+    } finally {
+      setCloning(false);
+    }
+  }, [githubSelected, cloneTarget]);
 
   const handleCreate = useCallback(async () => {
     const trimmed = name.trim();
@@ -455,6 +617,13 @@ export function CreateAgentModal({
   const canCreate =
     groupComplete.repo && groupComplete.identity && groupComplete.tool && template.trim() !== "";
 
+  const githubFilter = githubQuery.trim().toLowerCase();
+  const visibleGithubRepos = (githubRepos ?? []).filter((r) =>
+    !githubFilter
+    || r.full_name.toLowerCase().includes(githubFilter)
+    || r.name.toLowerCase().includes(githubFilter),
+  );
+
   if (!open) return null;
 
   return (
@@ -525,6 +694,24 @@ export function CreateAgentModal({
                   }`}
                 >
                   Browse
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGithubOpen((prev) => {
+                      const next = !prev;
+                      if (next) setBrowseOpen(false);
+                      return next;
+                    });
+                  }}
+                  aria-pressed={githubOpen}
+                  className={`shrink-0 inline-flex items-center px-3 h-8 rounded-md border text-xs font-medium transition-colors ${
+                    githubOpen
+                      ? "border-mycel-accent text-mycel-accent bg-mycel-bg"
+                      : "border-mycel-border bg-mycel-bg text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent"
+                  }`}
+                >
+                  GitHub
                 </button>
               </div>
               {knownRepos.length > 0 && (
@@ -612,6 +799,156 @@ export function CreateAgentModal({
                         </li>
                       ))}
                     </ul>
+                  )}
+                </div>
+              )}
+              {githubOpen && (
+                <div
+                  data-testid="create-agent-github-panel"
+                  className="flex flex-col gap-2 rounded-md border border-mycel-border bg-mycel-bg p-2"
+                >
+                  {githubConnected ? (
+                    <>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-mycel-muted truncate">
+                          {githubLogin ? `Connected as ${githubLogin}` : "GitHub connected"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => { void handleDisconnectGithub(); }}
+                          className="shrink-0 text-[11px] text-mycel-muted hover:text-mycel-accent transition-colors"
+                        >
+                          Disconnect
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={githubQuery}
+                        onChange={(e) => setGithubQuery(e.target.value)}
+                        className={INPUT_CLS}
+                        style={{ fontFamily: MONO }}
+                        placeholder="filter repos"
+                        aria-label="Filter GitHub repos"
+                        spellCheck={false}
+                        autoComplete="off"
+                      />
+                      {githubListing && (
+                        <div className="text-xs text-mycel-muted">Loading...</div>
+                      )}
+                      {!githubListing && githubRepos && githubRepos.length === 0 && (
+                        <div className="text-xs text-mycel-muted">
+                          No GitHub repos found.
+                        </div>
+                      )}
+                      {!githubListing && githubRepos && githubRepos.length > 0 && visibleGithubRepos.length === 0 && (
+                        <div className="text-xs text-mycel-muted">
+                          No repos match that filter.
+                        </div>
+                      )}
+                      {!githubListing && visibleGithubRepos.length > 0 && (
+                        <ul className="max-h-36 overflow-y-auto flex flex-col">
+                          {visibleGithubRepos.map((r) => {
+                            const selected = githubSelected?.full_name === r.full_name;
+                            return (
+                              <li key={r.full_name}>
+                                <button
+                                  type="button"
+                                  onClick={() => setGithubSelected(r)}
+                                  aria-pressed={selected}
+                                  className={`w-full text-left px-2 py-1 rounded-md text-xs transition-colors truncate ${
+                                    selected
+                                      ? "bg-mycel-surface text-mycel-accent"
+                                      : "text-mycel-text hover:bg-mycel-surface hover:text-mycel-accent"
+                                  }`}
+                                  style={{ fontFamily: MONO }}
+                                  title={r.full_name}
+                                >
+                                  {r.name}{" "}
+                                  <span className="text-mycel-muted">{r.full_name}</span>
+                                  {r.private ? (
+                                    <span className="text-mycel-muted"> · private</span>
+                                  ) : null}
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={cloneTarget}
+                          onChange={(e) => setCloneTarget(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              void handleCloneGithub();
+                            }
+                          }}
+                          className={INPUT_CLS}
+                          style={{ fontFamily: MONO }}
+                          placeholder="/directory/to/clone into"
+                          aria-label="Clone target directory"
+                          spellCheck={false}
+                          autoComplete="off"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => { void handleChooseCloneTarget(); }}
+                          disabled={cloning}
+                          className="shrink-0 inline-flex items-center px-3 h-8 rounded-md border border-mycel-border bg-mycel-surface text-xs font-medium text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors disabled:opacity-50"
+                          title="Open native folder picker"
+                        >
+                          Choose…
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { void handleCloneGithub(); }}
+                          disabled={cloning || !githubSelected}
+                          className="shrink-0 inline-flex items-center px-3 h-8 rounded-md border border-mycel-border bg-mycel-surface text-xs font-medium text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {cloning ? "Cloning..." : "Clone"}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[11px] text-mycel-muted">
+                        Paste a personal access token with repo scope to list and clone repositories.
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="password"
+                          value={githubToken}
+                          onChange={(e) => setGithubToken(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              void handleConnectGithub();
+                            }
+                          }}
+                          className={INPUT_CLS}
+                          style={{ fontFamily: MONO }}
+                          placeholder="ghp_… or github_pat_…"
+                          aria-label="GitHub token"
+                          spellCheck={false}
+                          autoComplete="off"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => { void handleConnectGithub(); }}
+                          disabled={githubConnecting}
+                          className="shrink-0 inline-flex items-center px-3 h-8 rounded-md border border-mycel-border bg-mycel-surface text-xs font-medium text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors disabled:opacity-50"
+                        >
+                          {githubConnecting ? "Connecting..." : "Connect"}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                  {githubError && (
+                    <div className="text-xs text-mycel-error">
+                      {githubError}
+                    </div>
                   )}
                 </div>
               )}
