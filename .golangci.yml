@@ -48,6 +48,13 @@ linters:
         linters:
           - mnd
 
+      # SA5011 after t.Fatal/t.Fatalf nil checks — staticcheck does not
+      # treat testing.TB fatals as terminating in all builds; floods CI.
+      - path: _test\.go
+        text: "SA5011:"
+        linters:
+          - staticcheck
+
       # Ignore certain checks in main.go
       - path: cmd/mycel/main\.go
         linters:
