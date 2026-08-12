@@ -1524,3 +1524,44 @@ func TestMultipleChannelsIndependence(t *testing.T) {
 		t.Fatalf("expected 3 total subscriptions, got %d", len(allSubs))
 	}
 }
+
+func TestChannelDetailIncludesLastDelivery(t *testing.T) {
+	store := setupStore(t)
+	ctx := context.Background()
+	if err := store.Subscribe(ctx, "slack:eng", "eng-01", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.LogDelivery(ctx, notify.DeliveryEntry{
+		Channel: "slack:eng",
+		Agent:   "eng-01",
+		Status:  notify.StatusSkipped,
+		Error:   "agent eng-01 is stopped",
+		Preview: "hello",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	svc, _ := setupService(store)
+	ts := setupHandler(t, svc)
+
+	resp := doJSON(t, http.MethodGet, ts.URL+"/api/apps/slack/channels/eng", nil) //nolint:bodyclose // closed via t.Cleanup in doJSON
+	assertStatus(t, resp, http.StatusOK)
+
+	var body struct {
+		LastDelivery *notify.DeliveryEntry `json:"last_delivery"`
+		ChannelKey   string                `json:"channel_key"`
+	}
+	decodeJSON(t, resp, &body)
+	if body.ChannelKey != "slack:eng" {
+		t.Errorf("channel_key = %q, want slack:eng", body.ChannelKey)
+	}
+	if body.LastDelivery == nil {
+		t.Fatal("expected last_delivery")
+	}
+	if body.LastDelivery.Status != notify.StatusSkipped {
+		t.Errorf("last_delivery.status = %q, want skipped", body.LastDelivery.Status)
+	}
+	if body.LastDelivery.Agent != "eng-01" {
+		t.Errorf("last_delivery.agent = %q, want eng-01", body.LastDelivery.Agent)
+	}
+}

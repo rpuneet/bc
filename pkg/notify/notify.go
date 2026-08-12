@@ -19,6 +19,11 @@ const (
 	StatusDelivered DeliveryStatus = "delivered"
 	StatusFailed    DeliveryStatus = "failed"
 	StatusPending   DeliveryStatus = "pending"
+	// StatusSkipped is a subscribed agent that was offline when the
+	// message arrived — the routing decision was correct, delivery
+	// just was not attempted. Distinct from StatusFailed so activity
+	// counts do not treat routine offline misses as send errors.
+	StatusSkipped DeliveryStatus = "skipped"
 )
 
 // Notification is the JSON payload sent to subscribed agents via tmux send-keys.

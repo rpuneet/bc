@@ -103,6 +103,9 @@ func (h *GatewayHandler) gatewayAPIProxy(w http.ResponseWriter, r *http.Request,
 }
 
 // gatewayHealth returns live health status for a gateway adapter.
+// The payload mirrors gateway.AdapterStatus (bot_name, message_count,
+// last_message_at, error) plus a derived status string. Unregistered
+// adapters return 404 rather than 200 with an error string (#3693).
 func (h *GatewayHandler) gatewayHealth(w http.ResponseWriter, r *http.Request, platform string) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
@@ -111,16 +114,28 @@ func (h *GatewayHandler) gatewayHealth(w http.ResponseWriter, r *http.Request, p
 		serviceUnavailable(w, r, "gateway", "gateway manager not available")
 		return
 	}
+	if h.gw.GetAdapter(platform) == nil {
+		httpError(w, "adapter not found: "+platform, http.StatusNotFound)
+		return
+	}
 
 	status := h.gw.AdapterStatus(platform)
-
-	writeJSON(w, http.StatusOK, map[string]any{
-		"platform":        platform,
-		"connected":       status.Connected,
-		"status":          map[bool]string{true: "ok", false: "disconnected"}[status.Connected],
-		"error":           status.Error,
-		"last_message_at": status.LastMessageAt,
-	})
+	body := map[string]any{
+		"platform":      platform,
+		"connected":     status.Connected,
+		"status":        map[bool]string{true: "ok", false: "disconnected"}[status.Connected],
+		"message_count": status.MessageCount,
+	}
+	if status.BotName != "" {
+		body["bot_name"] = status.BotName
+	}
+	if status.Error != "" {
+		body["error"] = status.Error
+	}
+	if !status.LastMessageAt.IsZero() {
+		body["last_message_at"] = status.LastMessageAt
+	}
+	writeJSON(w, http.StatusOK, body)
 }
 
 // gatewayChannels handles /api/apps/{name}/channels and sub-routes.
@@ -200,11 +215,18 @@ func (h *GatewayHandler) gatewayChannels(w http.ResponseWriter, r *http.Request,
 		if subs == nil {
 			subs = []notify.Subscription{}
 		}
+		var last *notify.DeliveryEntry
+		if activity, actErr := h.notifySvc.ChannelActivity(r.Context(), channelName, 1, 0); actErr != nil {
+			log.Warn("channel detail: last delivery", "channel", channelName, "error", actErr)
+		} else if len(activity) > 0 {
+			last = &activity[0]
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"channel_key":   channelName,
 			"name":          channelParts[0],
 			"platform":      platform,
 			"subscriptions": subs,
+			"last_delivery": last,
 		})
 	}
 }

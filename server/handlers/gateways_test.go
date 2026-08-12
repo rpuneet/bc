@@ -462,3 +462,62 @@ func TestChannelSend_MissingFields(t *testing.T) {
 		})
 	}
 }
+
+func TestGatewayHealthMirrorsAdapterStatus(t *testing.T) {
+	gw := gateway.NewManager()
+	gw.Register(&stubAdapter{
+		name: "slack",
+		status: gateway.AdapterStatus{
+			Connected:    true,
+			BotName:      "mycel-bot",
+			MessageCount: 42,
+			Error:        "",
+		},
+	})
+	h := &GatewayHandler{gw: gw}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/apps/slack/health", nil)
+	rr := httptest.NewRecorder()
+	h.gatewayHealth(rr, req, "slack")
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", rr.Code, rr.Body.String())
+	}
+
+	var body struct {
+		Platform     string `json:"platform"`
+		Status       string `json:"status"`
+		BotName      string `json:"bot_name"`
+		Error        string `json:"error"`
+		Connected    bool   `json:"connected"`
+		MessageCount int64  `json:"message_count"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Platform != "slack" || !body.Connected || body.Status != "ok" {
+		t.Errorf("got %+v, want slack connected/ok", body)
+	}
+	if body.BotName != "mycel-bot" {
+		t.Errorf("bot_name = %q, want mycel-bot", body.BotName)
+	}
+	if body.MessageCount != 42 {
+		t.Errorf("message_count = %d, want 42", body.MessageCount)
+	}
+	if body.Error != "" {
+		t.Errorf("error = %q, want empty", body.Error)
+	}
+}
+
+func TestGatewayHealthUnregistered404(t *testing.T) {
+	gw := gateway.NewManager()
+	h := &GatewayHandler{gw: gw}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/apps/nope/health", nil)
+	rr := httptest.NewRecorder()
+	h.gatewayHealth(rr, req, "nope")
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404; body: %s", rr.Code, rr.Body.String())
+	}
+}

@@ -2,6 +2,7 @@ package notify
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 
 // mockSender records SendToAgent calls.
 type mockSender struct {
+	errFn func(name string) error
 	calls []sendCall
 	mu    sync.Mutex
 }
@@ -24,6 +26,9 @@ func (m *mockSender) Send(_ context.Context, name, message string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.calls = append(m.calls, sendCall{Name: name, Message: message})
+	if m.errFn != nil {
+		return m.errFn(name)
+	}
 	return nil
 }
 
@@ -706,6 +711,67 @@ func TestDispatchWithoutAutomatedStillDelivers(t *testing.T) {
 	calls := sender.getCalls()
 	if len(calls) != 1 || calls[0].Name != "fast-crane" {
 		t.Fatalf("expected one delivery to fast-crane, got %+v", calls)
+	}
+}
+
+func TestDispatchOfflineAgentLogsSkipped(t *testing.T) {
+	store := setupTestStore(t)
+	sender := &mockSender{errFn: func(name string) error {
+		return fmt.Errorf("agent %s is stopped", name)
+	}}
+	svc := NewService(store, sender, &mockHub{})
+	ctx := context.Background()
+
+	if err := store.Subscribe(ctx, "slack:eng", "offline-bot", false); err != nil {
+		t.Fatal(err)
+	}
+
+	svc.Dispatch("slack:eng", "slack", "alice", "U1", "", "hello fleet", "m1", nil, nil, nil)
+	if !svc.DrainDispatches(2 * time.Second) {
+		t.Fatal("dispatch did not finish")
+	}
+
+	entries, err := store.RecentActivity(ctx, "slack:eng", 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 skipped delivery row, got %+v", entries)
+	}
+	if entries[0].Status != StatusSkipped {
+		t.Errorf("status = %q, want %q", entries[0].Status, StatusSkipped)
+	}
+	if entries[0].Agent != "offline-bot" {
+		t.Errorf("agent = %q, want offline-bot", entries[0].Agent)
+	}
+	if entries[0].Error == "" {
+		t.Error("expected offline error text on skipped row")
+	}
+}
+
+func TestDispatchSendErrorLogsFailedNotSkipped(t *testing.T) {
+	store := setupTestStore(t)
+	sender := &mockSender{errFn: func(string) error {
+		return fmt.Errorf("tmux session not found")
+	}}
+	svc := NewService(store, sender, &mockHub{})
+	ctx := context.Background()
+
+	if err := store.Subscribe(ctx, "slack:eng", "eng-01", false); err != nil {
+		t.Fatal(err)
+	}
+
+	svc.Dispatch("slack:eng", "slack", "alice", "U1", "", "hello", "m1", nil, nil, nil)
+	if !svc.DrainDispatches(2 * time.Second) {
+		t.Fatal("dispatch did not finish")
+	}
+
+	entries, err := store.RecentActivity(ctx, "slack:eng", 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Status != StatusFailed {
+		t.Fatalf("expected 1 failed row, got %+v", entries)
 	}
 }
 

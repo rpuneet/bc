@@ -191,7 +191,7 @@ export interface DeliveryEntry {
   logged_at: string;
   channel: string;
   agent: string;
-  status: "delivered" | "failed" | "pending";
+  status: "delivered" | "failed" | "pending" | "skipped";
   error?: string;
   preview?: string;
 }
@@ -291,6 +291,8 @@ export interface GatewayHealth {
   status: string;
   error?: string;
   last_message_at?: string;
+  bot_name?: string;
+  message_count?: number;
 }
 
 export function instancesToStatuses(instances: AppInstance[]): GatewayStatus[] {
