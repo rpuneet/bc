@@ -33,11 +33,67 @@ Error ID: 08a716f9-72a7-45b4-b26f-b2de551b857f-302
 > hi
 ? for shortcuts                                    Gemini 3.5 Flash · medium`
 
+// Claude / Cursor / Codex panes mirror the CLIs' own fatal lines (#3687).
+const claudeNoKeyPane = `────────────────────────────────────────────────────────────────────────
+ API Error: 401 Invalid API key · Please run /login
+────────────────────────────────────────────────────────────────────────
+ > `
+
+const claudeCreditPane = ` Credit balance is too low
+ Add credits at https://console.anthropic.com
+ > `
+
+const claudeNotLoggedInPane = ` Not logged in · Please run /login
+ > `
+
+const claudeUsageLimitPane = `────────────────────────────────────────────────────────────────────────
+ API Error: 429 usage limit reached · resets at 3pm
+────────────────────────────────────────────────────────────────────────
+ > `
+
+const claudeModelUnavailablePane = ` Claude Opus is not available with the Claude Pro plan. Please use Sonnet or upgrade.
+ > `
+
+const cursorAuthPane = `Error: Authentication required. Please run 'agent login' first, or set CURSOR_API_KEY environment variable.
+`
+
+const cursorBadKeyPane = `Authentication failed: your Cursor credentials or API key are invalid or expired.
+If you set CURSOR_API_KEY, check that it is correct, or run ` + "`agent login`" + ` to re-authenticate.
+`
+
+const cursorNotLoggedInPane = `Not logged in. Run ` + "`agent login`" + ` first.
+`
+
+const cursorModelLoadPane = `Failed to load models: authentication required or model access denied for this account.
+`
+
+//nolint:gosec // G101: quoted CLI error text, not a credential
+const codexNoCredsPane = `no Codex credentials were found
+Run codex login or provide an API key through a supported auth env var.
+`
+
+const codexOutOfCreditsPane = `You're out of credits. Your workspace is out of credits. Add credits to continue using Codex.
+`
+
+const codexNoAccessPane = `You do not have access to Codex
+This account is not currently authorized to use Codex in this workspace.
+`
+
+const codexNotSignedInPane = `Not signed in. Please run 'codex login' to sign in with ChatGPT, or provide an API key.
+`
+
+const codexUsageLimitPane = `Usage limit reached. You've reached your usage limit. Try again later or raise the limit.
+`
+
+const codexUnknownModelPane = "Unknown model `gpt-imaginary` for spawn_agent. Available models: gpt-5, o3.\n"
+
 // A healthy pane, including one that talks about the very things the patterns
 // look for. An agent editing provider code must never be reported as broken.
 const workingPane = `● Read pkg/provider/pi.go
 ● The API key handling looks right. No API key found for is the error string
   we match on, so the test should assert that exact text.
+● Also discussing markers like "Authentication required", "credit balance is too low",
+  and the phrase "no Codex credentials were found" mid-sentence only.
 ● Bash(go test ./pkg/provider/)
   ok  github.com/rpuneet/mycel/pkg/provider  0.412s
 > `
@@ -84,6 +140,94 @@ func TestAgyDetectFailure(t *testing.T) {
 
 	if _, failed := p.DetectFailure(workingPane); failed {
 		t.Error("a working agent must not be reported as failed")
+	}
+}
+
+func TestClaudeDetectFailure(t *testing.T) {
+	p := &ClaudeProvider{}
+	tests := []struct {
+		name       string
+		pane       string
+		wantIn     string
+		wantFailed bool
+	}{
+		{"invalid api key", claudeNoKeyPane, "API key", true},
+		{"credit balance", claudeCreditPane, "credit", true},
+		{"not logged in", claudeNotLoggedInPane, "not logged in", true},
+		{"usage limit", claudeUsageLimitPane, "usage limit", true},
+		{"model unavailable", claudeModelUnavailablePane, "model is unavailable", true},
+		{"working agent", workingPane, "", false},
+		{"empty pane", "", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reason, failed := p.DetectFailure(tt.pane)
+			if failed != tt.wantFailed {
+				t.Fatalf("failed = %v, want %v (reason %q)", failed, tt.wantFailed, reason)
+			}
+			if tt.wantIn != "" && !strings.Contains(reason, tt.wantIn) {
+				t.Errorf("reason = %q, want it to mention %q", reason, tt.wantIn)
+			}
+			if !tt.wantFailed && reason != "" {
+				t.Errorf("reason = %q, want empty when not failed", reason)
+			}
+		})
+	}
+}
+
+func TestCursorDetectFailure(t *testing.T) {
+	p := &CursorProvider{}
+	tests := []struct {
+		name       string
+		pane       string
+		wantIn     string
+		wantFailed bool
+	}{
+		{"auth required", cursorAuthPane, "not authenticated", true},
+		{"bad api key", cursorBadKeyPane, "API key", true},
+		{"not logged in", cursorNotLoggedInPane, "not logged in", true},
+		{"failed to load models", cursorModelLoadPane, "could not load models", true},
+		{"working agent", workingPane, "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reason, failed := p.DetectFailure(tt.pane)
+			if failed != tt.wantFailed {
+				t.Fatalf("failed = %v, want %v (reason %q)", failed, tt.wantFailed, reason)
+			}
+			if tt.wantIn != "" && !strings.Contains(reason, tt.wantIn) {
+				t.Errorf("reason = %q, want it to mention %q", reason, tt.wantIn)
+			}
+		})
+	}
+}
+
+func TestCodexDetectFailure(t *testing.T) {
+	p := &CodexProvider{}
+	tests := []struct {
+		name       string
+		pane       string
+		wantIn     string
+		wantFailed bool
+	}{
+		{"no credentials", codexNoCredsPane, "credentials", true},
+		{"out of credits", codexOutOfCreditsPane, "credits", true},
+		{"no access", codexNoAccessPane, "cannot use Codex", true},
+		{"not signed in", codexNotSignedInPane, "not signed in", true},
+		{"usage limit", codexUsageLimitPane, "usage limit", true},
+		{"unknown model", codexUnknownModelPane, "model is unavailable", true},
+		{"working agent", workingPane, "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reason, failed := p.DetectFailure(tt.pane)
+			if failed != tt.wantFailed {
+				t.Fatalf("failed = %v, want %v (reason %q)", failed, tt.wantFailed, reason)
+			}
+			if tt.wantIn != "" && !strings.Contains(reason, tt.wantIn) {
+				t.Errorf("reason = %q, want it to mention %q", reason, tt.wantIn)
+			}
+		})
 	}
 }
 
@@ -206,6 +350,9 @@ func TestProvidersImplementFailureDetector(t *testing.T) {
 	}{
 		{&PiProvider{}, "pi"},
 		{&AgyProvider{}, "agy"},
+		{&ClaudeProvider{}, "claude"},
+		{&CursorProvider{}, "cursor"},
+		{&CodexProvider{}, "codex"},
 	} {
 		if _, ok := tt.p.(FailureDetector); !ok {
 			t.Errorf("%s does not implement FailureDetector", tt.name)

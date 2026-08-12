@@ -60,6 +60,7 @@ func TestInjectVaultSecrets(t *testing.T) {
 		name        string
 		preEnv      map[string]string // env already set before injection
 		roleSecrets []string
+		channels    []string
 		wantKey     string
 		wantValue   string
 		wantAbsent  []string
@@ -86,12 +87,21 @@ func TestInjectVaultSecrets(t *testing.T) {
 			wantValue:   "h-wins",
 		},
 		{
-			name:   "well-known gateway token auto-injected without role declaration",
+			name:   "well-known gateway token auto-injected for slack subscriber",
 			preEnv: map[string]string{},
-			// SLACK_BOT_TOKEN not in roleSecrets — should still inject via wellKnownVaultTokens
+			// SLACK_BOT_TOKEN not in roleSecrets — inject via wellKnownVaultTokens
+			// only when subscribed to a slack channel (#3686).
 			roleSecrets: nil,
+			channels:    []string{"slack:general"},
 			wantKey:     "SLACK_BOT_TOKEN",
 			wantValue:   "slack-h-token",
+		},
+		{
+			name:        "well-known token skipped for non-subscriber",
+			preEnv:      map[string]string{},
+			roleSecrets: nil,
+			channels:    []string{"telegram:ops"},
+			wantAbsent:  []string{"SLACK_BOT_TOKEN"},
 		},
 		{
 			name: "existing env wins over vault (precedence)",
@@ -131,6 +141,21 @@ func TestInjectVaultSecrets(t *testing.T) {
 			wantKey:     "GITHUB_TOKEN",
 			wantValue:   "existing-gh-token",
 		},
+		{
+			name:        "GITHUB_PAT alias skipped without role or github subscription",
+			preEnv:      map[string]string{},
+			roleSecrets: nil,
+			channels:    []string{"slack:general"},
+			wantAbsent:  []string{"GITHUB_TOKEN", "GH_TOKEN", "GITHUB_PERSONAL_ACCESS_TOKEN"},
+		},
+		{
+			name:        "GITHUB_PAT aliased for github subscriber without role allowlist",
+			preEnv:      map[string]string{},
+			roleSecrets: nil,
+			channels:    []string{"github:*"},
+			wantKey:     "GITHUB_TOKEN",
+			wantValue:   "ghp-token-123",
+		},
 	}
 
 	for _, tc := range tests {
@@ -140,7 +165,7 @@ func TestInjectVaultSecrets(t *testing.T) {
 				env[k] = v
 			}
 
-			injectVaultSecrets(env, repoPath, tc.roleSecrets, nil)
+			injectVaultSecrets(env, repoPath, tc.roleSecrets, nil, tc.channels)
 
 			if tc.wantKey != "" {
 				if got := env[tc.wantKey]; got != tc.wantValue {
@@ -158,7 +183,7 @@ func TestInjectVaultSecrets(t *testing.T) {
 
 // TestInjectVaultSecretsAppCredentials proves connected-app credentials
 // stored under app:<instance>:<key> are exported under their conventional
-// env names, driven by the app descriptor's Secret fields.
+// env names only for agents subscribed to that instance (#3686).
 func TestInjectVaultSecretsAppCredentials(t *testing.T) {
 	mycelHome := t.TempDir()
 	t.Setenv("MYCEL_HOME", mycelHome)
@@ -176,32 +201,61 @@ func TestInjectVaultSecretsAppCredentials(t *testing.T) {
 		"rss:blog":        {App: "rss", Enabled: true, Config: map[string]string{"url": "https://x/feed"}},
 	}
 
-	env := map[string]string{}
-	injected := injectVaultSecrets(env, repoPath, nil, apps)
+	t.Run("subscriber receives matching instance secrets", func(t *testing.T) {
+		env := map[string]string{}
+		injected := injectVaultSecrets(env, repoPath, nil, apps, []string{
+			"slack:general",
+			"telegram:alerts:ops",
+		})
 
-	if env["SLACK_BOT_TOKEN"] != "xoxb-app-vault" {
-		t.Errorf("SLACK_BOT_TOKEN = %q, want xoxb-app-vault", env["SLACK_BOT_TOKEN"])
-	}
-	if env["TELEGRAM_BOT_TOKEN_ALERTS"] != "tg-app-vault" {
-		t.Errorf("TELEGRAM_BOT_TOKEN_ALERTS = %q, want tg-app-vault", env["TELEGRAM_BOT_TOKEN_ALERTS"])
-	}
-	if _, ok := env["TELEGRAM_BOT_TOKEN_OFF"]; ok {
-		t.Error("disabled instance credential must not be injected")
-	}
-	if _, ok := env["RSS_URL_BLOG"]; ok {
-		t.Error("non-secret field must not be injected from the vault")
-	}
-	if len(injected) == 0 {
-		t.Error("injected key names should be reported")
-	}
+		if env["SLACK_BOT_TOKEN"] != "xoxb-app-vault" {
+			t.Errorf("SLACK_BOT_TOKEN = %q, want xoxb-app-vault", env["SLACK_BOT_TOKEN"])
+		}
+		if env["TELEGRAM_BOT_TOKEN_ALERTS"] != "tg-app-vault" {
+			t.Errorf("TELEGRAM_BOT_TOKEN_ALERTS = %q, want tg-app-vault", env["TELEGRAM_BOT_TOKEN_ALERTS"])
+		}
+		if _, ok := env["TELEGRAM_BOT_TOKEN_OFF"]; ok {
+			t.Error("disabled instance credential must not be injected")
+		}
+		if _, ok := env["RSS_URL_BLOG"]; ok {
+			t.Error("non-secret field must not be injected from the vault")
+		}
+		if len(injected) == 0 {
+			t.Error("injected key names should be reported")
+		}
+	})
+
+	t.Run("non-subscriber excluded from other instances", func(t *testing.T) {
+		env := map[string]string{}
+		injectVaultSecrets(env, repoPath, nil, apps, []string{"slack:*"})
+
+		if env["SLACK_BOT_TOKEN"] != "xoxb-app-vault" {
+			t.Errorf("SLACK_BOT_TOKEN = %q, want xoxb-app-vault for slack subscriber", env["SLACK_BOT_TOKEN"])
+		}
+		if _, ok := env["TELEGRAM_BOT_TOKEN_ALERTS"]; ok {
+			t.Error("telegram:alerts secret must not inject for a slack-only subscriber")
+		}
+	})
+
+	t.Run("no subscriptions yields no connected-app secrets", func(t *testing.T) {
+		env := map[string]string{}
+		injectVaultSecrets(env, repoPath, nil, apps, nil)
+
+		if _, ok := env["SLACK_BOT_TOKEN"]; ok {
+			t.Error("SLACK_BOT_TOKEN must not inject without a slack subscription")
+		}
+		if _, ok := env["TELEGRAM_BOT_TOKEN_ALERTS"]; ok {
+			t.Error("TELEGRAM_BOT_TOKEN_ALERTS must not inject without a telegram:alerts subscription")
+		}
+	})
 }
 
 // TestInjectVaultSecrets_GitHubAppToken proves a connected GitHub app
 // instance's api_token (as populated by the device-flow "Sign in with
-// GitHub", or pasted manually) is made available to agents as both
-// GH_TOKEN and GITHUB_TOKEN — so `gh` and git's credential helper
+// GitHub", or pasted manually) is made available to subscribed agents as
+// both GH_TOKEN and GITHUB_TOKEN — so `gh` and git's credential helper
 // authenticate with zero per-agent setup — while an agent with no
-// connected GitHub app instance gets neither key.
+// github subscription and no role allowlist gets neither key (#3686).
 func TestInjectVaultSecrets_GitHubAppToken(t *testing.T) {
 	mycelHome := t.TempDir()
 	t.Setenv("MYCEL_HOME", mycelHome)
@@ -210,12 +264,12 @@ func TestInjectVaultSecrets_GitHubAppToken(t *testing.T) {
 	repoPath := t.TempDir()
 	seedRepoVault(t, repoPath, "app:github:api_token", "gho_devflow_token")
 
-	t.Run("connected instance yields GH_TOKEN and GITHUB_TOKEN", func(t *testing.T) {
+	t.Run("subscribed agent yields GH_TOKEN and GITHUB_TOKEN", func(t *testing.T) {
 		apps := map[string]app.InstanceConfig{
 			"github": {App: "github", Enabled: true},
 		}
 		env := map[string]string{}
-		injected := injectVaultSecrets(env, repoPath, nil, apps)
+		injected := injectVaultSecrets(env, repoPath, nil, apps, []string{"github:*"})
 
 		if env["GH_TOKEN"] != "gho_devflow_token" {
 			t.Errorf("GH_TOKEN = %q, want gho_devflow_token", env["GH_TOKEN"])
@@ -238,12 +292,42 @@ func TestInjectVaultSecrets_GitHubAppToken(t *testing.T) {
 		}
 	})
 
+	t.Run("role allowlist aliases without github subscription", func(t *testing.T) {
+		apps := map[string]app.InstanceConfig{
+			"github": {App: "github", Enabled: true},
+		}
+		env := map[string]string{}
+		injectVaultSecrets(env, repoPath, []string{"GH_TOKEN"}, apps, nil)
+
+		if env["GH_TOKEN"] != "gho_devflow_token" {
+			t.Errorf("GH_TOKEN = %q, want gho_devflow_token via role allowlist", env["GH_TOKEN"])
+		}
+		if env["GITHUB_TOKEN"] != "gho_devflow_token" {
+			t.Errorf("GITHUB_TOKEN = %q, want gho_devflow_token via role allowlist", env["GITHUB_TOKEN"])
+		}
+	})
+
+	t.Run("non-subscriber without role allowlist yields neither key", func(t *testing.T) {
+		apps := map[string]app.InstanceConfig{
+			"github": {App: "github", Enabled: true},
+		}
+		env := map[string]string{}
+		injectVaultSecrets(env, repoPath, nil, apps, []string{"slack:general"})
+
+		if _, ok := env["GH_TOKEN"]; ok {
+			t.Error("GH_TOKEN should be absent without github scope")
+		}
+		if _, ok := env["GITHUB_TOKEN"]; ok {
+			t.Error("GITHUB_TOKEN should be absent without github scope")
+		}
+	})
+
 	t.Run("disabled instance yields neither key", func(t *testing.T) {
 		apps := map[string]app.InstanceConfig{
 			"github": {App: "github", Enabled: false},
 		}
 		env := map[string]string{}
-		injectVaultSecrets(env, repoPath, nil, apps)
+		injectVaultSecrets(env, repoPath, nil, apps, []string{"github:*"})
 
 		if _, ok := env["GH_TOKEN"]; ok {
 			t.Error("GH_TOKEN should be absent when no github app instance is enabled")
@@ -255,7 +339,7 @@ func TestInjectVaultSecrets_GitHubAppToken(t *testing.T) {
 
 	t.Run("no github app configured yields neither key", func(t *testing.T) {
 		env := map[string]string{}
-		injectVaultSecrets(env, repoPath, nil, nil)
+		injectVaultSecrets(env, repoPath, nil, nil, nil)
 
 		if _, ok := env["GH_TOKEN"]; ok {
 			t.Error("GH_TOKEN should be absent with no apps configured")
@@ -264,6 +348,64 @@ func TestInjectVaultSecrets_GitHubAppToken(t *testing.T) {
 			t.Error("GITHUB_TOKEN should be absent with no apps configured")
 		}
 	})
+
+	t.Run("ambiguous multi-instance role allowlist skips GH_TOKEN", func(t *testing.T) {
+		seedRepoVault(t, repoPath, "app:github:work:api_token", "gho_work")
+		seedRepoVault(t, repoPath, "app:github:personal:api_token", "gho_personal")
+		apps := map[string]app.InstanceConfig{
+			"github:work":     {App: "github", Enabled: true},
+			"github:personal": {App: "github", Enabled: true},
+		}
+		env := map[string]string{}
+		injectVaultSecrets(env, repoPath, []string{"GH_TOKEN"}, apps, nil)
+
+		if _, ok := env["GH_TOKEN"]; ok {
+			t.Error("GH_TOKEN must not inject when multiple github instances are ambiguous")
+		}
+		if _, ok := env["GITHUB_TOKEN"]; ok {
+			t.Error("GITHUB_TOKEN must not inject when multiple github instances are ambiguous")
+		}
+	})
+
+	t.Run("instance-specific role secret picks that github instance", func(t *testing.T) {
+		seedRepoVault(t, repoPath, "app:github:work:api_token", "gho_work_only")
+		seedRepoVault(t, repoPath, "app:github:personal:api_token", "gho_personal_skip")
+		apps := map[string]app.InstanceConfig{
+			"github:work":     {App: "github", Enabled: true},
+			"github:personal": {App: "github", Enabled: true},
+		}
+		env := map[string]string{}
+		injectVaultSecrets(env, repoPath, []string{"app:github:work:api_token"}, apps, nil)
+
+		if env["GH_TOKEN"] != "gho_work_only" {
+			t.Errorf("GH_TOKEN = %q, want gho_work_only from named instance", env["GH_TOKEN"])
+		}
+		if env["GITHUB_TOKEN"] != "gho_work_only" {
+			t.Errorf("GITHUB_TOKEN = %q, want gho_work_only from named instance", env["GITHUB_TOKEN"])
+		}
+	})
+}
+
+func TestSubscribedToAppAndPlatform(t *testing.T) {
+	channels := []string{"slack:general", "slack:*", "telegram:alerts:ops", "telegram:alerts:*"}
+	if !subscribedToApp(channels, "slack") {
+		t.Error("want subscribedToApp(slack)")
+	}
+	if !subscribedToApp(channels, "telegram:alerts") {
+		t.Error("want subscribedToApp(telegram:alerts)")
+	}
+	if subscribedToApp(channels, "discord") {
+		t.Error("discord must not match")
+	}
+	if !subscribedToPlatform(channels, "slack") {
+		t.Error("want subscribedToPlatform(slack)")
+	}
+	if !subscribedToPlatform(channels, "telegram") {
+		t.Error("labeled telegram:alerts:* must still match platform telegram")
+	}
+	if subscribedToPlatform(channels, "discord") {
+		t.Error("discord platform must not match")
+	}
 }
 
 // TestAppEnvAndPromptInstructions covers plain-field env injection and the

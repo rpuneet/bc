@@ -57,6 +57,18 @@ Secrets are resolved at runtime via `${secret:NAME}` references in agent
 environment variables. The `ResolveEnv` method substitutes these references
 with decrypted values just before the agent process starts.
 
+### Agent env injection scope
+
+Vault values declared on a role or template (`secrets:`) are an **allowlist**
+for that agent only. Connected-app credentials and well-known gateway tokens
+are further scoped to agents with an unmuted notification subscription on the
+matching app instance or platform — a Slack-subscribed agent does not receive
+a Telegram bot token, and an agent with no subscriptions receives neither
+(#3686). See [Apps](apps.md#per-agent-vault-scoping) for the matching rules.
+Role allowlists still inject regardless of subscriptions, so an agent that
+needs a token without listening on that app can declare the vault name
+explicitly.
+
 ## Docker Agent Isolation
 
 When the runtime is set to `docker`, each agent runs in its own container

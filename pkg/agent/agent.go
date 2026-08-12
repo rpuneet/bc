@@ -1271,6 +1271,10 @@ func (m *Manager) SpawnAgentWithOptions(ctx context.Context, opts SpawnOptions) 
 // startAgent restarts an existing agent whose session has died.
 // Acquires per-agent lock internally for slow I/O; does NOT require caller to hold mu.
 func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions) (*Agent, error) {
+	// Subscription lookup hits the notify DB — do it before m.mu so a slow
+	// query cannot serialize other agent create/restart work (#3686).
+	subscribedChannels := m.agentSubscribedChannels(ctx, name)
+
 	// Phase 1: global lock — read agent state and build command config
 	m.mu.Lock()
 	existing := m.agents[name]
@@ -1394,7 +1398,8 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	injectResourceLimits(env, existing.CPUs, existing.MemoryMB)
 	injectEnv(env, repoPath, name, existing.EnvFile, existing.Env)
 	injectAppEnv(env, m.appsConfig)
-	secretEnvKeys := injectVaultSecrets(env, repoPath, resolveAgentSecrets(repoPath, string(existing.Role), existing.Template), m.appsConfig)
+	roleSecrets := resolveAgentSecrets(repoPath, string(existing.Role), existing.Template)
+	secretEnvKeys := injectVaultSecrets(env, repoPath, roleSecrets, m.appsConfig, subscribedChannels)
 
 	rt := m.runtimeForAgent(name)
 	m.mu.Unlock()
@@ -1513,6 +1518,10 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	tool := opts.Tool
 	// Worktrees come from the repo the agent is bound to, not the boot repo.
 	wtMgr := m.worktreeManagerFor(repoPath)
+
+	// Subscription lookup hits the notify DB — do it before m.mu so a slow
+	// query cannot serialize other agent create/restart work (#3686).
+	subscribedChannels := m.agentSubscribedChannels(ctx, name)
 
 	// Phase 1: global lock — build command config, register agent in map
 	m.mu.Lock()
@@ -1645,7 +1654,8 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	injectResourceLimits(env, agent.CPUs, agent.MemoryMB)
 	injectEnv(env, repoPath, name, opts.EnvFile, opts.Env)
 	injectAppEnv(env, m.appsConfig)
-	secretEnvKeys := injectVaultSecrets(env, repoPath, resolveAgentSecrets(repoPath, string(role), opts.Template), m.appsConfig)
+	roleSecrets := resolveAgentSecrets(repoPath, string(role), opts.Template)
+	secretEnvKeys := injectVaultSecrets(env, repoPath, roleSecrets, m.appsConfig, subscribedChannels)
 
 	rt := m.runtimeForAgent(name)
 	m.mu.Unlock()
@@ -3452,8 +3462,8 @@ func injectAppEnv(env map[string]string, apps map[string]app.InstanceConfig) {
 }
 
 // wellKnownVaultTokens lists vault secret names that are automatically injected
-// as agent env vars when present, without requiring explicit role declaration.
-// These are integration/gateway tokens that agents commonly need.
+// as agent env vars when present, without requiring explicit role declaration,
+// provided the agent is subscribed to a channel on that token's platform.
 //
 //nolint:gochecknoglobals // package-level constant slice — read-only
 var wellKnownVaultTokens = []string{
@@ -3462,6 +3472,19 @@ var wellKnownVaultTokens = []string{
 	"TELEGRAM_BOT_TOKEN",
 	"DISCORD_BOT_TOKEN",
 	"WHATSAPP_SESSION",
+}
+
+// wellKnownTokenPlatform maps a well-known vault token name to the notify
+// platform prefix that authorizes injecting it (SLACK_BOT_TOKEN → "slack").
+// Labeled instances ("telegram:alerts:…") still match platform "telegram".
+//
+//nolint:gochecknoglobals // package-level constant map — read-only
+var wellKnownTokenPlatform = map[string]string{
+	"SLACK_BOT_TOKEN":    "slack",
+	"SLACK_APP_TOKEN":    "slack",
+	"TELEGRAM_BOT_TOKEN": "telegram",
+	"DISCORD_BOT_TOKEN":  "discord",
+	"WHATSAPP_SESSION":   "whatsapp",
 }
 
 // openLayeredStore opens the global + repo vault layers and returns a
@@ -3513,22 +3536,33 @@ func openLayeredStore(repoPath, passphrase string) (ls *secret.LayeredStore, clo
 // Role-scoped and template-declared secrets (roleSecrets from ResolvedRole /
 // Template.Secrets, #3550) act as an allowlist: vault values are not sprayed
 // across every agent indiscriminately.
+//
 // Connected-app credentials (descriptor Secret fields, stored under
 // app:<instance>:<key>) and well-known integration tokens (SLACK_BOT_TOKEN
-// etc.) are also exported when present as a convenience for agents that
-// don't declare them in their role.
+// etc.) are exported only when the agent has an unmuted notification
+// subscription on that app instance / platform (#3686). subscribedChannels
+// are notify channel keys such as "slack:general", "telegram:alerts:ops",
+// or catch-all "slack:*". Pass nil/empty when the agent has no subscriptions
+// — then only roleSecrets apply (plus GitHub PAT aliases when the role
+// allowlist explicitly requested a GitHub token name).
 //
 // GITHUB_PERSONAL_ACCESS_TOKEN and GITHUB_TOKEN in the vault are aliased to
-// both GITHUB_TOKEN and GH_TOKEN so git/gh tooling works without manual wiring.
-// The connected GitHub app's api_token (app:<instance>:api_token, populated
-// by "Sign in with GitHub" or pasted manually) is aliased the same way.
+// both GITHUB_TOKEN and GH_TOKEN so git/gh tooling works without manual wiring,
+// but only when the agent is subscribed to a github channel or the role/
+// template allowlist requested GITHUB_TOKEN, GH_TOKEN, or
+// GITHUB_PERSONAL_ACCESS_TOKEN. The connected GitHub app's api_token
+// (app:<instance>:api_token) is aliased the same way under those same
+// authorization rules; when the role allowlist authorizes GitHub without a
+// subscription, exactly one enabled github instance (or one instance named
+// via app:<instance>:api_token in roleSecrets) is used — ambiguous multi-
+// instance configs are skipped rather than picking nondeterministically.
 //
 // Secret VALUES are never logged.
 //
 // The returned slice holds the NAMES of env keys populated from the vault
 // (never their values) so callers can summarize available credentials to the
 // agent without ever exposing the secrets themselves.
-func injectVaultSecrets(env map[string]string, repoPath string, roleSecrets []string, apps map[string]app.InstanceConfig) []string {
+func injectVaultSecrets(env map[string]string, repoPath string, roleSecrets []string, apps map[string]app.InstanceConfig, subscribedChannels []string) []string {
 	passphrase, err := secret.Passphrase()
 	if err != nil {
 		log.Warn("vault injection skipped: cannot read passphrase", "error", err)
@@ -3559,27 +3593,31 @@ func injectVaultSecrets(env map[string]string, repoPath string, roleSecrets []st
 	}
 
 	// 1. Role-declared secrets — scoped allowlist so each role controls which
-	//    vault entries it receives.
+	//    vault entries it receives. Always injected regardless of subscriptions.
 	for _, name := range roleSecrets {
 		injectIfAbsent(name, name)
 	}
+
+	roleWantsGitHub := roleRequestsGitHubToken(roleSecrets)
+	githubAuthorized := roleWantsGitHub || subscribedToPlatform(subscribedChannels, "github")
 
 	// 1.5. Connected-app credentials — descriptor Secret fields resolve from
 	//      the vault under app:<instance>:<key> into conventional env names
 	//      (SLACK_BOT_TOKEN, TELEGRAM_BOT_TOKEN_ALERTS, ...).
 	//
-	//      Special case: the GitHub app's "api_token" field (populated by the
-	//      device-flow "Sign in with GitHub" OAuth, or pasted manually) is
-	//      additionally aliased to GH_TOKEN/GITHUB_TOKEN so `gh` and git's
-	//      credential helper authenticate automatically — same convenience as
-	//      the GITHUB_PERSONAL_ACCESS_TOKEN vault alias below (step 3), just
-	//      sourced from a connected app instead of a hand-set vault secret.
-	//      Scoping matches every other connected-app credential here: any
-	//      enabled instance's token is available to all agents (the same
-	//      model as SLACK_BOT_TOKEN etc.) — there is no per-agent app
-	//      subscription in this codebase to scope against.
+	//      Only instances the agent is subscribed to are injected (#3686).
+	//      Role allowlist does not expand which instances are in scope here —
+	//      declare the vault names explicitly in roleSecrets if an agent needs
+	//      a token without a notification subscription.
+	//
+	//      Special case: the GitHub app's "api_token" field is additionally
+	//      aliased to GH_TOKEN/GITHUB_TOKEN when the agent is in scope for that
+	//      github instance, or when roleSecrets already requested those keys.
 	for name, ic := range apps {
 		if !ic.Enabled {
+			continue
+		}
+		if !subscribedToApp(subscribedChannels, name) {
 			continue
 		}
 		plugin, ok := app.Get(ic.App)
@@ -3598,33 +3636,181 @@ func injectVaultSecrets(env map[string]string, repoPath string, roleSecrets []st
 		}
 	}
 
-	// 2. Well-known integration tokens — convenience auto-export regardless of
-	//    role declaration so "connect once → agents have it" works out of the box.
+	// GitHub app GH_TOKEN alias when the agent is NOT subscribed to the github
+	// instance but roleSecrets requested a GitHub token — still allow the
+	// connected-app token to satisfy that allowlist (#3686). When multiple
+	// enabled github instances are unsubscribed, require an instance-specific
+	// role secret (app:<instance>:api_token) or skip — map iteration must not
+	// pick a token nondeterministically.
+	if roleWantsGitHub {
+		if instance := authorizedGitHubInstance(apps, roleSecrets, subscribedChannels); instance != "" {
+			injectIfAbsent("GITHUB_TOKEN", app.SecretName(instance, "api_token"))
+			injectIfAbsent("GH_TOKEN", app.SecretName(instance, "api_token"))
+		}
+	}
+
+	// 2. Well-known integration tokens — auto-export when the agent is
+	//    subscribed to that platform so "connect once → subscribed agents have
+	//    it" works without spraying credentials at every session.
 	for _, name := range wellKnownVaultTokens {
+		platform := wellKnownTokenPlatform[name]
+		if platform == "" || !subscribedToPlatform(subscribedChannels, platform) {
+			continue
+		}
 		injectIfAbsent(name, name)
 	}
 
 	// 3. GitHub PAT aliases: vault GITHUB_PERSONAL_ACCESS_TOKEN or GITHUB_TOKEN
 	//    is exported as both GITHUB_TOKEN and GH_TOKEN so git/gh commands work.
-	for _, src := range []string{"GITHUB_PERSONAL_ACCESS_TOKEN", "GITHUB_TOKEN"} {
-		val, e := ls.GetValue(src)
-		if e != nil || val == "" {
-			continue
+	//    Only when authorized via github subscription or explicit role/template
+	//    allowlist — never spray a global PAT into every agent session.
+	if githubAuthorized {
+		for _, src := range []string{"GITHUB_PERSONAL_ACCESS_TOKEN", "GITHUB_TOKEN"} {
+			val, e := ls.GetValue(src)
+			if e != nil || val == "" {
+				continue
+			}
+			if _, exists := env["GITHUB_TOKEN"]; !exists {
+				env["GITHUB_TOKEN"] = val
+				injected = append(injected, "GITHUB_TOKEN")
+				log.Debug("injected vault secret into agent env", "key", "GITHUB_TOKEN")
+			}
+			if _, exists := env["GH_TOKEN"]; !exists {
+				env["GH_TOKEN"] = val
+				injected = append(injected, "GH_TOKEN")
+				log.Debug("injected vault secret into agent env", "key", "GH_TOKEN")
+			}
+			break // first source wins; don't double-process
 		}
-		if _, exists := env["GITHUB_TOKEN"]; !exists {
-			env["GITHUB_TOKEN"] = val
-			injected = append(injected, "GITHUB_TOKEN")
-			log.Debug("injected vault secret into agent env", "key", "GITHUB_TOKEN")
-		}
-		if _, exists := env["GH_TOKEN"]; !exists {
-			env["GH_TOKEN"] = val
-			injected = append(injected, "GH_TOKEN")
-			log.Debug("injected vault secret into agent env", "key", "GH_TOKEN")
-		}
-		break // first source wins; don't double-process
 	}
 
 	return injected
+}
+
+// agentSubscribedChannels returns unmute notification channel keys for agent,
+// or nil when the channel lister is unset / errors. Used to scope vault
+// injection without coupling injectVaultSecrets to Manager (#3686).
+func (m *Manager) agentSubscribedChannels(ctx context.Context, agentName string) []string {
+	lister := m.channelLister
+	if lister == nil {
+		return nil
+	}
+	chs, err := lister.ChannelsForAgent(ctx, agentName)
+	if err != nil {
+		log.Warn("vault injection: list subscriptions failed", "agent", agentName, "error", err)
+		return nil
+	}
+	return chs
+}
+
+// channelInstancePrefix returns the app-instance prefix of a notify channel key
+// ("slack:general" → "slack", "telegram:alerts:foo" → "telegram:alerts",
+// "slack:*" → "slack"). Empty when the key has no ":" separator.
+func channelInstancePrefix(channel string) string {
+	i := strings.LastIndexByte(channel, ':')
+	if i <= 0 {
+		return ""
+	}
+	return channel[:i]
+}
+
+// subscribedToApp reports whether any subscription belongs to the given app
+// instance name. Catch-all keys like "slack:*" match instance "slack";
+// "telegram:alerts:ops" matches instance "telegram:alerts".
+func subscribedToApp(channels []string, instance string) bool {
+	if instance == "" {
+		return false
+	}
+	for _, ch := range channels {
+		if channelInstancePrefix(ch) == instance {
+			return true
+		}
+	}
+	return false
+}
+
+// subscribedToPlatform reports whether any subscription is for the given
+// platform id, including labeled instances ("telegram:alerts:…" matches
+// platform "telegram").
+func subscribedToPlatform(channels []string, platform string) bool {
+	if platform == "" {
+		return false
+	}
+	prefix := platform + ":"
+	for _, ch := range channels {
+		if strings.HasPrefix(ch, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// roleRequestsGitHubToken reports whether the role/template allowlist asked
+// for a GitHub credential. That authorizes connected-github GH_TOKEN aliasing
+// and vault PAT aliases without a github channel subscription.
+func roleRequestsGitHubToken(roleSecrets []string) bool {
+	for _, n := range roleSecrets {
+		switch n {
+		case "GITHUB_TOKEN", "GH_TOKEN", "GITHUB_PERSONAL_ACCESS_TOKEN":
+			return true
+		}
+		if isGitHubAppAPITokenSecret(n) {
+			return true
+		}
+	}
+	return false
+}
+
+// isGitHubAppAPITokenSecret reports whether name is a connected GitHub app
+// api_token vault key (app:github:api_token or app:github:<label>:api_token).
+func isGitHubAppAPITokenSecret(name string) bool {
+	if !strings.HasPrefix(name, "app:") || !strings.HasSuffix(name, ":api_token") {
+		return false
+	}
+	inst := strings.TrimSuffix(strings.TrimPrefix(name, "app:"), ":api_token")
+	return inst == "github" || strings.HasPrefix(inst, "github:")
+}
+
+// authorizedGitHubInstance picks which enabled, unsubscribed github app
+// instance may satisfy a role-authorized GH_TOKEN alias. Returns "" when
+// none apply or when multiple enabled instances would make the choice
+// ambiguous without an instance-specific role secret.
+func authorizedGitHubInstance(apps map[string]app.InstanceConfig, roleSecrets []string, subscribedChannels []string) string {
+	var candidates []string
+	for name, ic := range apps {
+		if !ic.Enabled || ic.App != "github" {
+			continue
+		}
+		if subscribedToApp(subscribedChannels, name) {
+			continue // already handled via subscription path
+		}
+		candidates = append(candidates, name)
+	}
+	if len(candidates) == 0 {
+		return ""
+	}
+
+	// Prefer instances the allowlist named explicitly via app:<instance>:api_token.
+	var named []string
+	for _, name := range candidates {
+		want := app.SecretName(name, "api_token")
+		for _, rs := range roleSecrets {
+			if rs == want {
+				named = append(named, name)
+				break
+			}
+		}
+	}
+	if len(named) == 1 {
+		return named[0]
+	}
+	if len(named) > 1 {
+		return "" // still ambiguous among explicitly named instances
+	}
+	if len(candidates) == 1 {
+		return candidates[0]
+	}
+	return "" // multiple enabled instances, no instance-specific allowlist entry
 }
 
 // resolveRoleSecrets returns the Secrets list for a named role via BFS
