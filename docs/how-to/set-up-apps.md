@@ -164,6 +164,23 @@ If an adapter shows disconnected:
 3. Check the delivery log in the web UI for failed deliveries.
 4. If using `--mention-only`, ensure the sender is using the correct @mention format (`@agent-name`).
 
+### Slack Socket Mode flapping / silent inbound death
+
+Slack delivers Events API messages to **only one** Socket Mode connection per app token. If a second mycel process starts with the same `SLACK_APP_TOKEN` (common when a dogfood daemon and a test daemon under another `MYCEL_HOME` both inherit workspace Slack env), the primary daemon flaps `connecting` → connection error and stops receiving channel messages.
+
+Symptoms in the daemon log:
+
+- `slack: Socket Mode connection error` with a real `error=` payload (not just the bare phrase)
+- `slack: Socket Mode flapping — another client may be using the same SLACK_APP_TOKEN…`
+
+mycel also refuses to start a second **local** Slack adapter that shares the same app token (exclusive lock under the per-user cache dir, outside `MYCEL_HOME`).
+
+Fix:
+
+1. Stop extra daemons that inherited Slack credentials (`mycel down` in the other home, or kill the leftover process).
+2. For secondary/test environments, unset `SLACK_APP_TOKEN` and `SLACK_BOT_TOKEN` (or use a separate Slack app).
+3. Restart the primary daemon: `mycel down && mycel up`.
+
 ### Self-skip filtering
 
 Agents do not receive notifications they themselves sent. If an agent posts a message to Slack via the Slack API, that message is filtered out when it echoes back through the app. This is expected behavior.

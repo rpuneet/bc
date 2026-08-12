@@ -21,27 +21,38 @@ import (
 	"github.com/rpuneet/mycel/pkg/log"
 )
 
+// Flap detection: repeated Socket Mode connection errors often mean another
+// process is competing for the same SLACK_APP_TOKEN (Slack delivers Events API
+// payloads to only one Socket Mode connection).
+const (
+	socketFlapWindow    = 2 * time.Minute
+	socketFlapThreshold = 3
+)
+
 // Adapter implements gateway.NotificationAdapter for Slack using Socket Mode.
 // It also supports outbound messaging via Send and SendFile methods.
 type Adapter struct {
-	lastMessageAt  time.Time
-	api            *slack.Client
-	sm             *socketmode.Client
-	handler        func(gateway.Notification)
-	channelMap     map[string]string
-	userCache      map[string]slackUser
-	botUserID      string
-	botID          string
-	appToken       string
-	botToken       string
-	botName        string
-	lastError      string
-	messageCount   atomic.Int64
-	chatMu         sync.RWMutex
-	scopeWarnOnce  sync.Once
-	customizeScope atomic.Bool
-	scopesSeen     atomic.Bool
-	connected      bool
+	lastMessageAt   time.Time
+	flapWindowStart time.Time
+	api             *slack.Client
+	sm              *socketmode.Client
+	handler         func(gateway.Notification)
+	channelMap      map[string]string
+	userCache       map[string]slackUser
+	botUserID       string
+	botID           string
+	appToken        string
+	botToken        string
+	botName         string
+	lastError       string
+	messageCount    atomic.Int64
+	chatMu          sync.RWMutex
+	scopeWarnOnce   sync.Once
+	customizeScope  atomic.Bool
+	scopesSeen      atomic.Bool
+	flapErrors      int
+	connected       bool
+	flapWarned      bool
 }
 
 var _ gateway.NotificationAdapter = (*Adapter)(nil)
@@ -72,6 +83,14 @@ func (a *Adapter) Type() gateway.AdapterType { return gateway.AdapterSocket }
 // Start connects to Slack Socket Mode and forwards events as Notifications.
 func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification)) error {
 	a.handler = handler
+
+	// Refuse a second local mycel that inherited the same app token (e.g. a
+	// test daemon under a different MYCEL_HOME). Release when Start returns.
+	releaseLock, err := acquireAppTokenLock(a.appToken)
+	if err != nil {
+		return err
+	}
+	defer releaseLock()
 
 	api := slack.New(
 		a.botToken,
@@ -322,12 +341,22 @@ func (a *Adapter) processEvent(sm *socketmode.Client, evt socketmode.Event) {
 		log.Info("slack: connecting via Socket Mode...")
 
 	case socketmode.EventTypeConnected:
+		a.chatMu.Lock()
+		a.connected = true
+		a.lastError = ""
+		a.chatMu.Unlock()
 		log.Info("slack: Socket Mode connected")
 
 	case socketmode.EventTypeConnectionError:
-		log.Warn("slack: Socket Mode connection error")
+		a.handleConnectionError(evt.Data)
 
 	case socketmode.EventTypeHello:
+		a.chatMu.Lock()
+		a.connected = true
+		a.lastError = ""
+		a.flapErrors = 0
+		a.flapWarned = false
+		a.chatMu.Unlock()
 		log.Info("slack: Socket Mode hello received")
 
 	default:
@@ -335,6 +364,75 @@ func (a *Adapter) processEvent(sm *socketmode.Client, evt socketmode.Event) {
 		if evt.Request != nil {
 			sm.Ack(*evt.Request) //nolint:errcheck // best-effort ack
 		}
+	}
+}
+
+// handleConnectionError logs the underlying Socket Mode failure (evt.Data)
+// and WARNs when repeated errors look like a competing client.
+func (a *Adapter) handleConnectionError(data any) {
+	errMsg, attrs := socketConnectionErrorAttrs(data)
+	log.Warn("slack: Socket Mode connection error", attrs...)
+
+	a.chatMu.Lock()
+	a.connected = false
+	a.lastError = errMsg
+	warnFlap := a.noteConnectionErrorLocked(time.Now())
+	a.chatMu.Unlock()
+
+	if warnFlap {
+		log.Warn("slack: Socket Mode flapping — another client may be using the same SLACK_APP_TOKEN; " +
+			"only one Socket Mode connection receives Events API messages. " +
+			"Stop extra mycel daemons/test processes that inherited Slack credentials, then restart this daemon")
+	}
+}
+
+// noteConnectionErrorLocked records a connection error for flap detection.
+// Caller must hold chatMu. Returns true once when the flap threshold is crossed.
+func (a *Adapter) noteConnectionErrorLocked(now time.Time) bool {
+	if a.flapWindowStart.IsZero() || now.Sub(a.flapWindowStart) > socketFlapWindow {
+		a.flapWindowStart = now
+		a.flapErrors = 0
+	}
+	a.flapErrors++
+	if a.flapWarned || a.flapErrors < socketFlapThreshold {
+		return false
+	}
+	a.flapWarned = true
+	return true
+}
+
+// socketConnectionErrorAttrs extracts log attributes from Socket Mode
+// connection-error evt.Data. Prefer *slack.ConnectionErrorEvent fields.
+func socketConnectionErrorAttrs(data any) (errMsg string, attrs []any) {
+	switch v := data.(type) {
+	case *slack.ConnectionErrorEvent:
+		if v == nil {
+			return "unknown connection error", []any{"error", "unknown connection error"}
+		}
+		errMsg = "unknown connection error"
+		if v.ErrorObj != nil {
+			errMsg = v.ErrorObj.Error()
+		}
+		return errMsg, []any{
+			"error", errMsg,
+			"attempt", v.Attempt,
+			"backoff", v.Backoff.String(),
+		}
+	case error:
+		if v == nil {
+			return "unknown connection error", []any{"error", "unknown connection error"}
+		}
+		return v.Error(), []any{"error", v.Error()}
+	case string:
+		if v == "" {
+			return "unknown connection error", []any{"error", "unknown connection error"}
+		}
+		return v, []any{"error", v}
+	case nil:
+		return "unknown connection error", []any{"error", "unknown connection error"}
+	default:
+		msg := fmt.Sprintf("%v", v)
+		return msg, []any{"error", msg, "data_type", fmt.Sprintf("%T", v)}
 	}
 }
 
