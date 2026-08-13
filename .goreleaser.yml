@@ -97,6 +97,8 @@ snapshot:
 changelog:
   sort: asc
   use: github
+  # Previous tag is pinned by the Release workflow via GORELEASER_PREVIOUS_TAG
+  # (scripts/previous-semver-tag.sh) so QA/evidence tags never shrink notes (#3712).
   filters:
     exclude:
       - '^docs:'
