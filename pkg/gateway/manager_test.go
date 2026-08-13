@@ -538,6 +538,48 @@ func TestStopAdapterAllowsRestart(t *testing.T) {
 	}
 }
 
+// TestStopAdapterCancelsBlockingStart is the #3707 coverage: StopAdapter must
+// return within a deadline even when Start is parked in a Socket Mode-style
+// select (ctx.Done / Stop), not only for mocks whose Start returns immediately.
+func TestStopAdapterCancelsBlockingStart(t *testing.T) {
+	m := NewManager()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m.SetStartContext(ctx)
+
+	go func() { _ = m.Start(ctx) }()
+	time.Sleep(20 * time.Millisecond)
+
+	started := make(chan struct{})
+	a := &blockingAdapter{
+		mockNotifAdapter: mockNotifAdapter{name: "slack"},
+		started:          started,
+		stop:             make(chan struct{}),
+	}
+	if err := m.StartAdapter(a); err != nil {
+		t.Fatalf("StartAdapter: %v", err)
+	}
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("adapter Start was not invoked")
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- m.StopAdapter("slack") }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("StopAdapter: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("StopAdapter did not return while Start was blocked")
+	}
+	if m.GetAdapter("slack") != nil {
+		t.Fatal("expected adapter removed after StopAdapter")
+	}
+}
+
 // mockSendingAdapter is a mockNotifAdapter that also implements messageSender,
 // recording what it was asked to send and optionally failing.
 type mockSendingAdapter struct {
