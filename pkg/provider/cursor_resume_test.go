@@ -8,10 +8,10 @@ import (
 
 func TestCursorBuildCommandResume(t *testing.T) {
 	p := NewCursorProvider()
-	tests := []struct {
+	tests := []struct { //nolint:govet // test table; field order matches literals
 		name string
-		opts CommandOpts
 		want string
+		opts CommandOpts
 	}{
 		{
 			name: "fresh start",
