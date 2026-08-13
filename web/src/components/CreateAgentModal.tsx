@@ -120,8 +120,8 @@ export function CreateAgentModal({
   // ${secret:NAME} references resolved from the vault at spawn.
   const [envOpen, setEnvOpen] = useState(false);
   const [envRows, setEnvRows] = useState<EnvRow[]>([]);
-  // Apps — connected app channels this agent should listen to. The
-  // subscriptions are wired after the agent is created.
+  // Notifications — connected app channels this agent should listen to.
+  // Subscriptions are wired after the agent is created.
   const [appsOpen, setAppsOpen] = useState(false);
   const [appChannels, setAppChannels] = useState<Set<string>>(new Set());
   const [cloneFrom, setCloneFrom] = useState("");
@@ -1219,8 +1219,8 @@ export function CreateAgentModal({
                 {envOpen && <EnvVarsEditor rows={envRows} onChange={setEnvRows} />}
               </div>
 
-              {/* Apps — collapsible picker of connected app channels this
-                  agent should subscribe to. Wired after create succeeds. */}
+              {/* Notifications — collapsible picker of connected app channels
+                  this agent should subscribe to. Wired after create succeeds. */}
               <div className="flex flex-col gap-1.5" data-testid="create-agent-apps-section">
                 <button
                   type="button"
@@ -1238,7 +1238,7 @@ export function CreateAgentModal({
                   >
                     <path d="M2 0l4 4-4 4z" />
                   </svg>
-                  Apps{" "}
+                  Notifications{" "}
                   <span className="normal-case font-normal">
                     (optional{appChannels.size > 0 ? ` · ${appChannels.size} channel${appChannels.size === 1 ? "" : "s"}` : ""})
                   </span>

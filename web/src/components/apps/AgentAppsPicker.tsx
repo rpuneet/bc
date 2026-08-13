@@ -1,10 +1,11 @@
 /**
- * AgentAppsPicker — the "Apps" section of the New Agent flow.
+ * AgentAppsPicker — the Notifications section of the New Agent flow.
  *
  * Lists the connected app instances (platform icon + status dot, same
  * visual system as the drawer tree) with their discovered channels as
  * checkboxes. The caller collects the selected channel keys and wires
- * the subscriptions after the agent is created.
+ * the subscriptions after the agent is created. The top-level /apps
+ * page (connected platforms) stays named Apps.
  */
 
 import { useEffect, useState } from "react";
@@ -57,7 +58,7 @@ export function AgentAppsPicker({
   if (instances === null) {
     return (
       <div className="text-xs text-mycel-muted px-1 py-2" data-testid="agent-apps-picker">
-        Loading apps…
+        Loading notification channels…
       </div>
     );
   }
@@ -68,8 +69,8 @@ export function AgentAppsPicker({
         className="text-xs text-mycel-muted bg-mycel-bg border border-mycel-border rounded-md px-3 py-2"
         data-testid="agent-apps-picker"
       >
-        No apps connected yet — connect Slack, Telegram, WhatsApp and more on the Apps page,
-        then wire their channels to agents here.
+        No platforms connected yet — connect Slack, Telegram, WhatsApp and more on the Apps page,
+        then subscribe this agent to their channels here.
       </div>
     );
   }
