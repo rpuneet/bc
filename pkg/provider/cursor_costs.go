@@ -102,6 +102,28 @@ func cursorPricingFor(model string) ModelPricing {
 	return defaultCursorPricing
 }
 
+// LatestCursorSessionID returns the most recent non-empty session_id from
+// the agent's Cursor usage JSONL, or "" when none is available. Used on
+// stop/restart so mycel can pass --resume <id> after a Cursor session
+// (hooks write usage even when agent.session_id was never populated).
+func LatestCursorSessionID(agentsDir, agent string) string {
+	if agentsDir == "" || agent == "" {
+		return ""
+	}
+	path := filepath.Join(agentsDir, agent, CursorUsageRelDir, CursorUsageFile)
+	recs, err := readCursorUsageFile(path)
+	if err != nil || len(recs) == 0 {
+		return ""
+	}
+	for i := len(recs) - 1; i >= 0; i-- {
+		id := strings.TrimSpace(recs[i].SessionID)
+		if SafeSessionID(id) {
+			return id
+		}
+	}
+	return ""
+}
+
 // AppendCursorUsage writes one priced usage record for agent under
 // AgentsDir. Called from hook ingestion when a Stop payload carries
 // token counts. Empty AgentsDir or a record with no tokens is a no-op.

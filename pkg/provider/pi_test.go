@@ -114,13 +114,13 @@ func TestPiBuildCommand(t *testing.T) {
 			want: piSpawnBase + " --continue",
 		},
 		{
-			name: "model + session + resume — all three flags",
+			name: "model + session + resume — session wins over --continue",
 			opts: CommandOpts{
 				Model:     "groq/llama-3.3-70b-versatile",
 				SessionID: "abc123",
 				Resume:    true,
 			},
-			want: piSpawnBase + " --provider groq --model llama-3.3-70b-versatile --session abc123 --continue",
+			want: piSpawnBase + " --provider groq --model llama-3.3-70b-versatile --session abc123",
 		},
 		{
 			name: "model with dots in model id",

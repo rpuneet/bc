@@ -1626,17 +1626,10 @@ export function AgentDetail() {
           // ── center slot: identity + status ──
           title: (
             <div className="flex items-center gap-3 min-w-0">
-              {/* ── Identity ── */}
-              <Link
-                to={agentsUrl}
-                className="text-mycel-muted hover:text-mycel-text transition-colors shrink-0"
-                title="Back to agents"
-                aria-label="Back to agents"
-              >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 3l-4 4 4 4" />
-                </svg>
-              </Link>
+              {/* ── Identity ──
+                  Back/forward lives once in the header (HistoryNavButtons).
+                  Do not add a second chevron here — it duplicates the nav
+                  and sits awkwardly left of the avatar. */}
               <LiveAgentCharacter name={agent.name} state={agent.state} size={28} tool={agent.tool} />
               <span className="text-lg font-semibold text-mycel-text tracking-tight shrink-0">
                 {agent.name}

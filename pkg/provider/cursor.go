@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"regexp"
 )
 
 // CursorProvider implements the Provider interface for Cursor Agent.
@@ -64,16 +65,20 @@ func (p *CursorProvider) InstallHint() string {
 }
 
 // BuildCommand returns the full command for a given runtime context.
-// Supports --resume with session ID for session continuation, and
-// --model <m> for model selection. Both values are spliced into a shell
-// command line, so unsafe values are dropped.
+// Resume priority: SessionID (--resume <id>) > Resume flag (--continue).
+// cursor-agent accepts both; without either it starts a fresh chat.
+// Model and session values are spliced into a shell command line, so
+// unsafe values are dropped.
 func (p *CursorProvider) BuildCommand(opts CommandOpts) string {
 	cmd := p.command
 	if SafeModelName(opts.Model) {
 		cmd += " --model " + opts.Model
 	}
-	if SafeSessionID(opts.SessionID) {
+	switch {
+	case SafeSessionID(opts.SessionID):
 		cmd += " --resume " + opts.SessionID
+	case opts.Resume:
+		cmd += " --continue"
 	}
 	return cmd
 }
@@ -117,6 +122,32 @@ func (p *CursorProvider) Version(ctx context.Context) string {
 	return getBinaryVersion(ctx, p.binary, "--version")
 }
 
+// cursorResumePattern matches cursor-agent's resume hint in pane/log output.
+var cursorResumePattern = regexp.MustCompile(`(?:cursor-agent|agent)\s+--resume\s+([A-Za-z0-9._][A-Za-z0-9._-]*)`)
+
+// cursorSessionJSONPattern matches "session_id":"<id>" in hook/usage JSON lines.
+var cursorSessionJSONPattern = regexp.MustCompile(`"session_id"\s*:\s*"([A-Za-z0-9._][A-Za-z0-9._-]*)"`)
+
+// SupportsResume reports that Cursor Agent can resume a chat by ID or via --continue.
+func (p *CursorProvider) SupportsResume() bool { return true }
+
+// ParseSessionID extracts a Cursor chat/session ID from tool output or JSONL.
+func (p *CursorProvider) ParseSessionID(output string) string {
+	if m := cursorResumePattern.FindStringSubmatch(output); len(m) == 2 && SafeSessionID(m[1]) {
+		return m[1]
+	}
+	if m := cursorSessionJSONPattern.FindStringSubmatch(output); len(m) == 2 && SafeSessionID(m[1]) {
+		return m[1]
+	}
+	return ""
+}
+
+// HasResumableSession reports whether Cursor has a prior chat that --continue
+// can pick up. Cursor keys history by workspace; without a reliable on-disk
+// probe from the worktree alone we stay permissive (true) so restart still
+// attempts --continue. Prefer a stored SessionID when available.
+func (p *CursorProvider) HasResumableSession(_ string) bool { return true }
+
 // Ensure CursorProvider implements Provider interface.
 var _ Provider = (*CursorProvider)(nil)
 var _ ActivitySource = (*CursorProvider)(nil)
@@ -124,3 +155,5 @@ var _ ModelLister = (*CursorProvider)(nil)
 var _ MCPConfigReader = (*CursorProvider)(nil)
 var _ ContainerCustomizer = (*CursorProvider)(nil)
 var _ SessionCustomizer = (*CursorProvider)(nil)
+var _ SessionResumer = (*CursorProvider)(nil)
+var _ ResumableSessionDetector = (*CursorProvider)(nil)
