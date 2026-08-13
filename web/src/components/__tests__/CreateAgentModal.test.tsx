@@ -89,8 +89,8 @@ describe("CreateAgentModal identity", () => {
   });
 });
 
-describe("CreateAgentModal apps step", () => {
-  it("renders the Apps section with connected app channels", async () => {
+describe("CreateAgentModal notifications step", () => {
+  it("renders the Notifications section with connected app channels", async () => {
     fetchMock.mockImplementation((url: RequestInfo | URL) => {
       const u = String(url);
       if (u.includes("/api/repos")) return jsonResponse({ repos: [], default: "/tmp/repo" });
@@ -106,12 +106,12 @@ describe("CreateAgentModal apps step", () => {
     });
     renderModal();
 
-    // The collapsed Apps section is present in the create flow.
+    // The collapsed Notifications section is present in the create flow.
     const section = screen.getByTestId("create-agent-apps-section");
     expect(section).toBeInTheDocument();
 
     // Expanding it lists the connected app's channels as checkboxes.
-    fireEvent.click(within(section).getByRole("button", { name: /Apps/ }));
+    fireEvent.click(within(section).getByRole("button", { name: /Notifications/ }));
     await waitFor(() => {
       expect(screen.getByTestId("agent-apps-picker")).toBeInTheDocument();
     });
@@ -141,7 +141,7 @@ describe("CreateAgentModal apps step", () => {
     renderModal();
 
     const section = screen.getByTestId("create-agent-apps-section");
-    fireEvent.click(within(section).getByRole("button", { name: /Apps/ }));
+    fireEvent.click(within(section).getByRole("button", { name: /Notifications/ }));
     await waitFor(() => {
       expect(within(section).getByText("general")).toBeInTheDocument();
     });
