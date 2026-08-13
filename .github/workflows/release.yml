@@ -40,6 +40,7 @@ jobs:
     outputs:
       tag: ${{ steps.resolve.outputs.tag }}
       version: ${{ steps.resolve.outputs.version }}
+      previous_tag: ${{ steps.previous.outputs.previous_tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -67,6 +68,23 @@ jobs:
             git -c user.name=github-actions -c user.email=github-actions@github.com \
               tag -a "$RELEASE_VERSION" -m "$RELEASE_VERSION"
             git push origin "$RELEASE_VERSION"
+          fi
+
+      # Pin GoReleaser's changelog to the previous *semver* release. Without
+      # this, QA/evidence tags (qa-3624-*-evidence) become "previous" by date
+      # and the GitHub release notes collapse to a handful of commits (#3712).
+      - name: Resolve previous semver tag
+        id: previous
+        env:
+          RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
+        run: |
+          chmod +x scripts/previous-semver-tag.sh
+          PREV=$(./scripts/previous-semver-tag.sh --current "$RELEASE_VERSION" || true)
+          echo "previous_tag=$PREV" >> "$GITHUB_OUTPUT"
+          if [ -n "$PREV" ]; then
+            echo "GoReleaser changelog span: $PREV → $RELEASE_VERSION"
+          else
+            echo "No previous semver tag — GoReleaser will use its default span"
           fi
 
   # ── Linux + Windows release (GoReleaser) ────────────────────────────
@@ -116,6 +134,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          # Force changelog span to previous vX.Y.Z — see scripts/previous-semver-tag.sh (#3712).
+          GORELEASER_CURRENT_TAG: ${{ needs.prepare.outputs.tag }}
+          GORELEASER_PREVIOUS_TAG: ${{ needs.prepare.outputs.previous_tag }}
           # mycel's registered Google "Desktop app" OAuth client, baked in at
           # build time so Gmail "Sign in with Google" works zero-setup on
           # official release binaries. Empty when the repo secrets aren't
