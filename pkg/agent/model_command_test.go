@@ -68,6 +68,32 @@ func TestGetAgentCommandModel(t *testing.T) {
 	}
 }
 
+// TestGetAgentCommand_CursorResume is the #3713 regression: stop→start must
+// pass --continue (or --resume <id>) so Cursor does not open a fresh chat.
+func TestGetAgentCommand_CursorResume(t *testing.T) {
+	m := &Manager{providerRegistry: provider.DefaultRegistry}
+	const sid = "ec4fb8e4-e6ee-4bf5-9e36-17a8c3ea122f"
+
+	cmd, ok := m.getAgentCommand("cursor", "fast-crane", true, "", "")
+	if !ok {
+		t.Fatal("getAgentCommand(cursor) not ok")
+	}
+	if !strings.Contains(cmd, "--continue") {
+		t.Errorf("resume without id missing --continue: %q", cmd)
+	}
+
+	cmd, ok = m.getAgentCommand("cursor", "fast-crane", true, sid, "")
+	if !ok {
+		t.Fatal("getAgentCommand(cursor+id) not ok")
+	}
+	if !strings.Contains(cmd, "--resume "+sid) {
+		t.Errorf("resume with id missing --resume: %q", cmd)
+	}
+	if strings.Contains(cmd, "--continue") {
+		t.Errorf("explicit id must not also pass --continue: %q", cmd)
+	}
+}
+
 // TestGetAgentCommandModelWithOverride verifies the global command
 // override path still injects a generic --model flag (gated on
 // SafeModelName) via appendSessionFlags.

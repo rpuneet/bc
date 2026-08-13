@@ -131,6 +131,15 @@ func (s *AgentService) IngestHookEvent(ctx context.Context, name string, payload
 		}
 	}
 
+	// Persist provider session_id whenever hooks report one so stop→start /
+	// restart can --resume the same chat (#3713). Cursor puts this on every
+	// payload; Claude/agy may include it on SessionStart / Stop.
+	if payload.SessionID != "" {
+		if err := s.manager.SetAgentSessionID(ctx, name, payload.SessionID); err != nil {
+			log.Debug("hook session_id update skipped", "agent", name, "error", err)
+		}
+	}
+
 	// Cursor (and any future provider that puts tokens on Stop) reports
 	// usage on the turn-complete hook rather than in a session transcript.
 	// Persist it where CostReader looks, or Insights stays at $0 forever.

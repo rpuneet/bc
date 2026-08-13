@@ -485,6 +485,10 @@ func TestIngestHookEvent_StopPersistsCursorUsage(t *testing.T) {
 		t.Fatalf("IngestHookEvent: %v", err)
 	}
 
+	if got := mgr.agents["cursor-agent"].SessionID; got != "sess" {
+		t.Errorf("SessionID = %q, want sess (persisted for resume #3713)", got)
+	}
+
 	path := filepath.Join(mgr.agentsRoot(), "cursor-agent", "session", "cursor", "usage.jsonl")
 	raw, err := os.ReadFile(path) //nolint:gosec // test path under the temp agents root
 	if err != nil {

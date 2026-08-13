@@ -139,10 +139,12 @@ func (p *PiProvider) BuildCommand(opts CommandOpts) string {
 			cmd += " --model " + opts.Model
 		}
 	}
-	if SafeSessionID(opts.SessionID) {
+	// Resume priority: SessionID (--session <id>) > Resume flag (--continue).
+	// Passing both confuses pi into treating the restart as a new turn.
+	switch {
+	case SafeSessionID(opts.SessionID):
 		cmd += " --session " + opts.SessionID
-	}
-	if opts.Resume {
+	case opts.Resume:
 		cmd += " --continue"
 	}
 	return cmd

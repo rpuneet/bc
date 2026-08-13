@@ -1296,9 +1296,19 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		sessionID = opts.SessionID
 		existing.SessionID = sessionID
 	}
-	// Resume if a session ID exists (auto-continue previous session)
-	isRealSessionID := len(sessionID) == 36 && sessionID[8] == '-'
-	resume := isRealSessionID
+	// Cursor often never wrote session_id onto the agent row before #3713;
+	// recover it from usage.jsonl so --resume <id> still fires on restart.
+	if sessionID == "" {
+		if id := provider.LatestCursorSessionID(m.agentsRoot(), name); id != "" {
+			sessionID = id
+			existing.SessionID = id
+		}
+	}
+	// Resume when we have a provider-safe session id, or (below) when the
+	// worktree has a prior session for bare --continue / --resume.
+	// Cursor chat ids are UUIDs; Claude/agy use the same shape. Non-UUID
+	// ids that still pass SafeSessionID (e.g. pi) also count.
+	resume := provider.SafeSessionID(sessionID)
 
 	// Check if existing worktree can be reused for resume (tmux only).
 	// Existing agents keep working from their stored WorktreeDir (which
@@ -1913,6 +1923,13 @@ func (m *Manager) captureSessionIDForAgent(ctx context.Context, ag *Agent, rt ru
 	// where the UUID IS the session ID.
 	if id := findSessionIDFromTranscripts(m.agentsRoot(), ag.Name); id != "" {
 		log.Debug("captured session ID from JSONL transcript", "agent", ag.Name, "session_id", id)
+		return id
+	}
+
+	// Cursor: usage.jsonl is written on every Stop hook and carries session_id
+	// even when the agent row never stored one (#3713).
+	if id := provider.LatestCursorSessionID(m.agentsRoot(), ag.Name); id != "" {
+		log.Debug("captured session ID from cursor usage", "agent", ag.Name, "session_id", id)
 		return id
 	}
 
@@ -2751,6 +2768,30 @@ func (m *Manager) UpdateAgentState(ctx context.Context, name string, state State
 	if changed {
 		m.notifyStateChange(name, state, task)
 	}
+	return nil
+}
+
+// SetAgentSessionID records the provider session id for later resume
+// (stop→start / restart). No-op when the id is unchanged or unsafe.
+func (m *Manager) SetAgentSessionID(ctx context.Context, name, sessionID string) error {
+	if !provider.SafeSessionID(sessionID) {
+		return nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	agent, exists := m.agents[name]
+	if !exists {
+		return fmt.Errorf("agent %s: %w", name, ErrNotFound)
+	}
+	if agent.SessionID == sessionID {
+		return nil
+	}
+	agent.SessionID = sessionID
+	agent.UpdatedAt = time.Now()
+	if err := m.saveState(ctx); err != nil {
+		log.Warn("failed to save agent session_id", "error", err)
+	}
+	writeSessionIDFile(m.agentsRoot(), name, sessionID)
 	return nil
 }
 
