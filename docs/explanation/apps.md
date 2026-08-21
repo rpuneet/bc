@@ -130,12 +130,19 @@ clients permit.
 
 Gmail wires this flow (`pkg/gateway/gmail`) with the `gmail.readonly` +
 `gmail.send` scopes and `access_type=offline` + `prompt=consent` so Google
-always returns a refresh token. The server-side Google client is read from
-`GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET`. When they are unset,
-the plugin's optional `OAuthConfigured` capability reports `false`, so
-`oauth_available` is `false` and the connect UI shows the honest
-client-id/secret/refresh-token paste fallback instead of a button that would
-fail.
+always returns a refresh token. The connect UI **always** offers both
+**Sign in with Gmail** (browser link) and **Advanced** manual paste.
+
+Zero-paste Sign in uses the server Google client from
+`GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` (or release
+ldflags). When those are unset, paste Client ID + Client Secret under
+Advanced and click Sign in anyway — same loopback link, bring-your-own
+client — or paste a Refresh Token for the fully manual path. Gmail does
+**not** implement `OAuthConfigured`; hiding Sign in when the server
+client was missing is what made the link option disappear.
+
+Other OAuth plugins may still implement `OAuthConfigured` when a button
+would always fail with no user-supplied alternative:
 
 ```go
 // OAuthConfigured is an optional capability an OAuthFlow plugin implements to
@@ -161,7 +168,7 @@ type OAuthConfigured interface {
 4. Export the client on the machine running the daemon:
    `GOOGLE_OAUTH_CLIENT_ID=<id>.apps.googleusercontent.com` and
    `GOOGLE_OAUTH_CLIENT_SECRET=GOCSPX-…`, then restart `mycel up`. Gmail's
-   connect modal now shows one-click **Sign in with Gmail**.
+   connect modal **Sign in with Gmail** works with zero pasting.
 
 Slack-type apps that need a fixed HTTPS redirect stay on token paste; real
 Slack OAuth is deferred to a future hosted-redirect ("mycel cloud").

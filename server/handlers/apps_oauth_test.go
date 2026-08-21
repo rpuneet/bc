@@ -187,26 +187,45 @@ func TestAppsOAuthBeginPollPersist(t *testing.T) {
 }
 
 func TestAppsOAuthBeginValidatesConfig(t *testing.T) {
-	h, _ := newAppsTestHandler(t)
-
-	tests := []struct {
-		name string
-		body string
-	}{
-		{"secret field in config", `{"config":{"api_token":"x","oauth_client_id":"id"}}`},
-		{"unknown field", `{"config":{"bogus":"x"}}`},
-		{"begin error surfaces (missing client id)", `{}`},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, "/api/apps/fakeoauth/auth", strings.NewReader(tt.body))
-			rr := httptest.NewRecorder()
-			h.auth(rr, req, "fakeoauth")
-			if rr.Code != http.StatusBadRequest {
-				t.Errorf("status = %d, want 400; body = %s", rr.Code, rr.Body.String())
-			}
-		})
-	}
+	t.Run("secret field vaulted on begin", func(t *testing.T) {
+		// Gmail-style bring-your-own client: secret fields (client_id /
+		// client_secret) may ride on begin so Sign in can mint a token.
+		h, _ := newAppsTestHandler(t)
+		body := `{"config":{"api_token":"preseed","oauth_client_id":"id"}}`
+		req := httptest.NewRequest(http.MethodPost, "/api/apps/fakeoauth/auth", strings.NewReader(body))
+		rr := httptest.NewRecorder()
+		h.auth(rr, req, "fakeoauth")
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body = %s", rr.Code, rr.Body.String())
+		}
+		if got, err := h.vault.GetValue("app:fakeoauth:api_token"); err != nil || got != "preseed" {
+			t.Errorf("vault api_token = %q (err %v), want preseed", got, err)
+		}
+		if ic := h.h.Config.Apps["fakeoauth"]; ic.Config["oauth_client_id"] != "id" {
+			t.Errorf("plain config = %+v, want oauth_client_id=id", ic.Config)
+		}
+		if ic := h.h.Config.Apps["fakeoauth"]; ic.Config["api_token"] != "" {
+			t.Errorf("secret leaked into plain config: %+v", ic.Config)
+		}
+	})
+	t.Run("unknown field", func(t *testing.T) {
+		h, _ := newAppsTestHandler(t)
+		req := httptest.NewRequest(http.MethodPost, "/api/apps/fakeoauth/auth", strings.NewReader(`{"config":{"bogus":"x"}}`))
+		rr := httptest.NewRecorder()
+		h.auth(rr, req, "fakeoauth")
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("status = %d, want 400; body = %s", rr.Code, rr.Body.String())
+		}
+	})
+	t.Run("begin error surfaces (missing client id)", func(t *testing.T) {
+		h, _ := newAppsTestHandler(t)
+		req := httptest.NewRequest(http.MethodPost, "/api/apps/fakeoauth/auth", strings.NewReader(`{}`))
+		rr := httptest.NewRecorder()
+		h.auth(rr, req, "fakeoauth")
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("status = %d, want 400; body = %s", rr.Code, rr.Body.String())
+		}
+	})
 }
 
 func TestAppsOAuthStatusRequiresSessionParam(t *testing.T) {

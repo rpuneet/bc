@@ -750,9 +750,11 @@ export function ConnectWizard({
   };
 
   /** Begin the browser sign-in (OAuth). Plain fields already typed into
-   *  the form (e.g. the OAuth client ID) ride along and persist with the
-   *  instance; the server drives the flow and stores the credentials, so
-   *  on "complete" we advance straight to the agents step. */
+   *  the form (e.g. GitHub oauth_client_id) ride along and persist with the
+   *  instance. For Gmail, Client ID + Client Secret from Advanced are also
+   *  sent so bring-your-own-client Sign in can mint a refresh token via the
+   *  same login link. The server stores vault secrets; on "complete" we
+   *  advance straight to the agents step. */
   const startOAuth = async () => {
     if (!descriptor) return;
     setOauthState("starting");
@@ -760,9 +762,12 @@ export function ConnectWizard({
     try {
       const config: Record<string, string> = {};
       for (const field of descriptor.fields) {
-        if (field.secret) continue;
         const val = (values[field.key] ?? "").trim();
-        if (val !== "") config[field.key] = val;
+        if (val === "") continue;
+        // Skip refresh_token on begin — Sign in is meant to mint it. Other
+        // secrets (client_id / client_secret) are needed for BYO OAuth.
+        if (field.secret && field.key === "refresh_token") continue;
+        config[field.key] = val;
       }
       const session = await api.beginAppOAuth(instanceName, config);
       setOauthSession(session);

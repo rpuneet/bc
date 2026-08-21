@@ -10,19 +10,19 @@ import (
 	"github.com/rpuneet/mycel/pkg/oauth"
 )
 
-// plugin implements app.Plugin for Gmail, plus app.OAuthFlow: one-click
-// "Connect with Google" runs a local loopback OAuth flow that mints the
-// refresh token. When the server-side Google client isn't configured the
-// flow reports unavailable (OAuthConfigured) and the UI falls back to the
-// manual client-id/secret/refresh-token paste below.
+// plugin implements app.Plugin for Gmail, plus app.OAuthFlow: "Sign in with
+// Gmail" runs a local loopback OAuth flow that mints the refresh token.
+// The connect UI always offers both paths — browser sign-in and Advanced
+// manual paste of client id / secret / refresh token. One-click uses the
+// server Google client (env or release ldflags) when present; otherwise
+// BeginAuth uses client_id / client_secret the user entered in Advanced.
 type plugin struct {
 	oauth *oauth.LoopbackFlow
 }
 
 var (
-	_ app.Plugin          = (*plugin)(nil)
-	_ app.OAuthFlow       = (*plugin)(nil)
-	_ app.OAuthConfigured = (*plugin)(nil)
+	_ app.Plugin    = (*plugin)(nil)
+	_ app.OAuthFlow = (*plugin)(nil)
 )
 
 func init() {
@@ -43,12 +43,12 @@ func (*plugin) Describe() app.Descriptor {
 			{Key: "interval", Label: "Poll Interval (seconds)", Placeholder: "60"},
 		},
 		Docs: []string{
-			"Fastest path: if this server has a Google OAuth client configured, click \"Sign in with Gmail\" above — mycel opens Google in your browser and stores the token locally, no pasting.",
-			"Manual path (no server client): create OAuth credentials in Google Cloud Console → APIs & Services → Credentials.",
+			"Fastest path: click \"Sign in with Gmail\" — mycel opens Google in your browser and stores the token locally. Official releases (and servers with GOOGLE_OAUTH_CLIENT_ID/SECRET set) need no pasting.",
+			"Bring-your-own client: paste OAuth Client ID + Client Secret under Advanced, then click \"Sign in with Gmail\" — same browser link flow, using your Google Cloud Desktop-app credentials.",
+			"Fully manual: create OAuth credentials in Google Cloud Console → APIs & Services → Credentials, then paste Client ID, Client Secret, and a Refresh Token under Advanced (no browser step).",
 			"Enable the Gmail API for the project, then create an OAuth 2.0 Client ID (type: Desktop app).",
 			"Grant the scopes https://www.googleapis.com/auth/gmail.readonly and https://www.googleapis.com/auth/gmail.send on the consent screen.",
-			"Run the OAuth consent flow once (e.g. via the OAuth Playground with your own client) to obtain a refresh token for offline access.",
-			"Paste the Client ID, Client Secret, and Refresh Token here. mycel builds an offline token source and refreshes access tokens automatically.",
+			"For the fully manual path, run the OAuth consent flow once (e.g. via the OAuth Playground with your own client) to obtain a refresh token for offline access.",
 			"Optionally set a label (default INBOX), a Gmail search query (default is:unread), and a poll interval in seconds (default 60).",
 		},
 	}
@@ -63,12 +63,6 @@ func (p *plugin) BeginAuth(ctx context.Context, inst app.Instance) (app.AuthSess
 // credentials + refresh token for the server to persist to the vault.
 func (p *plugin) PollAuth(ctx context.Context, session app.AuthSession) (app.AuthResult, error) {
 	return p.oauth.PollAuth(ctx, session)
-}
-
-// OAuthConfigured reports whether one-click Google sign-in is available on
-// this server (the GOOGLE_OAUTH_CLIENT_ID/SECRET client is set).
-func (*plugin) OAuthConfigured() bool {
-	return googleConfigured()
 }
 
 func (*plugin) Build(inst app.Instance, _ app.Env) (gateway.NotificationAdapter, error) {

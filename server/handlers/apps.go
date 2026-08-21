@@ -643,9 +643,11 @@ type authSessionJSON struct { //nolint:govet // field order matches JSON/API con
 }
 
 // beginOAuth handles POST /api/apps/{name}/auth for OAuth-capable
-// plugins. The optional request body {"config": {...}} carries plain
-// descriptor fields (e.g. oauth_client_id) which are persisted with the
-// instance — auth-first flows create the instance just like pair-first.
+// plugins. The optional request body {"config": {...}} carries descriptor
+// fields which are persisted with the instance — plain fields in
+// preferences, secret fields (e.g. Gmail client_id/client_secret for
+// bring-your-own Sign in) in the vault. Auth-first flows create the
+// instance just like pair-first.
 func (h *AppsHandler) beginOAuth(w http.ResponseWriter, r *http.Request, name string, plugin app.Plugin, flow app.OAuthFlow) {
 	if h.h == nil || h.h.Config == nil {
 		serviceUnavailable(w, r, "workspace", "workspace not available")
@@ -667,8 +669,15 @@ func (h *AppsHandler) beginOAuth(w http.ResponseWriter, r *http.Request, name st
 		}
 	}
 
-	// Merge submitted plain fields over the stored config and persist the
-	// instance, preserving an existing enabled state.
+	fields := make(map[string]app.FieldSpec, len(d.Fields))
+	for _, f := range d.Fields {
+		fields[f.Key] = f
+	}
+
+	// Merge submitted fields over the stored config and persist the
+	// instance, preserving an existing enabled state. Secret fields
+	// (e.g. Gmail client_id/client_secret for bring-your-own Sign in)
+	// go to the vault; plain fields stay in preferences.
 	h.h.ConfigMu.Lock()
 	cfg := h.h.Config
 	existing, exists := cfg.Apps[name]
@@ -676,7 +685,18 @@ func (h *AppsHandler) beginOAuth(w http.ResponseWriter, r *http.Request, name st
 	for k, v := range existing.Config {
 		plain[k] = v
 	}
+	secretVals := make(map[string]string)
 	for k, v := range req.Config {
+		f, known := fields[k]
+		if !known {
+			h.h.ConfigMu.Unlock()
+			httpError(w, "unknown field \""+k+"\" for app "+d.ID, http.StatusBadRequest)
+			return
+		}
+		if f.Secret {
+			secretVals[k] = v
+			continue
+		}
 		if v == "" {
 			delete(plain, k)
 			continue
@@ -690,6 +710,23 @@ func (h *AppsHandler) beginOAuth(w http.ResponseWriter, r *http.Request, name st
 		h.h.ConfigMu.Unlock()
 		httpError(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+	if len(secretVals) > 0 && h.vault == nil {
+		h.h.ConfigMu.Unlock()
+		serviceUnavailable(w, r, "secrets", "secrets vault not available")
+		return
+	}
+	for k, v := range secretVals {
+		vaultKey := app.SecretName(name, k)
+		if v == "" {
+			_ = h.vault.Delete(vaultKey) //nolint:errcheck // absent key is fine
+			continue
+		}
+		if err := h.vault.Set(vaultKey, v, "app credential"); err != nil {
+			h.h.ConfigMu.Unlock()
+			httpInternalError(w, "store secret", err)
+			return
+		}
 	}
 	enabled := true
 	if exists {

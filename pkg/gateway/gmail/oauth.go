@@ -14,11 +14,12 @@ import (
 )
 
 // Server-side Google "Desktop app" OAuth client. These are the
-// mycel-registered client credentials that make one-click "Connect with
-// Google" work; when neither source below is set, the connect UI falls back
-// to the manual client-id/secret/refresh-token paste.
+// mycel-registered client credentials that make zero-paste "Sign in with
+// Gmail" work. When neither source below is set, the connect UI still
+// offers Sign in — fill Client ID + Secret under Advanced (or paste a
+// full refresh token for the fully manual path).
 //
-// Resolution order:
+// Resolution order for the loopback consent flow:
 //  1. GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET environment
 //     variables — always wins, lets anyone override at runtime.
 //  2. defaultGoogleClientID / defaultGoogleClientSecret — empty in source
@@ -28,6 +29,8 @@ import (
 //     say the client secret is "not treated as confidential" — see
 //     https://developers.google.com/identity/protocols/oauth2#installed —
 //     so baking it into the binary is the standard, supported pattern.
+//  3. Per-instance vault secrets client_id / client_secret the user entered
+//     under Advanced before clicking Sign in.
 const (
 	envGoogleClientID     = "GOOGLE_OAUTH_CLIENT_ID"
 	envGoogleClientSecret = "GOOGLE_OAUTH_CLIENT_SECRET" //nolint:gosec // env var name, not a credential
@@ -40,9 +43,9 @@ const (
 //	-ldflags "-X 'github.com/rpuneet/mycel/pkg/gateway/gmail.defaultGoogleClientID=...' \
 //	          -X 'github.com/rpuneet/mycel/pkg/gateway/gmail.defaultGoogleClientSecret=...'"
 //
-// A local build with neither the env vars nor these ldflags set behaves
-// exactly as before: one-click sign-in reports unconfigured and the UI falls
-// back to the manual paste path.
+// A local build with neither the env vars nor these ldflags set still
+// offers Sign in with Gmail: paste a Desktop-app Client ID + Secret under
+// Advanced, then click Sign in (or paste a refresh token for fully manual).
 var (
 	defaultGoogleClientID     string //nolint:gochecknoglobals // ldflags injection target, empty by default
 	defaultGoogleClientSecret string //nolint:gochecknoglobals // ldflags injection target, empty by default
@@ -73,14 +76,20 @@ func newGoogleFlow() *oauth.LoopbackFlow {
 	)
 }
 
-// googleClientCreds resolves the server-side Google client — environment
-// variables first, then the build-time embedded default — returning an
-// actionable error (surfaced to the user) when neither is configured.
-func googleClientCreds(_ app.Instance) (clientID, clientSecret string, err error) {
+// googleClientCreds resolves the Google OAuth client — server env/ldflags
+// first, then per-instance Advanced fields — returning an actionable error
+// when none are available.
+func googleClientCreds(inst app.Instance) (clientID, clientSecret string, err error) {
 	clientID, clientSecret = resolveGoogleClientCreds()
+	if clientID == "" {
+		clientID = strings.TrimSpace(inst.OptionalSecret("client_id"))
+	}
+	if clientSecret == "" {
+		clientSecret = strings.TrimSpace(inst.OptionalSecret("client_secret"))
+	}
 	if clientID == "" || clientSecret == "" {
 		return "", "", fmt.Errorf(
-			"one-click Google sign-in is not configured on this server — set %s and %s to a Google \"Desktop app\" OAuth client, or paste an OAuth refresh token below instead",
+			"Google sign-in needs an OAuth client — set %s/%s on the server, or paste Client ID + Client Secret under Advanced and click Sign in again (or paste a Refresh Token for the fully manual path)",
 			envGoogleClientID, envGoogleClientSecret)
 	}
 	return clientID, clientSecret, nil
