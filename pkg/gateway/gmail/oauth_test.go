@@ -15,63 +15,55 @@ func newTestPlugin() *plugin {
 }
 
 // TestPluginImplementsOAuth locks the capability assertions the server relies
-// on to dispatch the browser flow.
+// on to dispatch the browser flow. Gmail does not implement OAuthConfigured —
+// Sign in is always offered alongside Advanced manual paste.
 func TestPluginImplementsOAuth(t *testing.T) {
 	var p any = newTestPlugin()
 	if _, ok := p.(app.OAuthFlow); !ok {
 		t.Error("gmail plugin does not implement app.OAuthFlow")
 	}
-	if _, ok := p.(app.OAuthConfigured); !ok {
-		t.Error("gmail plugin does not implement app.OAuthConfigured")
+	if _, ok := p.(app.OAuthConfigured); ok {
+		t.Error("gmail plugin must not implement OAuthConfigured (always offer Sign in + Advanced)")
 	}
 }
 
-// TestOAuthConfiguredTracksEnv verifies one-click availability follows the
-// server-side Google client env vars.
-func TestOAuthConfiguredTracksEnv(t *testing.T) {
-	p := newTestPlugin()
-
+// TestGoogleConfiguredTracksEnv verifies server-side zero-paste availability
+// follows the Google client env vars (used by resolveGoogleClientCreds).
+func TestGoogleConfiguredTracksEnv(t *testing.T) {
 	t.Setenv(envGoogleClientID, "")
 	t.Setenv(envGoogleClientSecret, "")
-	if p.OAuthConfigured() {
-		t.Error("OAuthConfigured() = true with no client creds; want false")
+	if googleConfigured() {
+		t.Error("googleConfigured() = true with no client creds; want false")
 	}
 
 	t.Setenv(envGoogleClientID, "client.apps.googleusercontent.com")
 	t.Setenv(envGoogleClientSecret, "GOCSPX-secret")
-	if !p.OAuthConfigured() {
-		t.Error("OAuthConfigured() = false with client creds set; want true")
+	if !googleConfigured() {
+		t.Error("googleConfigured() = false with client creds set; want true")
 	}
 }
 
-// TestOAuthConfiguredTracksBuildDefault verifies one-click availability also
-// follows the ldflags-injected default* vars (simulated here by setting them
-// directly, since the real injection happens via `go build -ldflags -X` and
-// can't be exercised from within a test binary).
-func TestOAuthConfiguredTracksBuildDefault(t *testing.T) {
-	p := newTestPlugin()
-
+// TestGoogleConfiguredTracksBuildDefault verifies resolveGoogleClientCreds
+// also follows the ldflags-injected default* vars (simulated here by setting
+// them directly, since the real injection happens via `go build -ldflags -X`
+// and can't be exercised from within a test binary).
+func TestGoogleConfiguredTracksBuildDefault(t *testing.T) {
 	t.Setenv(envGoogleClientID, "")
 	t.Setenv(envGoogleClientSecret, "")
 
-	// Capture and restore the linker-injected defaults so a binary built with
-	// real embedded values isn't left cleared for later tests.
 	origID, origSecret := defaultGoogleClientID, defaultGoogleClientSecret
 	t.Cleanup(func() { defaultGoogleClientID, defaultGoogleClientSecret = origID, origSecret })
 
-	// Neither env nor build default set: unconfigured.
 	defaultGoogleClientID, defaultGoogleClientSecret = "", ""
-	if p.OAuthConfigured() {
-		t.Error("OAuthConfigured() = true with no creds at all; want false")
+	if googleConfigured() {
+		t.Error("googleConfigured() = true with no creds at all; want false")
 	}
 
-	// Build-time default set, no env override: configured, and the flow
-	// resolves to the injected default values.
 	defaultGoogleClientID = "default.apps.googleusercontent.com"
 	defaultGoogleClientSecret = "GOCSPX-default" //nolint:gosec // test fixture, not a real credential
 
-	if !p.OAuthConfigured() {
-		t.Error("OAuthConfigured() = false with build default set; want true")
+	if !googleConfigured() {
+		t.Error("googleConfigured() = false with build default set; want true")
 	}
 	gotID, gotSecret := resolveGoogleClientCreds()
 	if gotID != defaultGoogleClientID || gotSecret != defaultGoogleClientSecret {
@@ -89,14 +81,48 @@ func TestOAuthConfiguredTracksBuildDefault(t *testing.T) {
 }
 
 // TestBeginAuthUnconfigured surfaces an actionable error (not a dead flow)
-// when the server has no Google client.
+// when neither the server nor the instance has a Google client.
 func TestBeginAuthUnconfigured(t *testing.T) {
 	t.Setenv(envGoogleClientID, "")
 	t.Setenv(envGoogleClientSecret, "")
+	origID, origSecret := defaultGoogleClientID, defaultGoogleClientSecret
+	t.Cleanup(func() { defaultGoogleClientID, defaultGoogleClientSecret = origID, origSecret })
+	defaultGoogleClientID, defaultGoogleClientSecret = "", ""
+
 	p := newTestPlugin()
 	_, err := p.BeginAuth(context.Background(), app.Instance{Name: "gmail"})
 	if err == nil {
 		t.Fatal("BeginAuth with no client creds returned nil error; want fallback message")
+	}
+}
+
+// TestBeginAuthWithInstanceCreds uses Advanced-pasted client_id/secret when
+// the server has no Google client — the bring-your-own-client Sign in path.
+func TestBeginAuthWithInstanceCreds(t *testing.T) {
+	t.Setenv(envGoogleClientID, "")
+	t.Setenv(envGoogleClientSecret, "")
+	origID, origSecret := defaultGoogleClientID, defaultGoogleClientSecret
+	t.Cleanup(func() { defaultGoogleClientID, defaultGoogleClientSecret = origID, origSecret })
+	defaultGoogleClientID, defaultGoogleClientSecret = "", ""
+
+	p := newTestPlugin()
+	inst := app.Instance{
+		Name: "gmail",
+		Secrets: app.MapSecrets{
+			"client_id":     "byo.apps.googleusercontent.com",
+			"client_secret": "GOCSPX-byo",
+		},
+	}
+	sess, err := p.BeginAuth(context.Background(), inst)
+	if err != nil {
+		t.Fatalf("BeginAuth with instance creds: %v", err)
+	}
+	defer p.oauth.PollAuth(context.Background(), app.AuthSession{ID: sess.ID}) //nolint:errcheck // drive teardown
+	if sess.Kind != app.AuthKindCallback {
+		t.Errorf("Kind = %q, want %q", sess.Kind, app.AuthKindCallback)
+	}
+	if !strings.Contains(sess.AuthURL, "accounts.google.com") {
+		t.Errorf("consent URL missing Google host: %s", sess.AuthURL)
 	}
 }
 
