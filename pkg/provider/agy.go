@@ -54,8 +54,8 @@ func (p *AgyProvider) InstallHint() string {
 }
 
 // agyDefaultModel is the model mycel selects for a new agy agent when none is
-// specified. It is a valid `agy models` entry.
-const agyDefaultModel = "Gemini 3 Flash"
+// specified. It is a valid `agy models` slug.
+const agyDefaultModel = "gemini-3.5-flash-medium"
 
 // agySessionIDPattern is the full-string UUID shape of an agy conversation
 // ID (agy stores conversations as <uuid>.db). The ID is spliced into a shell
@@ -63,16 +63,11 @@ const agyDefaultModel = "Gemini 3 Flash"
 // rather than quoted.
 var agySessionIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
-// safeAgyModelPattern is the charset allowed in an agy model name. Unlike
-// SafeModelName (which rejects spaces and parentheses), agy's real model
-// identifiers contain both — e.g. "Gemini 3.5 Flash (High)". The charset is
-// deliberately limited to letters, digits, spaces, dots, parentheses and
-// dashes: none of these are shell metacharacters that survive single-quoting,
-// so BuildCommand can splice a single-quoted model value in safely. The first
-// character must be alphanumeric so the value can never be parsed as a flag
-// (argument injection). Note: the single quote itself is NOT in the set, so a
-// value can never break out of the surrounding quotes.
-var safeAgyModelPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9 .()-]*$`)
+// safeAgyModelPattern is the charset allowed in an agy model name. Accepts
+// both modern slugs (gemini-3.5-flash-high) and legacy display names
+// ("Gemini 3.5 Flash (High)"). The charset is limited so BuildCommand can
+// splice a single-quoted model value safely.
+var safeAgyModelPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9 .()_-]*$`)
 
 // SafeAgyModelName reports whether an agy model name is safe to single-quote
 // into a shell command line.
@@ -114,12 +109,12 @@ func (p *AgyProvider) BuildCommand(opts CommandOpts) string {
 // live list is preferred via ListModels (DynamicModelLister).
 func (p *AgyProvider) Models() []string {
 	return []string{
-		"Gemini 3.5 Flash (Medium)",
-		"Gemini 3.5 Flash (High)",
-		"Gemini 3.5 Flash (Low)",
-		"Gemini 3.1 Pro (Low)",
-		"Gemini 3.1 Pro (High)",
-		"Gemini 3 Flash",
+		"gemini-3.5-flash-medium",
+		"gemini-3.5-flash-high",
+		"gemini-3.5-flash-low",
+		"gemini-3.1-pro-low",
+		"gemini-3.1-pro-high",
+		"gemini-3.7-flash-medium",
 	}
 }
 
@@ -129,27 +124,41 @@ var agyListModels = func(ctx context.Context) (string, error) {
 	return out, err
 }
 
-// ListModels enumerates agy's models at runtime by shelling `agy models` and
-// parsing one model per line. Only lines that pass SafeAgyModelName are kept
-// (so the UI never offers an unusable value). Falls back to the static
-// Models() list when the CLI is unavailable or returns nothing usable.
+// ListModels enumerates agy's models at runtime by shelling `agy models`.
+// Modern CLI output is `slug\tdisplay name` per line; legacy output was a
+// bare display name. Prefer the slug (first tab field). Falls back to the
+// static Models() list when the CLI is unavailable or returns nothing usable.
 func (p *AgyProvider) ListModels(ctx context.Context) ([]string, error) {
 	out, err := agyListModels(ctx)
 	if err != nil {
 		return p.Models(), nil
 	}
-	var models []string
-	for _, line := range strings.Split(out, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || !SafeAgyModelName(line) {
-			continue
-		}
-		models = append(models, line)
-	}
+	models := parseAgyModelsOutput(out)
 	if len(models) == 0 {
 		return p.Models(), nil
 	}
 	return models, nil
+}
+
+func parseAgyModelsOutput(out string) []string {
+	var models []string
+	seen := map[string]bool{}
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(strings.ToLower(line), "fetching") {
+			continue
+		}
+		id := line
+		if slug, _, ok := strings.Cut(line, "\t"); ok {
+			id = strings.TrimSpace(slug)
+		}
+		if id == "" || !SafeAgyModelName(id) || seen[id] {
+			continue
+		}
+		seen[id] = true
+		models = append(models, id)
+	}
+	return models
 }
 
 // AdjustSessionCommand is a no-op for native tmux sessions; agy runs directly

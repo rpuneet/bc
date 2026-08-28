@@ -82,11 +82,12 @@ func (p *ClaudeProvider) InstallHint() string {
 // For native tmux, claude auto-detects the tmux environment.
 // Resume priority: SessionID (--resume <id>) > Resume flag (--continue).
 // Model priority: opts.Model is injected as --model <m> when it passes
-// SafeModelName; unsafe values are dropped, never escaped.
+// SafeClaudeModelName; unsafe values are dropped, never escaped. Bracket
+// aliases (opus[1m]) are single-quoted so bash does not treat [] as a glob.
 func (p *ClaudeProvider) BuildCommand(opts CommandOpts) string {
 	cmd := "claude --dangerously-skip-permissions"
-	if SafeModelName(opts.Model) {
-		cmd += " --model " + opts.Model
+	if SafeClaudeModelName(opts.Model) {
+		cmd += " --model " + shellSingleQuote(opts.Model)
 	}
 	switch {
 	case claudeSessionIDPattern.MatchString(opts.SessionID):
@@ -97,9 +98,36 @@ func (p *ClaudeProvider) BuildCommand(opts CommandOpts) string {
 	return cmd
 }
 
-// Models returns the curated model list for the Claude Code CLI.
+// safeClaudeModelPattern allows Claude Code aliases including bracketed
+// context variants (opus[1m]) plus full model IDs. Same shell-safety idea
+// as SafeModelName, with [] added because Claude documents those aliases.
+var safeClaudeModelPattern = regexp.MustCompile(`^[A-Za-z0-9._:/][A-Za-z0-9._:/\-\[\]]*$`)
+
+// SafeClaudeModelName reports whether a Claude --model value is safe to
+// single-quote into a shell command line.
+func SafeClaudeModelName(model string) bool {
+	return model != "" && safeClaudeModelPattern.MatchString(model)
+}
+
+// Models returns Claude Code's documented --model aliases (static fallback).
 func (p *ClaudeProvider) Models() []string {
-	return []string{"fable", "opus", "opusplan", "sonnet", "haiku"}
+	return []string{"sonnet", "opus", "haiku", "fable", "best", "opusplan", "default", "sonnet[1m]", "opus[1m]", "fable[1m]"}
+}
+
+// claudeListModels is overridable in tests. Claude Code has no dedicated
+// models subcommand; we probe `--help` and fall back to the curated aliases.
+var claudeListModels = func(ctx context.Context) (string, error) {
+	return runProviderCommand(ctx, "claude", "--help")
+}
+
+// ListModels returns Claude aliases when the CLI is reachable (so the API
+// marks them available). When the binary cannot be probed, returns an error
+// so fetchModels falls back to the static ModelLister list as unavailable.
+func (p *ClaudeProvider) ListModels(ctx context.Context) ([]string, error) {
+	if _, err := claudeListModels(ctx); err != nil {
+		return nil, err
+	}
+	return p.Models(), nil
 }
 
 // Commands returns the curated CLI command list for Claude Code.
@@ -291,6 +319,7 @@ func (p *ClaudeProvider) TranscriptGlobs(cwd string) []string {
 // Ensure ClaudeProvider implements all declared interfaces.
 var _ Provider = (*ClaudeProvider)(nil)
 var _ ModelLister = (*ClaudeProvider)(nil)
+var _ DynamicModelLister = (*ClaudeProvider)(nil)
 var _ ContainerCustomizer = (*ClaudeProvider)(nil)
 var _ SessionCustomizer = (*ClaudeProvider)(nil)
 var _ SessionResumer = (*ClaudeProvider)(nil)
