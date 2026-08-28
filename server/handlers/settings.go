@@ -133,6 +133,10 @@ func (h *SettingsHandler) patch(w http.ResponseWriter, r *http.Request) {
 				httpError(w, "invalid providers config: "+err.Error(), http.StatusBadRequest)
 				return
 			}
+			// Partial fleet-default patches often set providers.default to a
+			// built-in that was never written into prefs.providers (codex —
+			// issue 3720). Seed it before Validate rejects "undefined provider".
+			_ = merged.EnsureDefaultProviderDefined()
 		case "apps":
 			if err := mergeAppsPatch(&merged, raw); err != nil {
 				httpError(w, "invalid apps config: "+err.Error(), http.StatusBadRequest)

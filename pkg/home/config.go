@@ -224,9 +224,16 @@ func DefaultConfig() Config {
 		},
 		Providers: ProvidersConfig{
 			Default: "claude",
+			// Seed every built-in provider the UI can pick as fleet default.
+			// Validate requires providers.default to exist in this map; omitting
+			// codex/cursor/pi made the setup/tools picker reject those choices
+			// with "references undefined provider" (#3720).
 			Providers: map[string]ProviderConfig{
 				"claude": {Command: "claude --dangerously-skip-permissions"},
 				"agy":    {Command: "agy --dangerously-skip-permissions"},
+				"cursor": {Command: "cursor-agent --trust"},
+				"codex":  {Command: "codex --full-auto"},
+				"pi":     {Command: "pi"},
 			},
 		},
 		Storage: StorageConfig{
@@ -313,6 +320,39 @@ func (c *Config) GetDefaultProvider() string {
 // HasProviderDefined checks if an AI provider is configured.
 func (c *Config) HasProviderDefined(name string) bool {
 	return c.GetProvider(name) != nil
+}
+
+// BuiltinProviderCommands is the command seed for every provider the UI
+// can offer as providers.default. Kept in sync with pkg/provider defaults
+// (claude/agy/cursor/codex/pi). An empty Command is allowed at runtime —
+// the provider package still supplies its own Command() — but Validate
+// requires the *name* to exist in Providers.Providers.
+var BuiltinProviderCommands = map[string]string{
+	"claude": "claude --dangerously-skip-permissions",
+	"agy":    "agy --dangerously-skip-permissions",
+	"cursor": "cursor-agent --trust",
+	"codex":  "codex --full-auto",
+	"pi":     "pi",
+}
+
+// EnsureDefaultProviderDefined seeds Providers.Providers[default] when the
+// fleet default names a built-in provider that is missing from prefs (e.g.
+// an older prefs.json that only listed claude/agy). Returns false when the
+// default is unknown and still missing — Validate should reject that.
+func (c *Config) EnsureDefaultProviderDefined() bool {
+	name := c.Providers.Default
+	if name == "" || c.HasProviderDefined(name) {
+		return true
+	}
+	cmd, ok := BuiltinProviderCommands[name]
+	if !ok {
+		return false
+	}
+	if c.Providers.Providers == nil {
+		c.Providers.Providers = make(map[string]ProviderConfig)
+	}
+	c.Providers.Providers[name] = ProviderConfig{Command: cmd}
+	return true
 }
 
 // ListProviders returns the names of all configured AI providers.

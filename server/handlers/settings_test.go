@@ -210,6 +210,44 @@ func TestSettingsPatchProviderDefaultModel(t *testing.T) {
 	}
 }
 
+// TestSettingsPatchCodexDefaultSeedsProvider covers #3720: selecting Codex
+// as fleet default when prefs.providers has no codex entry must succeed and
+// seed the built-in command, not return "references undefined provider".
+func TestSettingsPatchCodexDefaultSeedsProvider(t *testing.T) {
+	h := newTestHome(t)
+	// Mimic an older prefs.json: only claude is listed.
+	h.Config.Providers.Providers = map[string]home.ProviderConfig{
+		"claude": {Command: "claude"},
+	}
+	sh := NewSettingsHandler(h)
+	mux := http.NewServeMux()
+	sh.Register(mux)
+
+	body := `{"providers":{"default":"codex","default_model":""}}`
+	req := httptest.NewRequest(http.MethodPatch, "/api/settings", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	if h.Config.Providers.Default != "codex" {
+		t.Errorf("default = %q, want codex", h.Config.Providers.Default)
+	}
+	got, ok := h.Config.Providers.Providers["codex"]
+	if !ok {
+		t.Fatal("codex entry was not seeded")
+	}
+	if got.Command != home.BuiltinProviderCommands["codex"] {
+		t.Errorf("codex command = %q, want %q", got.Command, home.BuiltinProviderCommands["codex"])
+	}
+	// Existing entries must survive.
+	if _, ok := h.Config.Providers.Providers["claude"]; !ok {
+		t.Error("claude entry wiped while seeding codex")
+	}
+}
+
 // TestSettingsAppsPatchMerges verifies the per-instance merge: patching
 // one instance never wipes the others.
 func TestSettingsAppsPatchMerges(t *testing.T) {
