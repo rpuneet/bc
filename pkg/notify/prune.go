@@ -49,12 +49,35 @@ func IsCatchAll(channel string) bool {
 	return platform != "" && channel == CatchAllChannel(platform)
 }
 
+// hasRealGeneralRoom reports platforms where "{adapter}:general" is a real
+// chat room (#general), not a catch-all placeholder. Migrating those rows to
+// ":*" re-subscribes agents to every channel — the loop users hit when they
+// pick Slack #general and a daemon restart rewrites them onto slack:*.
+func hasRealGeneralRoom(platform string) bool {
+	adapter := platform
+	if i := strings.IndexByte(adapter, ':'); i >= 0 {
+		adapter = adapter[:i]
+	}
+	switch adapter {
+	case "slack", "discord":
+		return true
+	default:
+		return false
+	}
+}
+
 // IsLegacyCatchAll reports whether channel is the pre-#3467 catch-all key
-// ("{platform}:general"). Real Slack/Discord #general channels use this same
-// key, which is why #3467 moved the catch-all to ":*".
+// ("{platform}:general"). Slack/Discord #general use the same key for a real
+// room, so those are never treated as legacy catch-all (#3467 follow-up).
 func IsLegacyCatchAll(channel string) bool {
 	platform := PlatformOf(channel)
-	return platform != "" && channel == LegacyCatchAllChannel(platform)
+	if platform == "" || channel != LegacyCatchAllChannel(platform) {
+		return false
+	}
+	if hasRealGeneralRoom(platform) {
+		return false
+	}
+	return true
 }
 
 // IsAnyCatchAll reports canonical or legacy catch-all keys. Used by prune
@@ -96,6 +119,10 @@ func FindPruneCandidates(subs []Subscription) []Subscription {
 		}
 		platform := PlatformOf(sub.Channel)
 		if platform == "" {
+			continue
+		}
+		// Slack/Discord #general is a real room — never a catch-all copy leftover.
+		if hasRealGeneralRoom(platform) && sub.Channel == LegacyCatchAllChannel(platform) {
 			continue
 		}
 		agents, ok := catchAll[platform]

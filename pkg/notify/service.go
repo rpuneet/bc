@@ -412,7 +412,12 @@ func (s *Service) catchAllSubscribers(ctx context.Context, platform, realChannel
 		// "{platform}:general" — that key is a real Slack/Discord channel.
 		return canonical, nil
 	}
-	// Pre-migration workspaces still store catch-all on ":general".
+	// Slack/Discord #general is a real room — never use it as catch-all fallback.
+	if hasRealGeneralRoom(platform) {
+		return nil, nil
+	}
+	// Pre-migration workspaces still store pure catch-alls on ":general"
+	// (gmail/telegram/…).
 	return s.store.Subscribers(ctx, LegacyCatchAllChannel(platform))
 }
 

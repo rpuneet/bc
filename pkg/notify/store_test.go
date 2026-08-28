@@ -71,8 +71,8 @@ func TestSaveChannel_FillsEmptyPlatformID(t *testing.T) {
 	}
 }
 
-// TestMigrateLegacyCatchAll moves "{platform}:general" subscription rows to
-// "{platform}:*" without touching notify_channels for real #general.
+// TestMigrateLegacyCatchAll moves pure catch-all "{platform}:general" rows
+// (gmail/telegram/…) to "{platform}:*", but leaves Slack/Discord #general alone.
 func TestMigrateLegacyCatchAll(t *testing.T) {
 	store := setupTestStore(t)
 	ctx := context.Background()
@@ -102,14 +102,15 @@ func TestMigrateLegacyCatchAll(t *testing.T) {
 	for _, sub := range all {
 		byCh[sub.Channel] = append(byCh[sub.Channel], sub)
 	}
-	if _, ok := byCh["slack:general"]; ok {
-		t.Fatalf("legacy slack:general sub should be gone, got %+v", byCh["slack:general"])
+	// Slack #general is a real room — must not be rewritten to catch-all.
+	if len(byCh["slack:general"]) != 1 || byCh["slack:general"][0].Agent != "root" {
+		t.Fatalf("want root still on slack:general, got %+v", byCh["slack:general"])
+	}
+	if _, ok := byCh["slack:*"]; ok {
+		t.Fatalf("slack:general must not migrate to slack:*, got %+v", byCh["slack:*"])
 	}
 	if _, ok := byCh["gmail:general"]; ok {
 		t.Fatalf("legacy gmail:general sub should be gone, got %+v", byCh["gmail:general"])
-	}
-	if len(byCh["slack:*"]) != 1 || byCh["slack:*"][0].Agent != "root" {
-		t.Fatalf("want root on slack:*, got %+v", byCh["slack:*"])
 	}
 	if len(byCh["gmail:*"]) != 1 || !byCh["gmail:*"][0].MentionOnly {
 		t.Fatalf("want mail-bot mention_only on gmail:*, got %+v", byCh["gmail:*"])

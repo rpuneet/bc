@@ -62,10 +62,11 @@ func TestFindPruneCandidates_NoCatchAll(t *testing.T) {
 func TestFindPruneCandidates_SkipsCatchAllItself(t *testing.T) {
 	subs := []Subscription{
 		{Channel: "slack:*", Agent: "root", MentionOnly: false},
-		{Channel: "slack:general", Agent: "root", MentionOnly: false}, // legacy form
+		{Channel: "slack:general", Agent: "root", MentionOnly: false}, // real #general room
 	}
+	// Real Slack #general must not be treated as a catch-all copy leftover.
 	if got := FindPruneCandidates(subs); len(got) != 0 {
-		t.Fatalf("catch-all itself must never be a candidate, got %+v", got)
+		t.Fatalf("slack:general is a real room, not a prune candidate, got %+v", got)
 	}
 }
 
@@ -100,10 +101,13 @@ func TestIsCatchAll(t *testing.T) {
 			t.Errorf("IsCatchAll(%q)=%v want %v", ch, got, want)
 		}
 	}
-	if !IsLegacyCatchAll("slack:general") || IsLegacyCatchAll("slack:*") {
+	if IsLegacyCatchAll("slack:general") {
+		t.Fatal("slack:general is a real #general room, not legacy catch-all")
+	}
+	if !IsLegacyCatchAll("gmail:general") || IsLegacyCatchAll("slack:*") {
 		t.Fatal("IsLegacyCatchAll mismatch")
 	}
-	if !IsAnyCatchAll("slack:*") || !IsAnyCatchAll("gmail:general") {
+	if !IsAnyCatchAll("slack:*") || !IsAnyCatchAll("gmail:general") || IsAnyCatchAll("slack:general") {
 		t.Fatal("IsAnyCatchAll mismatch")
 	}
 }
