@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 // CursorProvider implements the Provider interface for Cursor Agent.
@@ -97,10 +98,52 @@ func (p *CursorProvider) AdjustContainerCommand(command string) string {
 // DockerImage returns empty to use the default image-name convention.
 func (p *CursorProvider) DockerImage() string { return "" }
 
-// Models returns the curated model list for the Cursor Agent CLI,
-// taken from `cursor-agent --list-models`.
+// Models returns a small static fallback for Cursor Agent. Live catalogs
+// come from ListModels (`cursor-agent --list-models`).
 func (p *CursorProvider) Models() []string {
-	return []string{"auto", "gpt-5.3-codex", "gpt-5.3-codex-high", "gpt-5.2", "sonnet-4-thinking"}
+	return []string{"auto", "gpt-5.3-codex", "gpt-5.3-codex-high", "gpt-5.2", "composer-2.5"}
+}
+
+// cursorListModels is overridable in tests.
+var cursorListModels = func(ctx context.Context) (string, error) {
+	return runProviderCommand(ctx, "cursor-agent", "--list-models")
+}
+
+// ListModels returns model ids from `cursor-agent --list-models`.
+func (p *CursorProvider) ListModels(ctx context.Context) ([]string, error) {
+	out, err := cursorListModels(ctx)
+	if err != nil {
+		return p.Models(), nil
+	}
+	models := parseCursorListModels(out)
+	if len(models) == 0 {
+		return p.Models(), nil
+	}
+	return models, nil
+}
+
+// parseCursorListModels extracts ids from lines shaped like
+// "gpt-5.3-codex - Codex 5.3" (id before the first " - ").
+func parseCursorListModels(out string) []string {
+	var models []string
+	seen := map[string]bool{}
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.EqualFold(line, "Available models") {
+			continue
+		}
+		id, _, ok := strings.Cut(line, " - ")
+		if !ok {
+			continue
+		}
+		id = strings.TrimSpace(id)
+		if id == "" || !SafeModelName(id) || seen[id] {
+			continue
+		}
+		seen[id] = true
+		models = append(models, id)
+	}
+	return models
 }
 
 // ReadMCPs lists the MCP servers from the workspace .cursor/mcp.json.
@@ -152,6 +195,7 @@ func (p *CursorProvider) HasResumableSession(_ string) bool { return true }
 var _ Provider = (*CursorProvider)(nil)
 var _ ActivitySource = (*CursorProvider)(nil)
 var _ ModelLister = (*CursorProvider)(nil)
+var _ DynamicModelLister = (*CursorProvider)(nil)
 var _ MCPConfigReader = (*CursorProvider)(nil)
 var _ ContainerCustomizer = (*CursorProvider)(nil)
 var _ SessionCustomizer = (*CursorProvider)(nil)

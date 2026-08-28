@@ -66,13 +66,14 @@ func TestProvidersListModelShape(t *testing.T) {
 	if len(providers) != 1 {
 		t.Fatalf("want 1 provider, got %d", len(providers))
 	}
-	// claude has a static model list; all entries should have Available=false (static fallback).
+	// claude implements DynamicModelLister: when the CLI is reachable the
+	// curated aliases are marked available=true.
+	if len(providers[0].Models) == 0 {
+		t.Fatal("expected curated models for claude")
+	}
 	for _, m := range providers[0].Models {
 		if m.ID == "" {
 			t.Error("model ID must not be empty")
-		}
-		if m.Available {
-			t.Error("static model should have available=false")
 		}
 	}
 }

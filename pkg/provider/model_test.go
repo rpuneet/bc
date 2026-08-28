@@ -43,10 +43,10 @@ func TestBuildCommandModelFlag(t *testing.T) {
 		wantFlag   string // substring the command must contain; "" means no injection expected
 		wantAbsent string // substring the command must NOT contain
 	}{
-		{"claude injects --model", NewClaudeProvider(), "fable", " --model fable", ""},
-		{"agy injects quoted --model", NewAgyProvider(), "Gemini 3 Flash", " --model 'Gemini 3 Flash'", ""},
-		{"cursor injects --model", NewCursorProvider(), "sonnet-4-thinking", " --model sonnet-4-thinking", ""},
-		{"codex injects --model", NewCodexProvider(), "gpt-5.3-codex", " --model gpt-5.3-codex", ""},
+		{"claude injects --model", NewClaudeProvider(), "fable", " --model 'fable'", ""},
+		{"agy injects quoted --model", NewAgyProvider(), "gemini-3.5-flash-medium", " --model 'gemini-3.5-flash-medium'", ""},
+		{"cursor injects --model", NewCursorProvider(), "composer-2.5", " --model composer-2.5", ""},
+		{"codex injects --model", NewCodexProvider(), "gpt-5.6-sol", " --model gpt-5.6-sol", ""},
 		// pi splits "provider/model" into separate --provider + --model flags for unambiguous routing.
 		{"pi injects --model slash form", NewPiProvider(), "anthropic/claude-sonnet-4-6", " --provider anthropic --model claude-sonnet-4-6", ""},
 		{"claude drops unsafe model", NewClaudeProvider(), "$(id)", "", "id"},
@@ -76,9 +76,9 @@ func TestProviderModels(t *testing.T) {
 		provider Provider
 		want     []string
 	}{
-		{"claude", NewClaudeProvider(), []string{"fable", "opus", "opusplan", "sonnet", "haiku"}},
-		{"cursor", NewCursorProvider(), []string{"auto", "gpt-5.3-codex", "gpt-5.3-codex-high", "gpt-5.2", "sonnet-4-thinking"}},
-		{"codex", NewCodexProvider(), []string{"gpt-5.3-codex", "gpt-5.2-codex", "gpt-5.2"}},
+		{"claude", NewClaudeProvider(), []string{"sonnet", "opus", "haiku", "fable", "best", "opusplan", "default", "sonnet[1m]", "opus[1m]", "fable[1m]"}},
+		{"cursor", NewCursorProvider(), []string{"auto", "gpt-5.3-codex", "gpt-5.3-codex-high", "gpt-5.2", "composer-2.5"}},
+		{"codex", NewCodexProvider(), []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.2"}},
 		// pi has no static curated list — ListModels (DynamicModelLister) provides the live list from pi --list-models.
 		{"pi", NewPiProvider(), []string{}},
 	}
@@ -97,11 +97,17 @@ func TestProviderModels(t *testing.T) {
 					t.Errorf("Models()[%d] = %q, want %q", i, got[i], tt.want[i])
 				}
 			}
-			// Every curated model must survive SafeModelName so the UI
-			// list and the injection gate never disagree.
+			// Every curated model must survive the provider's injection gate.
 			for _, m := range got {
-				if !SafeModelName(m) {
-					t.Errorf("curated model %q fails SafeModelName", m)
+				switch tt.name {
+				case "claude":
+					if !SafeClaudeModelName(m) {
+						t.Errorf("curated model %q fails SafeClaudeModelName", m)
+					}
+				default:
+					if !SafeModelName(m) {
+						t.Errorf("curated model %q fails SafeModelName", m)
+					}
 				}
 			}
 		})

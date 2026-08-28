@@ -47,8 +47,8 @@ func TestGetAgentCommandModel(t *testing.T) {
 		wantFlag   string
 		wantAbsent string
 	}{
-		{"claude model injected", "claude", "fable", " --model fable", ""},
-		{"agy model injected", "agy", "Gemini 3 Flash", " --model 'Gemini 3 Flash'", ""},
+		{"claude model injected", "claude", "fable", " --model 'fable'", ""},
+		{"agy model injected", "agy", "gemini-3.5-flash-medium", " --model 'gemini-3.5-flash-medium'", ""},
 		{"empty model no flag", "claude", "", "", "--model"},
 		{"unsafe model dropped", "claude", "$(id)", "", "id"},
 	}
@@ -177,7 +177,7 @@ func TestRestartCommandUsesStoredModel(t *testing.T) {
 	if !ok {
 		t.Fatal("getAgentCommand not ok")
 	}
-	if !strings.Contains(cmd, " --model opusplan") {
+	if !strings.Contains(cmd, " --model 'opusplan'") {
 		t.Errorf("restart command %q missing stored model", cmd)
 	}
 }

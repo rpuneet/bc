@@ -199,15 +199,15 @@ func TestAgyListModels(t *testing.T) {
 	orig := agyListModels
 	t.Cleanup(func() { agyListModels = orig })
 
-	// Live parse: agy models output, with a blank line to be skipped.
+	// Live parse: modern `slug\tdisplay` and a bare legacy display line.
 	agyListModels = func(_ context.Context) (string, error) {
-		return "Gemini 3.5 Flash (High)\n\nGemini 3 Flash\n", nil
+		return "gemini-3.5-flash-high\tGemini 3.5 Flash (High)\n\nGemini 3 Flash\n", nil
 	}
 	got, err := p.ListModels(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"Gemini 3.5 Flash (High)", "Gemini 3 Flash"}
+	want := []string{"gemini-3.5-flash-high", "Gemini 3 Flash"}
 	if strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("ListModels() = %v, want %v", got, want)
 	}

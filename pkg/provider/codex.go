@@ -2,8 +2,10 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 // CodexProvider implements the Provider interface for OpenAI Codex CLI.
@@ -87,9 +89,70 @@ func (p *CodexProvider) AdjustContainerCommand(command string) string {
 // DockerImage returns empty to use the default image-name convention.
 func (p *CodexProvider) DockerImage() string { return "" }
 
-// Models returns the curated model list for the Codex CLI.
+// Models returns a small static fallback for the Codex CLI. Live catalogs
+// come from ListModels (`codex debug models`).
 func (p *CodexProvider) Models() []string {
-	return []string{"gpt-5.3-codex", "gpt-5.2-codex", "gpt-5.2"}
+	return []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.2"}
+}
+
+// codexListModels is overridable in tests.
+var codexListModels = func(ctx context.Context) (string, error) {
+	return runProviderCommand(ctx, "codex", "debug", "models")
+}
+
+// ListModels returns slugs from `codex debug models` (JSON catalog). Prefers
+// visibility=list entries; falls back to the static Models() list.
+func (p *CodexProvider) ListModels(ctx context.Context) ([]string, error) {
+	out, err := codexListModels(ctx)
+	if err != nil {
+		return p.Models(), nil
+	}
+	models := parseCodexDebugModels(out)
+	if len(models) == 0 {
+		return p.Models(), nil
+	}
+	return models, nil
+}
+
+// parseCodexDebugModels extracts usable --model slugs from the JSON blob
+// printed by `codex debug models`.
+func parseCodexDebugModels(out string) []string {
+	out = strings.TrimSpace(out)
+	if out == "" {
+		return nil
+	}
+	// Tolerate leading/trailing log noise by locating the JSON object.
+	start := strings.Index(out, "{")
+	end := strings.LastIndex(out, "}")
+	if start < 0 || end <= start {
+		return nil
+	}
+	var catalog struct {
+		Models []struct {
+			Slug       string `json:"slug"`
+			Visibility string `json:"visibility"`
+		} `json:"models"`
+	}
+	if err := json.Unmarshal([]byte(out[start:end+1]), &catalog); err != nil {
+		return nil
+	}
+	var listed, all []string
+	seen := map[string]bool{}
+	for _, m := range catalog.Models {
+		slug := strings.TrimSpace(m.Slug)
+		if slug == "" || !SafeModelName(slug) || seen[slug] {
+			continue
+		}
+		seen[slug] = true
+		all = append(all, slug)
+		if m.Visibility == "" || m.Visibility == "list" {
+			listed = append(listed, slug)
+		}
+	}
+	if len(listed) > 0 {
+		return listed
+	}
+	return all
 }
 
 // IsInstalled checks if the provider binary is available.
@@ -113,5 +176,6 @@ func (p *CodexProvider) Version(ctx context.Context) string {
 // Ensure CodexProvider implements Provider interface.
 var _ Provider = (*CodexProvider)(nil)
 var _ ModelLister = (*CodexProvider)(nil)
+var _ DynamicModelLister = (*CodexProvider)(nil)
 var _ ContainerCustomizer = (*CodexProvider)(nil)
 var _ SessionCustomizer = (*CodexProvider)(nil)
