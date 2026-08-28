@@ -101,14 +101,39 @@ func TestIsCatchAll(t *testing.T) {
 			t.Errorf("IsCatchAll(%q)=%v want %v", ch, got, want)
 		}
 	}
-	if IsLegacyCatchAll("slack:general") {
-		t.Fatal("slack:general is a real #general room, not legacy catch-all")
+	// Named-room #general is never legacy catch-all (#3730).
+	for _, ch := range []string{
+		"slack:general",
+		"mattermost:general",
+		"irc:general",
+		"matrix:general",
+		"discord:my-server:general",
+	} {
+		if IsLegacyCatchAll(ch) || IsAnyCatchAll(ch) {
+			t.Fatalf("%s must not be legacy/any catch-all", ch)
+		}
 	}
-	if !IsLegacyCatchAll("gmail:general") || IsLegacyCatchAll("slack:*") {
-		t.Fatal("IsLegacyCatchAll mismatch")
+	if !IsLegacyCatchAll("gmail:general") || !IsLegacyCatchAll("telegram:general") || IsLegacyCatchAll("slack:*") {
+		t.Fatal("IsLegacyCatchAll mismatch for synthetic placeholders")
 	}
-	if !IsAnyCatchAll("slack:*") || !IsAnyCatchAll("gmail:general") || IsAnyCatchAll("slack:general") {
+	if !IsAnyCatchAll("slack:*") || !IsAnyCatchAll("gmail:general") {
 		t.Fatal("IsAnyCatchAll mismatch")
+	}
+}
+
+func TestFindPruneCandidates_NamedRoomGeneral(t *testing.T) {
+	for _, pair := range []struct{ star, general string }{
+		{"slack:*", "slack:general"},
+		{"mattermost:*", "mattermost:general"},
+		{"discord:my-server:*", "discord:my-server:general"},
+	} {
+		subs := []Subscription{
+			{Channel: pair.star, Agent: "root", MentionOnly: false},
+			{Channel: pair.general, Agent: "root", MentionOnly: false},
+		}
+		if got := FindPruneCandidates(subs); len(got) != 0 {
+			t.Fatalf("%s must not be prune candidate under %s, got %+v", pair.general, pair.star, got)
+		}
 	}
 }
 

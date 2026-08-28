@@ -617,8 +617,14 @@ Settings are per-agent, per-channel.
 **Catch-all subscriptions** cover platforms where the real channel isn't known
 until a message arrives: Telegram DMs land on `telegram:<username|chat_id>`, mail
 on `gmail:<sender-address>`. Connecting such an app subscribes the chosen agents
-to `{platform}:general`, and a message on a channel with no subscribers of its
+to `{platform}:*` (#3467), and a message on a channel with no subscribers of its
 own is delivered to the catch-all's subscribers instead.
+
+The leaf `general` is never a catch-all on named-room gateways (Slack, Discord,
+Mattermost, IRC, Matrix): `{platform}:general` is the real `#general` room. A
+boot migration rewrites only *synthetic* pre-#3467 `{platform}:general`
+placeholders (gmail/telegram/…) to `{platform}:*` — it must not rewrite real
+`#general` subscriptions onto catch-all (#3730).
 
 The catch-all is only ever *read*. Earlier versions copied it onto each new
 channel, which left a permanent subscription behind per correspondent -- on

@@ -961,7 +961,38 @@ func TestSlackGeneralIsNotCatchAll(t *testing.T) {
 	}
 }
 
-// TestLegacyCatchAllStillDelivers: pre-migration pure catch-all rows
+// TestNamedRoomGeneralNeverCatchAllDelivers (#3730): #general on every
+// named-room adapter must not fan out to other channels when :* is empty.
+func TestNamedRoomGeneralNeverCatchAllDelivers(t *testing.T) {
+	cases := []struct {
+		general, other, platform string
+	}{
+		{"slack:general", "slack:social", "slack"},
+		{"mattermost:general", "mattermost:town-square", "mattermost"},
+		{"discord:guild:general", "discord:guild:random", "discord:guild"},
+		{"irc:general", "irc:#ops", "irc"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.general, func(t *testing.T) {
+			store := setupTestStore(t)
+			sender := &mockSender{}
+			svc := NewService(store, sender, &mockHub{})
+			ctx := context.Background()
+			if err := store.Subscribe(ctx, tc.general, "general-only", false); err != nil {
+				t.Fatal(err)
+			}
+			svc.Dispatch(tc.other, tc.platform, "alice", "", "", "elsewhere", "m1", nil, nil, nil)
+			if !svc.DrainDispatches(2 * time.Second) {
+				t.Fatal("dispatch timeout")
+			}
+			if calls := sender.getCalls(); len(calls) != 0 {
+				t.Fatalf("%s must not catch-all into %s, got %+v", tc.general, tc.other, calls)
+			}
+		})
+	}
+}
+
+// TestLegacyCatchAllStillDelivers: pre-migration synthetic catch-all rows
 // (gmail:general) still provide fallback until migrateLegacyCatchAll rewrites them.
 // Slack #general is a real room and must not act as catch-all.
 func TestLegacyCatchAllStillDelivers(t *testing.T) {
