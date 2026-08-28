@@ -106,6 +106,11 @@ func TestHasProviderDefined(t *testing.T) {
 	if !cfg.HasProviderDefined("claude") {
 		t.Error("expected claude to be available")
 	}
+	for _, name := range []string{"cursor", "codex", "pi"} {
+		if !cfg.HasProviderDefined(name) {
+			t.Errorf("expected %s to be seeded in DefaultConfig (#3720)", name)
+		}
+	}
 	if cfg.HasProviderDefined("unknown-tool") {
 		t.Error("expected unknown-tool to not be available")
 	}

@@ -119,7 +119,9 @@ func (c *Config) Validate() error {
 	if c.Providers.Default == "" {
 		return ErrMissingDefaultProvider
 	}
-	if !c.HasProviderDefined(c.Providers.Default) {
+	// Older prefs may omit built-ins the UI still lists (codex/cursor/pi).
+	// Seed the missing entry so selecting them as fleet default succeeds (#3720).
+	if !c.EnsureDefaultProviderDefined() {
 		return ErrDefaultProviderNotFound
 	}
 	if err := c.validateUI(); err != nil {

@@ -217,3 +217,50 @@ func TestConfigAppsAbsent(t *testing.T) {
 		t.Errorf("expected no apps, got %d", len(parsed.Apps))
 	}
 }
+
+// TestEnsureDefaultProviderDefinedCodex covers #3720: an older prefs.json
+// that only listed claude/agy must still accept codex as providers.default
+// once EnsureDefaultProviderDefined seeds the missing entry.
+func TestEnsureDefaultProviderDefinedCodex(t *testing.T) {
+	cfg := &Config{
+		Version: ConfigVersion,
+		Providers: ProvidersConfig{
+			Default: "codex",
+			Providers: map[string]ProviderConfig{
+				"claude": {Command: "claude --dangerously-skip-permissions"},
+				"agy":    {Command: "agy --dangerously-skip-permissions"},
+			},
+		},
+		Runtime: RuntimeConfig{Default: "tmux"},
+		Server:  ServerConfig{Host: "127.0.0.1", Port: 9374, CORSOrigin: "*"},
+		UI:      UIConfig{Theme: "dark", Mode: "auto"},
+	}
+	if cfg.HasProviderDefined("codex") {
+		t.Fatal("precondition: codex must be missing before ensure")
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate after ensure: %v", err)
+	}
+	if !cfg.HasProviderDefined("codex") {
+		t.Fatal("codex was not seeded by Validate/EnsureDefaultProviderDefined")
+	}
+	if got := cfg.Providers.Providers["codex"].Command; got != BuiltinProviderCommands["codex"] {
+		t.Errorf("codex command = %q, want %q", got, BuiltinProviderCommands["codex"])
+	}
+}
+
+func TestEnsureDefaultProviderDefinedUnknown(t *testing.T) {
+	cfg := &Config{
+		Version: ConfigVersion,
+		Providers: ProvidersConfig{
+			Default:   "not-a-real-provider",
+			Providers: map[string]ProviderConfig{"claude": {Command: "claude"}},
+		},
+	}
+	if cfg.EnsureDefaultProviderDefined() {
+		t.Fatal("unknown provider must not be auto-seeded")
+	}
+	if err := cfg.Validate(); err != ErrDefaultProviderNotFound {
+		t.Fatalf("Validate = %v, want ErrDefaultProviderNotFound", err)
+	}
+}
