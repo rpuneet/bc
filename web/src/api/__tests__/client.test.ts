@@ -74,6 +74,22 @@ describe("api.request", () => {
     expect(url).toBe("/api/agents");
   });
 
+  it("listAgents onlyArchived hits ?onlyArchived=true and skips the live cache", async () => {
+    fetchMock.mockReturnValue(jsonResponse([{ name: "old", archived_at: "2026-01-01T00:00:00Z" }]));
+    await api.listAgents(); // populate live cache
+    fetchMock.mockClear();
+    fetchMock.mockReturnValue(jsonResponse([{ name: "old", archived_at: "2026-01-01T00:00:00Z" }]));
+    const archived = await api.listAgents({ onlyArchived: true });
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(url).toBe("/api/agents?onlyArchived=true");
+    expect(archived[0]?.name).toBe("old");
+    // Live list stays cached — archived query must not share that entry.
+    fetchMock.mockClear();
+    fetchMock.mockReturnValue(jsonResponse([{ name: "live" }]));
+    await api.listAgents();
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
   it("passes query params for getLogs", async () => {
     fetchMock.mockReturnValue(jsonResponse([]));
     await api.getLogs(25);
