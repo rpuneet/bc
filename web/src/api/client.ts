@@ -981,10 +981,21 @@ function splitChannel(channel: string): { gw: string; ch: string } {
 }
 
 export const api = {
-  /** List all agents. the daemon is single-tenant: agents carry their repo as
-   *  a property, so the list is always global. */
-  listAgents: () =>
-    cachedGet(CACHE_KEYS.agents, () => request<Agent[]>("/agents")),
+  /** List agents. Default excludes archived. Pass `onlyArchived` for the
+   *  archive shelf (#3010); `includeArchived` returns both. Non-default
+   *  queries bypass the live-list cache so Active/Archived views don't
+   *  clobber each other. */
+  listAgents: (opts?: { includeArchived?: boolean; onlyArchived?: boolean }) => {
+    const q = new URLSearchParams();
+    if (opts?.onlyArchived) q.set("onlyArchived", "true");
+    else if (opts?.includeArchived) q.set("includeArchived", "true");
+    const qs = q.toString();
+    const path = `/agents${qs ? `?${qs}` : ""}`;
+    if (!qs) {
+      return cachedGet(CACHE_KEYS.agents, () => request<Agent[]>(path));
+    }
+    return request<Agent[]>(path);
+  },
   getAgent: (name: string) =>
     request<Agent>(`/agents/${encodeURIComponent(name)}`),
   getAgentPeek: (name: string, lines = 50) =>

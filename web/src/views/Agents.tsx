@@ -344,6 +344,7 @@ function InlineAgentName({
 function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
   const [confirming, setConfirming] = useState<"delete" | null>(null);
   const [busy, setBusy] = useState(false);
+  const isArchived = Boolean(agent.archived_at);
 
   const act = async (action: () => Promise<unknown>) => {
     setBusy(true);
@@ -360,6 +361,29 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
 
   const isStopped = agent.state === "stopped" || agent.state === "error";
   const isRunning = !isStopped;
+
+  if (isArchived) {
+    return (
+      <span
+        className="inline-flex items-center gap-1"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            void act(() => api.unarchiveAgent(agent.name));
+          }}
+          disabled={busy}
+          title="Unarchive agent"
+          aria-label={`Unarchive agent ${agent.name}`}
+          className="inline-flex items-center h-7 px-2.5 text-xs rounded-md bg-mycel-accent-subtle text-mycel-accent hover:bg-mycel-accent hover:text-mycel-accent-fg disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent"
+        >
+          {busy ? "…" : "Unarchive"}
+        </button>
+      </span>
+    );
+  }
 
   if (confirming === "delete") {
     return (
@@ -487,10 +511,15 @@ function AgentsTableSkeleton() {
 // --- Main Agents View ---
 
 export function Agents() {
+  const { subscribe } = useWebSocket();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Archive shelf (#3010): ?archived=1 lists only soft-deleted agents so
+  // Unarchive is reachable without knowing the deep link.
+  const showArchived = searchParams.get("archived") === "1";
   const fetcher = useCallback(async () => {
-    const res = await api.listAgents();
-    return res;
-  }, []);
+    return api.listAgents(showArchived ? { onlyArchived: true } : undefined);
+  }, [showArchived]);
   const {
     data: agents,
     loading,
@@ -498,9 +527,6 @@ export function Agents() {
     refresh,
     timedOut,
   } = usePolling(fetcher, 5000);
-  const { subscribe } = useWebSocket();
-  const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
 
   const [peekAgent, setPeekAgent] = useState<string | null>(null);
   const [stoppingAll, setStoppingAll] = useState(false);
@@ -553,11 +579,15 @@ export function Agents() {
   // table only. Closes on outside click / Escape via shared FiltersChip.
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const updateFilter = (key: "role" | "state" | "tool", value: string) => {
+  const updateFilter = (key: "role" | "state" | "tool" | "archived", value: string) => {
     const next = new URLSearchParams(searchParams);
     if (value) next.set(key, value);
     else next.delete(key);
     setSearchParams(next, { replace: true });
+  };
+
+  const setArchivedView = (on: boolean) => {
+    updateFilter("archived", on ? "1" : "");
   };
 
   // Debounced search → URL sync
@@ -892,7 +922,11 @@ export function Agents() {
   const clearSelection = () => { setSelected(new Set()); };
   const clearFilters = () => {
     setSearch("");
-    setSearchParams(new URLSearchParams(), { replace: true });
+    // Leave the Active/Archived shelf alone — clearing search/state/tool
+    // filters should not yank the user out of the archive view.
+    const next = new URLSearchParams();
+    if (showArchived) next.set("archived", "1");
+    setSearchParams(next, { replace: true });
   };
   const hasFilters = search !== "" || roleFilter !== "" || stateFilter !== "" || toolFilter !== "";
 
@@ -901,14 +935,18 @@ export function Agents() {
   // the drawer's active nav item already names the section.
   useHeaderSlot({
     title:
-      allAgents.length > 0 ? (
+      allAgents.length > 0 || showArchived ? (
         <div className="flex items-center gap-3 min-w-0">
           <span className="text-xs text-mycel-text-2 tabular-nums truncate">
-            {hasFilters
-              ? `${String(filteredAgents.length)} of ${String(allAgents.length)} agents`
-              : `${String(runningCount)} active`}
+            {showArchived
+              ? (hasFilters
+                ? `${String(filteredAgents.length)} of ${String(allAgents.length)} archived`
+                : `${String(allAgents.length)} archived`)
+              : (hasFilters
+                ? `${String(filteredAgents.length)} of ${String(allAgents.length)} agents`
+                : `${String(runningCount)} active`)}
           </span>
-          {allAgents.some((a) => a.state !== "stopped" && a.state !== "error") && (
+          {!showArchived && allAgents.some((a) => a.state !== "stopped" && a.state !== "error") && (
             <button
               type="button"
               onClick={handleStopAll}
@@ -923,7 +961,7 @@ export function Agents() {
       ) : undefined,
     actions: (
       <>
-        {allAgents.length > 0 && (
+        {(allAgents.length > 0 || showArchived) && (
           <ListSearchInput
             ref={searchInputRef}
             type="text"
@@ -933,14 +971,28 @@ export function Agents() {
             aria-label="Search agents"
           />
         )}
-        {/* Filters chip — shared FiltersChip shell; body is agent-specific. */}
-        {allAgents.length > 0 && (
-          <FiltersChip
-            open={filtersOpen}
-            onOpenChange={setFiltersOpen}
-            activeCount={(stateFilter ? 1 : 0) + (toolFilter ? 1 : 0)}
-            testId="agents-filters-popover"
-          >
+        {/* Filters chip — shared FiltersChip shell; body is agent-specific.
+            Always available so the Active/Archived shelf is reachable even
+            when the live list is empty (#3010). */}
+        <FiltersChip
+          open={filtersOpen}
+          onOpenChange={setFiltersOpen}
+          activeCount={(stateFilter ? 1 : 0) + (toolFilter ? 1 : 0) + (showArchived ? 1 : 0)}
+          testId="agents-filters-popover"
+        >
+            <label className="block">
+              <span className={FILTER_LABEL_CLS}>View</span>
+              <select
+                value={showArchived ? "archived" : "active"}
+                onChange={(e) => { setArchivedView(e.target.value === "archived"); }}
+                className={FILTER_SELECT_CLS}
+                aria-label="Active or archived agents"
+                data-testid="agents-view-select"
+              >
+                <option value="active">Active</option>
+                <option value="archived">Archived</option>
+              </select>
+            </label>
             <label className="block">
               <span className={FILTER_LABEL_CLS}>State</span>
               <select
@@ -996,7 +1048,6 @@ export function Agents() {
               )}
             </div>
           </FiltersChip>
-        )}
         <button
           type="button"
           onClick={() => setCreateOpen(true)}
@@ -1049,8 +1100,14 @@ export function Agents() {
         ) : allAgents.length === 0 ? (
           <EmptyState
             icon=">"
-            title="No agents yet"
-            description="Create your first agent with the + New agent button in the top bar."
+            title={showArchived ? "No archived agents" : "No agents yet"}
+            description={
+              showArchived
+                ? "Archive an agent from its Settings tab to soft-delete it here."
+                : "Create your first agent with the + New agent button in the top bar."
+            }
+            actionLabel={showArchived ? "Show active agents" : undefined}
+            onAction={showArchived ? () => { setArchivedView(false); } : undefined}
           />
         ) : filteredAgents.length === 0 ? (
           <EmptyState
@@ -1226,7 +1283,17 @@ export function Agents() {
                       <span className="inline-flex items-center gap-2 min-w-0">
                         <LiveAgentCharacter name={a.name} state={a.state} size={28} tool={a.tool} />
                         <span className="flex flex-col leading-tight min-w-0">
-                          <InlineAgentName agent={a} onRenamed={refresh} />
+                          <span className="inline-flex items-center gap-1.5 min-w-0">
+                            <InlineAgentName agent={a} onRenamed={refresh} />
+                            {a.archived_at ? (
+                              <span
+                                className="shrink-0 inline-flex items-center h-[18px] px-1.5 text-[10px] font-medium text-mycel-muted border border-mycel-border bg-mycel-surface-hover rounded leading-none"
+                                title={`Archived ${formatAbsolute(a.archived_at)}`}
+                              >
+                                archived
+                              </span>
+                            ) : null}
+                          </span>
                           {/* Fix #7: Task folded here as a secondary muted line so the
                               TASK column doesn't waste a whole column of "—" for stopped
                               agents. Shows when present; falls back to repo subtitle. */}
