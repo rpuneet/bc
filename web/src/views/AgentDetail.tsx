@@ -1626,6 +1626,21 @@ export function AgentDetail() {
           // ── center slot: identity + status ──
           title: (
             <div className="flex items-center gap-3 min-w-0">
+              {/* ── Breadcrumb ──
+                  HistoryNav is browser history (deep links may not go to
+                  /agents). A text link to the list is intentional and not
+                  a second chevron (qa-v048 UX #4). */}
+              <Link
+                to={agentsUrl}
+                className="hidden sm:inline text-[12px] font-medium text-mycel-muted hover:text-mycel-accent transition-colors shrink-0"
+                aria-label="Agents list"
+                title="Agents list"
+              >
+                Agents
+              </Link>
+              <span className="hidden sm:inline text-mycel-border shrink-0" aria-hidden>
+                /
+              </span>
               {/* ── Identity ──
                   Back/forward lives once in the header (HistoryNavButtons).
                   Do not add a second chevron here — it duplicates the nav

@@ -235,6 +235,9 @@ describe("ConnectWizard", () => {
 
     // has_bot_token=true → the field reads as configured, never echoing
     // the value, and the placeholder explains replace-only semantics.
+    expect(screen.getByTestId("already-connected-banner")).toHaveTextContent(
+      "Already connected as slack",
+    );
     expect(screen.getByText("configured")).toBeInTheDocument();
     const botToken = screen.getByPlaceholderText("•••••• — leave blank to keep");
     expect(botToken).toHaveAttribute("type", "password");
@@ -388,6 +391,40 @@ describe("ConnectWizard OAuth", () => {
     }, { timeout: 4000 });
     expect(screen.getByRole("button", { name: "Retry sign in with GitHub" })).toBeInTheDocument();
   }, 10000);
+
+  it("shows already-connected copy and Reconnect when Gmail is connected", async () => {
+    fetchMock.mockImplementation((url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u === "/api/apps" && (!init?.method || init.method === "GET")) {
+        return jsonResponse({
+          ...catalog,
+          instances: [
+            ...catalog.instances,
+            {
+              name: "gmail",
+              app: "gmail",
+              enabled: true,
+              connected: true,
+              bot_name: "qa@example.com",
+              config: { has_client_id: true, has_client_secret: true, has_refresh_token: true },
+              channels: [],
+            },
+          ],
+        });
+      }
+      return jsonResponse([]);
+    });
+    render(<ConnectWizard appId="gmail" onClose={() => undefined} onConnected={() => undefined} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("already-connected-banner")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("already-connected-banner")).toHaveTextContent(
+      "Already connected as qa@example.com",
+    );
+    expect(screen.getByRole("button", { name: "Reconnect with Gmail" })).toBeInTheDocument();
+    expect(screen.getByText(/agent subscriptions stay put/i)).toBeInTheDocument();
+  });
 
   it("runs the loopback callback flow: sign in → open consent link → poll → agents", async () => {
     const onConnected = vi.fn();
