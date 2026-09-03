@@ -97,9 +97,13 @@ export function ProviderDefaults({
   //    after a newer one can't clobber the newer result (out-of-order writes).
   const mounted = useRef(true);
   const saveGen = useRef(0);
+  const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; };
+    return () => {
+      mounted.current = false;
+      if (persistTimer.current) clearTimeout(persistTimer.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -133,10 +137,9 @@ export function ProviderDefaults({
 
   const models = useMemo(() => byName.get(defaultProvider)?.models ?? [], [byName, defaultProvider]);
 
-  const persist = useCallback(
-    async (next: { provider: string; model: string }) => {
+  const persistNow = useCallback(
+    async (next: { provider: string; model: string }, committedSnap: { provider: string; model: string }) => {
       const gen = ++saveGen.current;
-      // Only the newest in-flight save may touch state, and only while mounted.
       const isStale = () => !mounted.current || gen !== saveGen.current;
       setSave("saving");
       setSaveError(null);
@@ -151,14 +154,27 @@ export function ProviderDefaults({
         }, 1800);
       } catch (err) {
         if (isStale()) return;
-        // Revert to the last value that actually reached disk.
-        setDefaultProvider(committed.provider);
-        setDefaultModel(committed.model);
+        setDefaultProvider(committedSnap.provider);
+        setDefaultModel(committedSnap.model);
         setSaveError(err instanceof Error ? err.message : "Save failed");
         setSave("error");
       }
     },
-    [committed, onChange],
+    [onChange],
+  );
+
+  // Debounce rapid provider/model flips so overlapping PATCHes cannot leave
+  // the SavePill stuck on "Saving…" (qa-v048 UX #2).
+  const schedulePersist = useCallback(
+    (next: { provider: string; model: string }) => {
+      if (persistTimer.current) clearTimeout(persistTimer.current);
+      const snap = committed;
+      persistTimer.current = setTimeout(() => {
+        persistTimer.current = null;
+        void persistNow(next, snap);
+      }, 200);
+    },
+    [committed, persistNow],
   );
 
   const onProviderChange = (name: string) => {
@@ -169,12 +185,12 @@ export function ProviderDefaults({
     const keepModel = nextModels.some((m) => m.id === defaultModel) ? defaultModel : "";
     setDefaultProvider(name);
     setDefaultModel(keepModel);
-    void persist({ provider: name, model: keepModel });
+    schedulePersist({ provider: name, model: keepModel });
   };
 
   const onModelChange = (id: string) => {
     setDefaultModel(id);
-    void persist({ provider: defaultProvider, model: id });
+    schedulePersist({ provider: defaultProvider, model: id });
   };
 
   return (
