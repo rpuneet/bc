@@ -140,10 +140,10 @@ ALTER TABLE notify_delivery_log ADD CONSTRAINT notify_delivery_log_status_check
 	return tx.Commit()
 }
 
-// migrateLegacyCatchAll rewrites "{platform}:general" subscription rows to
-// "{platform}:*" (#3467) so Slack/Discord "#general" is no longer overloaded
-// as the catch-all key. notify_channels / message history for ":general" are
-// left alone — those are real channel traffic.
+// migrateLegacyCatchAll rewrites synthetic catch-all "{platform}:general"
+// subscription rows (gmail/telegram/…) to "{platform}:*" (#3467). Named-room
+// adapters keep "{platform}:general" as the real #general room — migrating
+// those would put agents back on catch-all every daemon restart (#3730).
 func (s *Store) migrateLegacyCatchAll(ctx context.Context) error {
 	rows, err := s.db.QueryContext(ctx, s.q(
 		`SELECT channel, agent, mention_only, muted FROM notify_subscriptions`))

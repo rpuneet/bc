@@ -388,9 +388,10 @@ func (s *Service) deliverToSubscribers(ctx context.Context, d deliverable) {
 // reads: writing a subscription per channel is what produced the runaway
 // subscription lists in #3463.
 //
-// Canonical key is "{platform}:*" (#3467). Legacy "{platform}:general" rows
-// are merged in until migrateLegacyCatchAll rewrites them, so Slack/Discord
-// "#general" can be a real channel without owning the fallback.
+// Canonical key is "{platform}:*" (#3467). Synthetic legacy "{platform}:general"
+// rows (gmail/telegram/…) are read until migrateLegacyCatchAll rewrites them.
+// Named-room ":general" (Slack #general, Discord guild:general, …) is never
+// a catch-all (#3730).
 //
 // Returns nothing when realChannel is the canonical catch-all itself (already
 // handled by the normal lookup) or belongs to another platform.
@@ -408,12 +409,13 @@ func (s *Service) catchAllSubscribers(ctx context.Context, platform, realChannel
 		return nil, err
 	}
 	if len(canonical) > 0 {
-		// Canonical catch-all owns fallback. Do not also pull
-		// "{platform}:general" — that key is a real Slack/Discord channel.
 		return canonical, nil
 	}
-	// Pre-migration workspaces still store catch-all on ":general".
-	return s.store.Subscribers(ctx, LegacyCatchAllChannel(platform))
+	legacy := LegacyCatchAllChannel(platform)
+	if !IsLegacyCatchAll(legacy) {
+		return nil, nil
+	}
+	return s.store.Subscribers(ctx, legacy)
 }
 
 // Subscribe adds an agent to a channel.

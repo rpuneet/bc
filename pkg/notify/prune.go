@@ -6,12 +6,14 @@ import (
 )
 
 // catchAllSuffix is the reserved channel leaf for platform-wide fallback
-// subscriptions (#3467). It cannot collide with a real Slack/Discord
-// "#general" channel the way the legacy ":general" leaf did.
+// subscriptions (#3467). It cannot collide with a real named-room "#general"
+// the way the legacy ":general" leaf did.
 const catchAllSuffix = ":*"
 
 // legacyCatchAllSuffix is the pre-#3467 catch-all leaf. Still read (and
-// migrated to catchAllSuffix) so existing workspaces keep delivering.
+// migrated to catchAllSuffix) on platforms that used it as a synthetic
+// placeholder (gmail/telegram/…). Named-room adapters never used it that
+// way after #3467 — see namedRoomAdapter / IsLegacyCatchAll (#3730).
 const legacyCatchAllSuffix = ":general"
 
 // CatchAllChannel returns the catch-all subscription key for a platform
@@ -43,22 +45,53 @@ func PlatformOf(channel string) string {
 	return channel[:i]
 }
 
+// adapterRoot returns the unlabeled adapter name ("slack", "discord", …)
+// from a platform/instance prefix that may itself contain ":"
+// ("discord:my-server", "github:mycel").
+func adapterRoot(platform string) string {
+	if i := strings.IndexByte(platform, ':'); i >= 0 {
+		return platform[:i]
+	}
+	return platform
+}
+
+// namedRoomAdapter reports gateways whose channel keys are human-visible
+// room/channel names. On those adapters the leaf "general" is a real room
+// (#general, guild:general, …), never the pre-#3467 catch-all placeholder.
+//
+// Catch-all is exclusively "{platform}:*" (#3467). Treating named-room
+// ":general" as legacy catch-all rewrote deliberate #general subscriptions
+// to ":*" on every daemon restart and delivered #social (etc.) to agents
+// that only opted into #general (#3730).
+func namedRoomAdapter(platform string) bool {
+	switch adapterRoot(platform) {
+	case "slack", "discord", "mattermost", "irc", "matrix":
+		return true
+	default:
+		return false
+	}
+}
+
 // IsCatchAll reports whether channel is the canonical catch-all ("{platform}:*").
 func IsCatchAll(channel string) bool {
 	platform := PlatformOf(channel)
 	return platform != "" && channel == CatchAllChannel(platform)
 }
 
-// IsLegacyCatchAll reports whether channel is the pre-#3467 catch-all key
-// ("{platform}:general"). Real Slack/Discord #general channels use this same
-// key, which is why #3467 moved the catch-all to ":*".
+// IsLegacyCatchAll reports whether channel is a pre-#3467 *synthetic*
+// catch-all key ("{platform}:general"). Named-room adapters (Slack, Discord,
+// …) use that same key for a real #general room, so those are never legacy
+// catch-all (#3467 / #3730).
 func IsLegacyCatchAll(channel string) bool {
 	platform := PlatformOf(channel)
-	return platform != "" && channel == LegacyCatchAllChannel(platform)
+	if platform == "" || channel != LegacyCatchAllChannel(platform) {
+		return false
+	}
+	return !namedRoomAdapter(platform)
 }
 
-// IsAnyCatchAll reports canonical or legacy catch-all keys. Used by prune
-// heuristics while both forms may exist in a database.
+// IsAnyCatchAll reports canonical or legacy (synthetic) catch-all keys.
+// Used by prune heuristics while both forms may exist in a database.
 func IsAnyCatchAll(channel string) bool {
 	return IsCatchAll(channel) || IsLegacyCatchAll(channel)
 }
@@ -66,7 +99,7 @@ func IsAnyCatchAll(channel string) bool {
 // FindPruneCandidates returns non-catch-all subscriptions that look like
 // leftovers from the old catch-all copy behavior (#3463/#3465): same agent
 // and mention_only as an existing catch-all row ("{platform}:*" or legacy
-// "{platform}:general").
+// synthetic "{platform}:general").
 //
 // Muted rows are skipped — they are intentional mute markers (#3466), not
 // auto-copied delivery subscriptions. There is no provenance column, so this
@@ -96,6 +129,11 @@ func FindPruneCandidates(subs []Subscription) []Subscription {
 		}
 		platform := PlatformOf(sub.Channel)
 		if platform == "" {
+			continue
+		}
+		// Real #general on named-room adapters shares the ":general" leaf with
+		// the old catch-all key but is not a copy leftover (#3730).
+		if sub.Channel == LegacyCatchAllChannel(platform) && !IsLegacyCatchAll(sub.Channel) {
 			continue
 		}
 		agents, ok := catchAll[platform]

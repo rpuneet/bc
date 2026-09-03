@@ -961,25 +961,72 @@ func TestSlackGeneralIsNotCatchAll(t *testing.T) {
 	}
 }
 
-// TestLegacyCatchAllStillDelivers: pre-migration "{platform}:general" rows
-// still provide fallback until migrateLegacyCatchAll rewrites them.
+// TestNamedRoomGeneralNeverCatchAllDelivers (#3730): #general on every
+// named-room adapter must not fan out to other channels when :* is empty.
+func TestNamedRoomGeneralNeverCatchAllDelivers(t *testing.T) {
+	cases := []struct {
+		general, other, platform string
+	}{
+		{"slack:general", "slack:social", "slack"},
+		{"mattermost:general", "mattermost:town-square", "mattermost"},
+		{"discord:guild:general", "discord:guild:random", "discord:guild"},
+		{"irc:general", "irc:#ops", "irc"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.general, func(t *testing.T) {
+			store := setupTestStore(t)
+			sender := &mockSender{}
+			svc := NewService(store, sender, &mockHub{})
+			ctx := context.Background()
+			if err := store.Subscribe(ctx, tc.general, "general-only", false); err != nil {
+				t.Fatal(err)
+			}
+			svc.Dispatch(tc.other, tc.platform, "alice", "", "", "elsewhere", "m1", nil, nil, nil)
+			if !svc.DrainDispatches(2 * time.Second) {
+				t.Fatal("dispatch timeout")
+			}
+			if calls := sender.getCalls(); len(calls) != 0 {
+				t.Fatalf("%s must not catch-all into %s, got %+v", tc.general, tc.other, calls)
+			}
+		})
+	}
+}
+
+// TestLegacyCatchAllStillDelivers: pre-migration synthetic catch-all rows
+// (gmail:general) still provide fallback until migrateLegacyCatchAll rewrites them.
+// Slack #general is a real room and must not act as catch-all.
 func TestLegacyCatchAllStillDelivers(t *testing.T) {
 	store := setupTestStore(t)
 	sender := &mockSender{}
 	svc := NewService(store, sender, &mockHub{})
 	ctx := context.Background()
 
-	if err := store.Subscribe(ctx, "slack:general", "legacy-root", false); err != nil {
+	if err := store.Subscribe(ctx, "gmail:general", "legacy-mail", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Subscribe(ctx, "slack:general", "general-only", false); err != nil {
 		t.Fatal(err)
 	}
 
-	svc.Dispatch("slack:eng", "slack", "alice", "", "", "via legacy", "m1", nil, nil, nil)
+	svc.Dispatch("gmail:alice@example.com", "gmail", "alice", "", "", "via legacy", "m1", nil, nil, nil)
 	if !svc.DrainDispatches(2 * time.Second) {
 		t.Fatal("dispatch timeout")
 	}
 	calls := sender.getCalls()
-	if len(calls) != 1 || calls[0].Name != "legacy-root" {
-		t.Fatalf("expected legacy catch-all delivery, got %+v", calls)
+	if len(calls) != 1 || calls[0].Name != "legacy-mail" {
+		t.Fatalf("expected legacy gmail catch-all delivery, got %+v", calls)
+	}
+
+	sender.mu.Lock()
+	sender.calls = nil
+	sender.mu.Unlock()
+
+	svc.Dispatch("slack:eng", "slack", "alice", "", "", "should not hit general-only", "m2", nil, nil, nil)
+	if !svc.DrainDispatches(2 * time.Second) {
+		t.Fatal("dispatch timeout")
+	}
+	if calls := sender.getCalls(); len(calls) != 0 {
+		t.Fatalf("slack:general must not catch-all into #eng, got %+v", calls)
 	}
 }
 
