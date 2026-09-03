@@ -601,7 +601,8 @@ guesses, preferring the sender's own declaration:
 Deliberately excluded: `Precedence: list` and `List-Id` on their own, because
 genuine team discussion lists set them, and human-staffed role addresses such as
 `support@` or `info@`. Filtered mail stays visible in the channel, so a
-misclassification hides nothing -- it only means no agent was woken.
+misclassification hides nothing -- it only means no agent was woken unless that
+subscription opts in via `deliver_automated` (#3459).
 
 **Self-skip** prevents agents from receiving their own messages echoed back by the platform. Each adapter extracts the sender with a single field lookup (`event.User` for Slack, `message.From.UserName` for Telegram, `message.Author.ID` for Discord). The `[platform] ` prefix is stripped before comparison.
 
@@ -611,13 +612,15 @@ misclassification hides nothing -- it only means no agent was woken.
 |---------|----------|----------|
 | `mention_only = false` (default) | Agent receives all messages in the channel | Small or focused channels |
 | `mention_only = true` | Agent receives messages containing `@<agent-name>` | Noisy channels |
+| `deliver_automated = false` (default) | Skip machine-generated mail (GitHub notifications, newsletters) | Default; avoids token burn (#3457) |
+| `deliver_automated = true` | Wake this agent for automated mail too | Triage/CI-mail agents (#3459) |
 
 Settings are per-agent, per-channel.
 
 **Catch-all subscriptions** cover platforms where the real channel isn't known
 until a message arrives: Telegram DMs land on `telegram:<username|chat_id>`, mail
 on `gmail:<sender-address>`. Connecting such an app subscribes the chosen agents
-to `{platform}:general`, and a message on a channel with no subscribers of its
+to `{platform}:*` (#3467), and a message on a channel with no subscribers of its
 own is delivered to the catch-all's subscribers instead.
 
 The catch-all is only ever *read*. Earlier versions copied it onto each new
