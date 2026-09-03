@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api/client";
 import type {
@@ -823,7 +824,19 @@ export function GatewayFeed({
             }}
           >
             last {lastDelivery.status}
-            {lastDelivery.agent ? ` · ${lastDelivery.agent}` : ""}
+            {lastDelivery.agent ? (
+              <>
+                {" · "}
+                <Link
+                  to={`/agents/${encodeURIComponent(lastDelivery.agent)}`}
+                  className="hover:underline"
+                  style={{ color: "inherit" }}
+                  title={`Open ${lastDelivery.agent}`}
+                >
+                  {lastDelivery.agent}
+                </Link>
+              </>
+            ) : null}
           </span>
         )}
       </div>

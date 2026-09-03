@@ -908,6 +908,24 @@ export function ConnectWizard({
 
         {step === "setup" ? (
           <>
+            {/* Reopen-while-connected: Connected badge alone is easy to
+                miss next to Sign in. Spell out the instance so reconnect
+                intent is obvious (qa-v048 UX #5). */}
+            {existing?.connected && (
+              <div
+                data-testid="already-connected-banner"
+                role="status"
+                className="mx-4 mt-3 px-3 py-2.5 rounded-md border border-mycel-border bg-mycel-success-subtle text-xs text-mycel-text-2"
+              >
+                <span className="font-medium text-mycel-success">Already connected</span>
+                {" as "}
+                <span className="font-mono text-mycel-text">
+                  {(existing.bot_name ?? "").trim() || existing.name}
+                </span>
+                . Sign in again to refresh credentials, or update tokens under Advanced.
+              </div>
+            )}
+
             {/* Setup docs from the descriptor. When one-click sign-in is
                 available these move into the Advanced disclosure below,
                 collapsed alongside the manual fields — a wall of numbered
@@ -1066,10 +1084,18 @@ export function ConnectWizard({
                           disabled={oauthState === "starting"}
                           className="inline-flex items-center justify-center h-11 min-w-[44px] px-6 bg-mycel-accent hover:bg-mycel-accent-hover text-mycel-accent-fg rounded-md font-medium text-sm shadow-mycel-sm transition-colors disabled:opacity-50"
                         >
-                          {oauthState === "starting" ? "Starting sign-in..." : oauthState === "error" ? `Retry sign in with ${descriptor.label}` : `Sign in with ${descriptor.label}`}
+                          {oauthState === "starting"
+                            ? "Starting sign-in..."
+                            : oauthState === "error"
+                              ? `Retry sign in with ${descriptor.label}`
+                              : existing?.connected
+                                ? `Reconnect with ${descriptor.label}`
+                                : `Sign in with ${descriptor.label}`}
                         </button>
                         <p className="text-[11px] text-mycel-muted text-center">
-                          Authorize in your browser — no token pasting needed
+                          {existing?.connected
+                            ? "Refreshes credentials in the browser — agent subscriptions stay put"
+                            : "Authorize in your browser — no token pasting needed"}
                         </p>
                       </div>
                     )}
