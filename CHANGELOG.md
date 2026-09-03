@@ -17,16 +17,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Fleet defaults become real defaults: Create Agent preselects the fleet provider
 and model, built-ins are seeded on demand, and the model list comes from the
 installed CLIs instead of a hardcoded table. Stop/start no longer strands an
-agent in `starting`. Notification delivery of automated agent output is now
-opt-in per subscription. macOS/Windows desktop builds remain **UNSIGNED**
+agent in `starting`. Automated mail no longer wakes subscribed agents unless
+the subscription opts in. macOS/Windows desktop builds remain **UNSIGNED**
 (#3561, #3577).
 
 ### Added
 
-- **Per-subscription `deliver_automated` opt-in.** *Action required if you relied
-  on automated agent output reaching a subscription by mail* — it defaults to
-  `false`, so turn it on per subscription (#3459, #3731).
-- **Agents list Active/Archived shelf** with agent clone (#3010, #3736).
+- **Per-subscription `deliver_automated` opt-in.** Machine-generated mail (GitHub
+  notifications, newsletters) still lands in the channel feed but no longer wakes
+  the subscribed agent. *Action required for triage or CI-mail agents that relied
+  on being woken* — the flag defaults to `false`, so set it per subscription
+  (#3459, #3731).
+- **Agents list Active/Archived view** — archived agents were invisible with no
+  way back; the list now takes `?onlyArchived`, with a View filter, an Unarchive
+  row action, and an archived badge (#3010, #3736).
 
 ### Changed
 
@@ -48,8 +52,8 @@ opt-in per subscription. macOS/Windows desktop builds remain **UNSIGNED**
   `starting` with a live session is cleared by SyncSessions (#3732, #3733).
 - **Stop/start resumes the existing session** instead of starting a fresh one;
   duplicate Back control removed from the agent page (#3713, #3716, #3717).
-- **Release notes span the previous semver tag**, not an arbitrary intermediate
-  tag (#3712, #3715).
+- **Release notes span the previous semver tag.** QA evidence tags between
+  releases had truncated the v0.4.7 notes to two commits (#3712, #3715).
 
 ## [0.4.7] - 2026-08-13
 
