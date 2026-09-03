@@ -318,7 +318,8 @@ func IsValidState(s string) bool {
 // validation and set state directly. This map governs transitions through
 // UpdateAgentState, which is called by mycel report.
 var validTransitions = map[State][]State{
-	StateStarting: {StateIdle, StateError, StateStopped},
+	// starting→working: a prompt hook can land before SessionStart on resume (#3732).
+	StateStarting: {StateIdle, StateWorking, StateError, StateStopped},
 	StateIdle:     {StateIdle, StateWorking, StateDone, StateStuck, StateError, StateStopped},
 	StateWorking:  {StateWorking, StateIdle, StateDone, StateStuck, StateError, StateStopped},
 	StateDone:     {StateIdle, StateWorking, StateStopped},
@@ -1497,12 +1498,14 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	}
 
 	if existing.State == StateStopped || existing.State == StateError {
-		existing.State = StateStarting
-		// Clear the task so the UI doesn't render the previous session's
-		// stale task next to a fresh "starting" badge. Lifecycle progress
-		// ("Starting…") is conveyed by State, never by Task — Task holds the
-		// prompt the agent is working on, and it has not been given one yet.
+		// Session is already up (CreateSessionWithEnv succeeded). Mirror
+		// createAgent: leave starting for the brief window before the
+		// session exists, then mark idle. Relying on SessionStart to clear
+		// starting fails on Cursor --resume, which can be interactive
+		// without firing that hook (#3732 / #3717).
+		existing.State = StateIdle
 		existing.Task = ""
+		existing.StartedAt = time.Now()
 	}
 	existing.UpdatedAt = time.Now()
 

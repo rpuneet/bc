@@ -637,6 +637,21 @@ func (s *AgentService) SyncSessions(ctx context.Context) (synced, stopped, resum
 		synced++
 		rt := s.manager.RuntimeForAgent(a.Name)
 		if rt.HasSession(ctx, a.Name) {
+			// Stuck starting with a live session: SessionStart was missed
+			// (common on Cursor --resume). Mirror createAgent / Send (#3732).
+			if a.State == StateStarting {
+				if err := s.manager.UpdateAgentState(ctx, a.Name, StateIdle, "session alive — cleared stuck starting"); err != nil {
+					log.Warn("sync: failed to update agent state", "agent", a.Name, "error", err)
+					continue
+				}
+				log.Info("agent was stuck starting with a live session — marked idle", "agent", a.Name)
+				s.publishEvent("agent.state_changed", map[string]any{
+					"name":   a.Name,
+					"state":  string(StateIdle),
+					"reason": "cleared_stuck_starting",
+				})
+				continue
+			}
 			// Agent has a live session. For transcript-based providers (pi, codex)
 			// that don't send explicit idle events, check if the agent has been
 			// in "working" state without any activity for too long. If so, flip
