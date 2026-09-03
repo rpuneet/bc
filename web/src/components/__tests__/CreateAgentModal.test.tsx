@@ -25,12 +25,33 @@ beforeEach(() => {
   fetchMock.mockReset();
   fetchMock.mockImplementation((url: RequestInfo | URL) => {
     const u = String(url);
-    if (u.includes("/api/repos")) return jsonResponse({ repos: [], default: "/tmp/repo" });
+    if (u.includes("/repos")) return jsonResponse({ repos: [], default: "/tmp/repo" });
+    if (u.includes("/settings")) {
+      return jsonResponse({
+        providers: { default: "codex", default_model: "gpt-5.6-sol", providers: {} },
+      });
+    }
+    if (u.includes("/providers")) {
+      return jsonResponse([
+        { name: "claude", models: [{ id: "sonnet" }] },
+        { name: "codex", models: [{ id: "gpt-5.6-sol" }] },
+      ]);
+    }
     return jsonResponse([]);
   });
 });
 
 describe("CreateAgentModal identity", () => {
+  it("preselects fleet default provider from settings", async () => {
+    renderModal();
+    const select = await waitFor(() => {
+      const el = screen.getByRole("combobox", { name: "Provider" }) as HTMLSelectElement;
+      expect(el.value).toBe("codex");
+      return el;
+    });
+    expect(select.value).toBe("codex");
+  });
+
   it("shows a live 96px character preview derived from the name", () => {
     renderModal();
     const preview = screen.getByTestId("agent-identity-preview");

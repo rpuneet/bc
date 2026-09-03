@@ -252,8 +252,25 @@ export function CreateAgentModal({
         if (templates.includes("blank")) return "blank";
         return templates[0] ?? "";
       });
+      // Prefer fleet default provider/model (Settings → Fleet defaults) so Create
+      // Agent matches what new agents inherit. Clone-from overrides below.
       setProvider("claude");
       setModel("");
+      if (!defaultCloneFrom) {
+        api
+          .getSettings()
+          .then((cfg) => {
+            const p = cfg.providers?.default;
+            if (typeof p === "string" && VALID_PROVIDERS.has(p)) {
+              setProvider(p as Provider);
+            }
+            const m = cfg.providers?.default_model;
+            if (typeof m === "string") setModel(m);
+          })
+          .catch(() => {
+            /* keep claude fallback */
+          });
+      }
       setRuntime("docker");
       setTask("");
       setEnvOpen(false);
@@ -1084,6 +1101,7 @@ export function CreateAgentModal({
                     }}
                     className={INPUT_CLS}
                     style={{ fontFamily: MONO }}
+                    aria-label="Provider"
                   >
                     <option value="claude">claude</option>
                     <option value="agy">agy</option>
