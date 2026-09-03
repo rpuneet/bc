@@ -24,7 +24,7 @@ permissions:
   id-token: write
 
 env:
-  GO_VERSION: '1.25.12'
+  GO_VERSION: '1.25.13'
   BUN_VERSION: '1.2.15'
 
 jobs:
