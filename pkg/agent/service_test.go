@@ -558,6 +558,29 @@ func TestSyncSessionsSparesARecentlyStoppedAgent(t *testing.T) {
 	}
 }
 
+// Stuck starting with a live session (missed SessionStart on Cursor --resume)
+// must clear to idle so Home matches Attach (#3732).
+func TestSyncSessionsClearsStuckStartingWithLiveSession(t *testing.T) {
+	be := newMockBackend("tmux")
+	be.sessions["stuck"] = true
+	mgr := newMockManager(t, "tmux", map[string]*mockBackend{"tmux": be})
+	mgr.agents["stuck"] = &Agent{
+		Name:      "stuck",
+		State:     StateStarting,
+		StartedAt: time.Now().Add(-time.Hour), // outside sessionStartGrace
+		Children:  []string{},
+	}
+
+	svc := NewAgentService(mgr, &mockEventPublisher{}, nil)
+	synced, stopped, resumed := svc.SyncSessions(context.Background())
+	if synced != 1 || stopped != 0 || resumed != 0 {
+		t.Fatalf("synced=%d stopped=%d resumed=%d, want 1, 0, 0", synced, stopped, resumed)
+	}
+	if got := mgr.GetAgent("stuck").State; got != StateIdle {
+		t.Errorf("state = %q, want idle", got)
+	}
+}
+
 func TestProviderPromptFile(t *testing.T) {
 	tests := []struct {
 		name     string

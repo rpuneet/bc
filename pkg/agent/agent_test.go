@@ -1736,6 +1736,7 @@ func TestValidateTransition(t *testing.T) {
 		{StateStopped, StateIdle},
 		{StateStopped, StateStarting},
 		{StateStarting, StateIdle},
+		{StateStarting, StateWorking},
 		{StateStarting, StateError},
 		{StateIdle, StateStopped},
 		{StateDone, StateStopped},
@@ -1757,7 +1758,6 @@ func TestValidateTransition(t *testing.T) {
 		{StateDone, StateStuck},
 		{StateStopped, StateWorking},
 		{StateStopped, StateDone},
-		{StateStarting, StateWorking},
 		{StateStarting, StateDone},
 	}
 
