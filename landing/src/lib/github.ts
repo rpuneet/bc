@@ -11,7 +11,8 @@ import { useEffect, useState } from "react";
  * never flashes zeros. If the API is unavailable or rate-limited, the cached
  * numbers simply stay — graceful degradation, no error UI.
  *
- * Cached fallbacks refreshed 2026-08-04 from the live API.
+ * Cached fallbacks refreshed 2026-09-03 from the live API. Only the counts
+ * and version go stale here; the download hrefs are version-independent.
  */
 export const REPO = "rpuneet/mycel";
 
@@ -20,7 +21,7 @@ export type DesktopOS = "mac" | "linux" | "windows";
 export type GitHubStats = {
   stars: number;
   contributors: number;
-  version: string; // release tag, e.g. "v0.4.6"
+  version: string; // release tag, e.g. "v0.4.8"
   live: boolean; // true once real API data has replaced the fallback
   /** Resolved desktop asset URLs for the latest release (signed preferred). */
   desktopUrls: Partial<Record<DesktopOS, string>>;
@@ -70,24 +71,29 @@ export function desktopUrlsFromAssets(
 }
 
 /**
- * Construct URLs when the asset list is unknown (SSR / offline fallback).
- * For macOS the last candidate is the UNSIGNED name so a release that only
- * shipped unsigned (until Developer ID lands) does not 404 from the site.
+ * Where a download button points before live release data arrives (no JS,
+ * GitHub API unreachable, or rate-limited — the API is unauthenticated here,
+ * so 60 requests/hour per IP is easy to exhaust behind a shared NAT).
+ *
+ * This deliberately does NOT name an asset. Asset filenames carry the version
+ * (`mycel-desktop_darwin_arm64_0.4.8-UNSIGNED.zip`), so any filename baked in
+ * here 404s the moment the next release ships — which is exactly what happened
+ * between v0.4.6 and v0.4.8, when every button on the site pointed at a
+ * v0.4.6 asset that no longer existed. The releases page cannot rot, and it
+ * lists every platform, so a visitor who lands there can still get a build.
  */
-export function desktopDownloadUrl(os: DesktopOS, version: string): string {
-  const name = desktopAssetCandidates(os, version).at(-1)!;
-  return `https://github.com/${REPO}/releases/latest/download/${name}`;
-}
+export const RELEASES_PAGE = `https://github.com/${REPO}/releases/latest`;
 
 export const FALLBACK_STATS: GitHubStats = {
   stars: 4,
   contributors: 6,
-  version: "v0.4.6",
+  version: "v0.4.8",
   live: false,
+  // Version-independent on purpose — see RELEASES_PAGE.
   desktopUrls: {
-    mac: desktopDownloadUrl("mac", "v0.4.6"),
-    linux: desktopDownloadUrl("linux", "v0.4.6"),
-    windows: desktopDownloadUrl("windows", "v0.4.6"),
+    mac: RELEASES_PAGE,
+    linux: RELEASES_PAGE,
+    windows: RELEASES_PAGE,
   },
 };
 
