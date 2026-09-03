@@ -290,9 +290,9 @@ func (h *GatewayHandler) gatewayChannelAgents(w http.ResponseWriter, r *http.Req
 	case http.MethodPatch:
 		// PATCH /api/apps/{name}/channels/{ch}/agents/{agent}
 		var req struct {
-			MentionOnly       *bool `json:"mention_only"`
-			DeliverAutomated  *bool `json:"deliver_automated"`
-			Muted             *bool `json:"muted"`
+			MentionOnly      *bool `json:"mention_only"`
+			DeliverAutomated *bool `json:"deliver_automated"`
+			Muted            *bool `json:"muted"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			httpError(w, "invalid body", http.StatusBadRequest)
