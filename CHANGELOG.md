@@ -12,6 +12,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.8] - 2026-09-03
+
+Fleet defaults become real defaults: Create Agent preselects the fleet provider
+and model, built-ins are seeded on demand, and the model list comes from the
+installed CLIs instead of a hardcoded table. Stop/start no longer strands an
+agent in `starting`. Notification delivery of automated agent output is now
+opt-in per subscription. macOS/Windows desktop builds remain **UNSIGNED**
+(#3561, #3577).
+
+### Added
+
+- **Per-subscription `deliver_automated` opt-in.** *Action required if you relied
+  on automated agent output reaching a subscription by mail* — it defaults to
+  `false`, so turn it on per subscription (#3459, #3731).
+- **Agents list Active/Archived shelf** with agent clone (#3010, #3736).
+
+### Changed
+
+- **Create Agent preselects the fleet default** provider and model; the fleet
+  SavePill is debounced so rapid provider flips settle on `Saved` (#3734).
+- **Model catalogs are read live from the installed provider CLIs** for fleet
+  defaults instead of a static list (#3728).
+- **Built-in providers are seeded when set as a fleet default** — choosing Codex
+  no longer leaves an unseeded provider behind (#3726).
+- **Gmail always offers the Sign in link** plus an Advanced manual path (#3723).
+- **Create Agent's Apps section is named Notifications**, matching the agent page
+  (#3647, #3718).
+
+### Fixed
+
+- **Slack/Discord `#general` is no longer migrated into the legacy catch-all**
+  subscription (#3730, #3729).
+- **Agents leave `starting` once the session is up** after stop/start; a stuck
+  `starting` with a live session is cleared by SyncSessions (#3732, #3733).
+- **Stop/start resumes the existing session** instead of starting a fresh one;
+  duplicate Back control removed from the agent page (#3713, #3716, #3717).
+- **Release notes span the previous semver tag**, not an arbitrary intermediate
+  tag (#3712, #3715).
+
 ## [0.4.7] - 2026-08-13
 
 Home becomes a command center: chronological agent stream, denser Notifications,
