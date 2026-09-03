@@ -206,6 +206,7 @@ export interface NotifySubscription {
   channel: string;
   agent: string;
   mention_only: boolean;
+  deliver_automated?: boolean;
   muted?: boolean;
   created_at: string;
 }
@@ -1206,6 +1207,19 @@ export const api = {
     return request<{ status: string }>(`/notify/subscriptions/${encodeURIComponent(channel)}`, {
       method: "PATCH",
       body: JSON.stringify({ agent, mention_only: mentionOnly }),
+    });
+  },
+  setDeliverAutomated: (channel: string, agent: string, deliver: boolean) => {
+    const { gw, ch } = splitChannel(channel);
+    if (gw && ch) {
+      return request<{ status: string }>(`/apps/${gw}/channels/${encodeURIComponent(ch)}/agents/${encodeURIComponent(agent)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ deliver_automated: deliver }),
+      });
+    }
+    return request<{ status: string }>(`/notify/subscriptions/${encodeURIComponent(channel)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ agent, deliver_automated: deliver }),
     });
   },
   setMuted: (channel: string, agent: string, muted: boolean) => {

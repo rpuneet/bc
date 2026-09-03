@@ -75,6 +75,7 @@ func (s *Store) initSchema() error {
 		`ALTER TABLE notify_channels ADD COLUMN avatar_url TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE notify_messages ADD COLUMN sender_avatar TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE notify_subscriptions ADD COLUMN muted INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE notify_subscriptions ADD COLUMN deliver_automated INTEGER NOT NULL DEFAULT 0`,
 	} {
 		_, _ = s.db.ExecContext(context.TODO(), alter) //nolint:errcheck // ignore if column already exists
 	}
@@ -203,6 +204,7 @@ CREATE TABLE IF NOT EXISTS notify_subscriptions (
     agent        TEXT NOT NULL,
     mention_only INTEGER NOT NULL DEFAULT 0,
     muted        INTEGER NOT NULL DEFAULT 0,
+    deliver_automated INTEGER NOT NULL DEFAULT 0,
     created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     UNIQUE(channel, agent)
 );
@@ -261,6 +263,7 @@ CREATE TABLE IF NOT EXISTS notify_subscriptions (
     agent        TEXT NOT NULL,
     mention_only INTEGER NOT NULL DEFAULT 0,
     muted        INTEGER NOT NULL DEFAULT 0,
+    deliver_automated INTEGER NOT NULL DEFAULT 0,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(channel, agent)
 );
@@ -318,8 +321,8 @@ func (s *Store) Subscribe(ctx context.Context, channel, agent string, mentionOnl
 		mentionInt = 1
 	}
 	_, err := s.db.ExecContext(ctx, s.q(
-		`INSERT INTO notify_subscriptions (channel, agent, mention_only, muted)
-		 VALUES (?, ?, ?, 0)
+		`INSERT INTO notify_subscriptions (channel, agent, mention_only, muted, deliver_automated)
+		 VALUES (?, ?, ?, 0, 0)
 		 ON CONFLICT(channel, agent) DO UPDATE SET mention_only = excluded.mention_only, muted = 0`),
 		channel, agent, mentionInt)
 	return err
@@ -345,6 +348,19 @@ func (s *Store) SetMentionOnly(ctx context.Context, channel, agent string, menti
 	return err
 }
 
+// SetDeliverAutomated updates whether this subscription receives automated
+// (machine-generated) mail. Default off (#3459).
+func (s *Store) SetDeliverAutomated(ctx context.Context, channel, agent string, deliver bool) error {
+	v := 0
+	if deliver {
+		v = 1
+	}
+	_, err := s.db.ExecContext(ctx, s.q(
+		`UPDATE notify_subscriptions SET deliver_automated = ? WHERE channel = ? AND agent = ?`),
+		v, channel, agent)
+	return err
+}
+
 // SetMuted upserts a mute row for (channel, agent). muted=true suppresses
 // catch-all delivery; muted=false removes the mute row so catch-all applies
 // again (#3466).
@@ -353,8 +369,8 @@ func (s *Store) SetMuted(ctx context.Context, channel, agent string, muted bool)
 		return s.Unsubscribe(ctx, channel, agent)
 	}
 	_, err := s.db.ExecContext(ctx, s.q(
-		`INSERT INTO notify_subscriptions (channel, agent, mention_only, muted)
-		 VALUES (?, ?, 0, 1)
+		`INSERT INTO notify_subscriptions (channel, agent, mention_only, muted, deliver_automated)
+		 VALUES (?, ?, 0, 1, 0)
 		 ON CONFLICT(channel, agent) DO UPDATE SET muted = 1`),
 		channel, agent)
 	return err
@@ -363,7 +379,7 @@ func (s *Store) SetMuted(ctx context.Context, channel, agent string, muted bool)
 // Subscribers returns all subscriptions for a channel (including muted rows).
 func (s *Store) Subscribers(ctx context.Context, channel string) ([]Subscription, error) {
 	rows, err := s.db.QueryContext(ctx, s.q(
-		`SELECT id, channel, agent, mention_only, muted, created_at FROM notify_subscriptions WHERE channel = ?`),
+		`SELECT id, channel, agent, mention_only, muted, deliver_automated, created_at FROM notify_subscriptions WHERE channel = ?`),
 		channel)
 	if err != nil {
 		return nil, err
@@ -373,13 +389,14 @@ func (s *Store) Subscribers(ctx context.Context, channel string) ([]Subscription
 	var subs []Subscription
 	for rows.Next() {
 		var sub Subscription
-		var mentionInt, mutedInt int
+		var mentionInt, mutedInt, autoInt int
 		var createdStr string
-		if err := rows.Scan(&sub.ID, &sub.Channel, &sub.Agent, &mentionInt, &mutedInt, &createdStr); err != nil {
+		if err := rows.Scan(&sub.ID, &sub.Channel, &sub.Agent, &mentionInt, &mutedInt, &autoInt, &createdStr); err != nil {
 			return nil, err
 		}
 		sub.MentionOnly = mentionInt != 0
 		sub.Muted = mutedInt != 0
+		sub.DeliverAutomated = autoInt != 0
 		sub.CreatedAt, _ = time.Parse(time.RFC3339, createdStr) //nolint:errcheck // DB-written timestamp
 		subs = append(subs, sub)
 	}
@@ -389,7 +406,7 @@ func (s *Store) Subscribers(ctx context.Context, channel string) ([]Subscription
 // AllSubscriptions returns all subscriptions across all channels.
 func (s *Store) AllSubscriptions(ctx context.Context) ([]Subscription, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, channel, agent, mention_only, muted, created_at FROM notify_subscriptions ORDER BY channel, agent`)
+		`SELECT id, channel, agent, mention_only, muted, deliver_automated, created_at FROM notify_subscriptions ORDER BY channel, agent`)
 	if err != nil {
 		return nil, err
 	}
@@ -398,13 +415,14 @@ func (s *Store) AllSubscriptions(ctx context.Context) ([]Subscription, error) {
 	var subs []Subscription
 	for rows.Next() {
 		var sub Subscription
-		var mentionInt, mutedInt int
+		var mentionInt, mutedInt, autoInt int
 		var createdStr string
-		if err := rows.Scan(&sub.ID, &sub.Channel, &sub.Agent, &mentionInt, &mutedInt, &createdStr); err != nil {
+		if err := rows.Scan(&sub.ID, &sub.Channel, &sub.Agent, &mentionInt, &mutedInt, &autoInt, &createdStr); err != nil {
 			return nil, err
 		}
 		sub.MentionOnly = mentionInt != 0
 		sub.Muted = mutedInt != 0
+		sub.DeliverAutomated = autoInt != 0
 		sub.CreatedAt, _ = time.Parse(time.RFC3339, createdStr) //nolint:errcheck // DB-written timestamp
 		subs = append(subs, sub)
 	}

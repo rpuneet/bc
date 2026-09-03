@@ -688,6 +688,38 @@ func TestDispatchAutomatedFeedsWithoutWakingAgents(t *testing.T) {
 	}
 }
 
+// TestDispatchAutomatedWithOptInDelivers: subscriptions with deliver_automated
+// still receive machine-generated mail (#3459).
+func TestDispatchAutomatedWithOptInDelivers(t *testing.T) {
+	store := setupTestStore(t)
+	sender := &mockSender{}
+	svc := NewService(store, sender, &mockHub{})
+	ctx := context.Background()
+
+	if err := store.Subscribe(ctx, "gmail:notificationsgithubcom", "triage-bot", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Subscribe(ctx, "gmail:notificationsgithubcom", "quiet-bot", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetDeliverAutomated(ctx, "gmail:notificationsgithubcom", "triage-bot", true); err != nil {
+		t.Fatal(err)
+	}
+
+	svc.Dispatch("gmail:notificationsgithubcom", "gmail",
+		`[gmail] "coderabbitai[bot]" <notifications@github.com>`, "notifications@github.com", "",
+		"Re: [rpuneet/mycel] CI failed", "m1", nil, nil, nil, Automated())
+
+	if !svc.DrainDispatches(2 * time.Second) {
+		t.Fatal("dispatch did not finish")
+	}
+
+	calls := sender.getCalls()
+	if len(calls) != 1 || calls[0].Name != "triage-bot" {
+		t.Fatalf("expected only triage-bot (opt-in), got %+v", calls)
+	}
+}
+
 // TestDispatchWithoutAutomatedStillDelivers is the control for the test
 // above: the same channel and subscriber, minus the Automated option, must
 // still wake the agent. Guards against the filter swallowing human mail.

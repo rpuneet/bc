@@ -588,6 +588,15 @@ export function GatewayFeed({
     setAgentLoading(null);
   };
 
+  const handleToggleAutomated = async (agentName: string, current: boolean) => {
+    setAgentLoading(agentName);
+    try {
+      await api.setDeliverAutomated(channelName, agentName, !current);
+      await fetchAgents();
+    } catch (e) { console.error("toggle automated failed:", e); }
+    setAgentLoading(null);
+  };
+
   useEffect(() => {
     void fetchInitial();
   }, [fetchInitial]);
@@ -998,6 +1007,9 @@ export function GatewayFeed({
                           <div className="flex items-center mt-1" style={{ gap: 6 }}>
                             <button type="button" onClick={() => handleToggleMention(agent.name, sub?.mention_only ?? false)} disabled={agentLoading !== null} className="transition-all" style={{ fontSize: 10, fontWeight: 500, padding: "1px 6px", borderRadius: 6, border: sub?.mention_only ? "1px solid color-mix(in oklab, var(--mycel-accent) 30%, transparent)" : "1px solid var(--mycel-border)", background: sub?.mention_only ? "var(--mycel-accent-subtle)" : "transparent", color: sub?.mention_only ? "var(--mycel-accent)" : "var(--mycel-muted)", cursor: agentLoading === agent.name ? "wait" : "pointer" }}>
                               {agentLoading === agent.name ? <span className="inline-block w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" /> : sub?.mention_only ? "@ mentions" : "all msgs"}
+                            </button>
+                            <button type="button" onClick={() => handleToggleAutomated(agent.name, sub?.deliver_automated ?? false)} disabled={agentLoading !== null} className="transition-all" style={{ fontSize: 10, fontWeight: 500, padding: "1px 6px", borderRadius: 6, border: sub?.deliver_automated ? "1px solid color-mix(in oklab, var(--mycel-accent) 30%, transparent)" : "1px solid var(--mycel-border)", background: sub?.deliver_automated ? "var(--mycel-accent-subtle)" : "transparent", color: sub?.deliver_automated ? "var(--mycel-accent)" : "var(--mycel-muted)", cursor: agentLoading === agent.name ? "wait" : "pointer" }} title={sub?.deliver_automated ? "Also wakes on automated/notification mail" : "Skip automated/notification mail (default)"}>
+                              {sub?.deliver_automated ? "auto on" : "auto off"}
                             </button>
                             <button type="button" onClick={() => handleUnsubscribe(agent.name)} disabled={agentLoading !== null} style={{ fontSize: 10, fontWeight: 500, color: "var(--mycel-muted)", cursor: agentLoading === agent.name ? "wait" : "pointer", background: "none", border: "none", marginLeft: "auto" }} className="hover:text-mycel-error transition-colors">
                               {agentLoading === agent.name ? <span className="inline-block w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin" /> : "remove"}

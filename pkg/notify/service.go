@@ -109,10 +109,10 @@ type dispatchOpts struct {
 }
 
 // Automated marks the message as machine-generated (notification mail,
-// newsletters, bounces). Such messages are still recorded in the channel feed
-// and published to the web UI, but no subscribed agent is woken for them:
-// nobody is waiting on a reply, and prompting every subscriber costs real
-// tokens. Adapters decide what counts as automated.
+// newsletters, bounces). Such messages are always recorded in the channel
+// feed and published to the web UI. Agents are woken only when their
+// subscription has deliver_automated (#3459); the default is off so one PR
+// notification thread cannot wake every subscriber (#3457).
 func Automated() DispatchOption {
 	return func(o *dispatchOpts) { o.automated = true }
 }
@@ -200,25 +200,24 @@ func (s *Service) Dispatch(channel, platform, sender, senderID, senderAvatar, co
 			}
 			mentions = merged
 		}
-		// Machine-generated mail earns a place in the channel feed and the web
-		// UI, but not an agent's attention: nobody is waiting on a reply to a
-		// GitHub notification or a newsletter, and waking every subscriber for
-		// one costs real tokens.
+		// Machine-generated mail always lands in the channel feed. Agents are
+		// woken only when their subscription opts into deliver_automated
+		// (#3459); default remains off (#3457).
 		if o.automated {
-			log.Info("notify: automated message — feed only, agents not woken",
+			log.Info("notify: automated message — feed always; agents opt-in only",
 				"channel", channel, "sender", sender)
-		} else {
-			s.deliverToSubscribers(ctx, deliverable{
-				Channel:     channel,
-				Platform:    platform,
-				Sender:      sender,
-				Content:     content,
-				MessageID:   messageID,
-				Mentions:    mentions,
-				Attachments: attachments,
-				Raw:         raw,
-			})
 		}
+		s.deliverToSubscribers(ctx, deliverable{
+			Channel:     channel,
+			Platform:    platform,
+			Sender:      sender,
+			Content:     content,
+			MessageID:   messageID,
+			Mentions:    mentions,
+			Attachments: attachments,
+			Raw:         raw,
+			Automated:   o.automated,
+		})
 
 		// Publish to web UI
 		if s.hub != nil {
@@ -249,6 +248,7 @@ type deliverable struct {
 	MessageID   string
 	Mentions    []string
 	Attachments []Attachment
+	Automated   bool
 }
 
 // deliverToSubscribers sends the message to every subscribed agent that
@@ -348,6 +348,11 @@ func (s *Service) deliverToSubscribers(ctx context.Context, d deliverable) {
 			continue
 		}
 
+		// Automated mail: skip unless this subscription opted in (#3459).
+		if d.Automated && !sub.DeliverAutomated {
+			continue
+		}
+
 		// @mention filter: if mention_only, skip unless agent is mentioned
 		if sub.MentionOnly && !mentionSet[strings.ToLower(sub.Agent)] {
 			continue
@@ -431,6 +436,11 @@ func (s *Service) Unsubscribe(ctx context.Context, channel, agent string) error 
 // SetMentionOnly updates the @mention-only toggle for a subscription.
 func (s *Service) SetMentionOnly(ctx context.Context, channel, agent string, mentionOnly bool) error {
 	return s.store.SetMentionOnly(ctx, channel, agent, mentionOnly)
+}
+
+// SetDeliverAutomated updates whether this subscription receives automated mail (#3459).
+func (s *Service) SetDeliverAutomated(ctx context.Context, channel, agent string, deliver bool) error {
+	return s.store.SetDeliverAutomated(ctx, channel, agent, deliver)
 }
 
 // SetMuted upserts or clears a mute that suppresses catch-all for this

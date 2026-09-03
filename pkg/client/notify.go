@@ -15,12 +15,13 @@ type NotifyClient struct {
 
 // Subscription represents an agent's subscription to a channel.
 type Subscription struct {
-	CreatedAt   time.Time `json:"created_at"`
-	Channel     string    `json:"channel"`
-	Agent       string    `json:"agent"`
-	ID          int64     `json:"id"`
-	MentionOnly bool      `json:"mention_only"`
-	Muted       bool      `json:"muted"`
+	CreatedAt        time.Time `json:"created_at"`
+	Channel          string    `json:"channel"`
+	Agent            string    `json:"agent"`
+	ID               int64     `json:"id"`
+	MentionOnly      bool      `json:"mention_only"`
+	DeliverAutomated bool      `json:"deliver_automated"`
+	Muted            bool      `json:"muted"`
 }
 
 // DeliveryEntry represents a delivery log entry.
@@ -79,6 +80,16 @@ func (n *NotifyClient) Unsubscribe(ctx context.Context, channel, agent string) e
 		return n.client.delete(ctx, fmt.Sprintf("/api/apps/%s/channels/%s/agents/%s", gw, url.PathEscape(ch), url.PathEscape(agent)))
 	}
 	return n.client.delete(ctx, fmt.Sprintf("/api/notify/subscriptions/%s?agent=%s", url.PathEscape(channel), url.QueryEscape(agent)))
+}
+
+// SetDeliverAutomated toggles whether the subscription receives automated mail (#3459).
+func (n *NotifyClient) SetDeliverAutomated(ctx context.Context, channel, agent string, deliver bool) error {
+	body := map[string]any{"deliver_automated": deliver}
+	if gw, ch := splitGatewayChannel(channel); gw != "" {
+		return n.client.patch(ctx, fmt.Sprintf("/api/apps/%s/channels/%s/agents/%s", gw, url.PathEscape(ch), url.PathEscape(agent)), body, nil)
+	}
+	body["agent"] = agent
+	return n.client.patch(ctx, fmt.Sprintf("/api/notify/subscriptions/%s", url.PathEscape(channel)), body, nil)
 }
 
 // Activity returns recent delivery log entries for a channel.
