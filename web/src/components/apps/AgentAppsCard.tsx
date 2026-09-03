@@ -148,6 +148,13 @@ export function AgentAppsCard({ agentName }: { agentName: string }) {
     } catch { /* best effort */ }
   };
 
+  const handleToggleAutomated = async (sub: NotifySubscription) => {
+    try {
+      await api.setDeliverAutomated(sub.channel, agentName, !sub.deliver_automated);
+      await fetchData();
+    } catch { /* best effort */ }
+  };
+
   const onSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
@@ -203,6 +210,18 @@ export function AgentAppsCard({ agentName }: { agentName: string }) {
                   title={sub.mention_only ? "Delivers @mentions only" : "Delivers all messages"}
                 >
                   {sub.mention_only ? "@ mentions" : "all msgs"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { void handleToggleAutomated(sub); }}
+                  className={`shrink-0 text-[10px] px-2 py-0.5 rounded-md border transition-all duration-150 ${
+                    sub.deliver_automated
+                      ? "border-mycel-accent bg-mycel-accent-subtle text-mycel-accent"
+                      : "border-mycel-border text-mycel-muted hover:border-mycel-border-strong"
+                  }`}
+                  title={sub.deliver_automated ? "Also wakes on automated/notification mail" : "Skip automated/notification mail (default)"}
+                >
+                  {sub.deliver_automated ? "auto on" : "auto off"}
                 </button>
                 <button
                   type="button"

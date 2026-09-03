@@ -180,6 +180,11 @@ func (c *Client) put(ctx context.Context, path string, body, result any) error {
 	return c.do(ctx, http.MethodPut, path, body, result)
 }
 
+// patch performs a PATCH request with JSON body and decodes the JSON response.
+func (c *Client) patch(ctx context.Context, path string, body, result any) error {
+	return c.do(ctx, http.MethodPatch, path, body, result)
+}
+
 // delete performs a DELETE request (no body, no response body expected).
 func (c *Client) delete(ctx context.Context, path string) error {
 	return c.do(ctx, http.MethodDelete, path, nil, nil)

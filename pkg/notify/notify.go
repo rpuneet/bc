@@ -54,7 +54,11 @@ type Subscription struct {
 	Channel     string    `json:"channel"`
 	Agent       string    `json:"agent"`
 	ID          int64     `json:"id"`
-	MentionOnly bool      `json:"mention_only"`
+	MentionOnly bool `json:"mention_only"`
+	// DeliverAutomated wakes this agent for machine-generated mail
+	// (GitHub notifications, newsletters, …). Default false (#3459);
+	// automated messages still land in the channel feed either way.
+	DeliverAutomated bool `json:"deliver_automated"`
 	// Muted suppresses catch-all delivery for this agent on this channel
 	// without counting as an active subscription (#3466).
 	Muted bool `json:"muted"`

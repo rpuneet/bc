@@ -290,8 +290,9 @@ func (h *GatewayHandler) gatewayChannelAgents(w http.ResponseWriter, r *http.Req
 	case http.MethodPatch:
 		// PATCH /api/apps/{name}/channels/{ch}/agents/{agent}
 		var req struct {
-			MentionOnly *bool `json:"mention_only"`
-			Muted       *bool `json:"muted"`
+			MentionOnly       *bool `json:"mention_only"`
+			DeliverAutomated  *bool `json:"deliver_automated"`
+			Muted             *bool `json:"muted"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			httpError(w, "invalid body", http.StatusBadRequest)
@@ -305,6 +306,12 @@ func (h *GatewayHandler) gatewayChannelAgents(w http.ResponseWriter, r *http.Req
 		if req.MentionOnly != nil {
 			if err := h.notifySvc.SetMentionOnly(r.Context(), channel, agent, *req.MentionOnly); err != nil {
 				httpInternalError(w, "set mention_only", err)
+				return
+			}
+		}
+		if req.DeliverAutomated != nil {
+			if err := h.notifySvc.SetDeliverAutomated(r.Context(), channel, agent, *req.DeliverAutomated); err != nil {
+				httpInternalError(w, "set deliver_automated", err)
 				return
 			}
 		}
@@ -567,9 +574,10 @@ func (h *GatewayHandler) notifySubscriptionByChannel(w http.ResponseWriter, r *h
 
 	case http.MethodPatch:
 		var req struct {
-			MentionOnly *bool  `json:"mention_only"`
-			Muted       *bool  `json:"muted"`
-			Agent       string `json:"agent"`
+			MentionOnly      *bool  `json:"mention_only"`
+			DeliverAutomated *bool  `json:"deliver_automated"`
+			Muted            *bool  `json:"muted"`
+			Agent            string `json:"agent"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			httpError(w, "invalid request body", http.StatusBadRequest)
@@ -582,6 +590,12 @@ func (h *GatewayHandler) notifySubscriptionByChannel(w http.ResponseWriter, r *h
 		if req.MentionOnly != nil {
 			if err := h.notifySvc.SetMentionOnly(r.Context(), channel, req.Agent, *req.MentionOnly); err != nil {
 				httpInternalError(w, "set mention_only", err)
+				return
+			}
+		}
+		if req.DeliverAutomated != nil {
+			if err := h.notifySvc.SetDeliverAutomated(r.Context(), channel, req.Agent, *req.DeliverAutomated); err != nil {
+				httpInternalError(w, "set deliver_automated", err)
 				return
 			}
 		}
