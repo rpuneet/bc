@@ -2,7 +2,7 @@ module github.com/rpuneet/mycel
 
 go 1.25.4
 
-toolchain go1.25.12
+toolchain go1.25.13
 
 require (
 	github.com/bwmarrin/discordgo v0.29.0

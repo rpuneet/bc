@@ -2,7 +2,7 @@ module github.com/rpuneet/mycel/desktop
 
 go 1.25.4
 
-toolchain go1.25.12
+toolchain go1.25.13
 
 require (
 	github.com/rpuneet/mycel v0.0.0
