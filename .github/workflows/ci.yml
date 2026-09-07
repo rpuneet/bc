@@ -245,7 +245,7 @@ jobs:
           # can remove; alerting on them is permanent noise.
           ignore-unfixed: true
       - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v4.37.3
+        uses: github/codeql-action/upload-sarif@v4.37.9
         if: always()
         with:
           sarif_file: trivy-results.sarif
